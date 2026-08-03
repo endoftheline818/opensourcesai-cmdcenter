@@ -1,0 +1,61 @@
+{
+  "captureSchemaVersion": 1,
+  "capturedAt": "2026-08-03T03:50:00.000Z",
+  "platform": {
+    "nodePlatform": "darwin",
+    "nodeArch": "arm64",
+    "nodeVersion": "v24.18.1",
+    "osRelease": "25.0.0"
+  },
+  "system": {
+    "cpu": {
+      "nodeOsCpus": {
+        "model": "Apple M1",
+        "logicalCount": 8
+      }
+    },
+    "memory": {
+      "nodeTotalmem": {
+        "bytes": 8589934592
+      }
+    }
+  },
+  "gpu": {
+    "nvidiaSmi": {
+      "available": false,
+      "reason": "not-found"
+    },
+    "macos": {
+      "sysctlHwMemsize": {
+        "totalBytes": 8589934592
+      },
+      "chip": "Apple M1",
+      "systemProfiler": {
+        "physicalMemoryRaw": "8 GB",
+        "parsedGb": 8
+      }
+    }
+  },
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "binaryPath": null,
+    "cliVersion": null,
+    "apiReachable": true,
+    "apiVersion": "0.32.5",
+    "installedModels": [],
+    "loadedModels": [],
+    "modelStore": {
+      "path": "/Users/<USER>/.ollama/models",
+      "fromEnv": false,
+      "exists": true,
+      "freeBytes": 62566154240,
+      "totalBytes": 245107195904
+    }
+  },
+  "redactions": {
+    "rulesApplied": [
+      "macos-home"
+    ],
+    "note": "Home-directory paths replaced with <USER>. No other field was altered."
+  }
+}

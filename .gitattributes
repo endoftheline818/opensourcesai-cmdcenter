@@ -1,0 +1,4 @@
+# Normalize to LF in the repository. This package is developed on Windows and
+# tested on Linux and macOS runners; without this, committed line endings drift
+# by author machine and fixtures produce noisy, meaningless diffs.
+* text=auto eol=lf

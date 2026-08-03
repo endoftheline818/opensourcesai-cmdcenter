@@ -1,0 +1,9 @@
+node_modules/
+coverage/
+*.tgz
+
+# Ad-hoc captures. Fixtures under fixtures/ are committed deliberately; a
+# capture dropped in the working directory is a scratch artifact and may
+# contain machine paths that were never reviewed for sharing.
+capture.json
+osai-cmdcenter-capture-*.json

@@ -1,0 +1,179 @@
+{
+  "captureSchemaVersion": 1,
+  "capturedAt": "2026-08-03T03:50:00.000Z",
+  "platform": {
+    "nodePlatform": "win32",
+    "nodeArch": "x64",
+    "nodeVersion": "v24.16.0",
+    "osRelease": "10.0.26200"
+  },
+  "system": {
+    "cpu": {
+      "nodeOsCpus": {
+        "model": "Intel(R) Core(TM) i7-14700K",
+        "logicalCount": 28
+      }
+    },
+    "memory": {
+      "nodeTotalmem": {
+        "bytes": 34039717888
+      },
+      "win32ComputerSystem": {
+        "bytes": 34039717888
+      }
+    }
+  },
+  "gpu": {
+    "nvidiaSmi": {
+      "available": true,
+      "gpus": [
+        {
+          "index": 0,
+          "name": "NVIDIA GeForce RTX 4070 Ti",
+          "vramBytes": 12878610432,
+          "vramUsedBytes": 3505389568,
+          "driver": "610.88"
+        }
+      ]
+    },
+    "windows": {
+      "win32VideoController": [
+        {
+          "name": "Intel(R) UHD Graphics 770",
+          "adapterRamBytes": 2147479552,
+          "driver": "32.0.101.7088",
+          "pciVendorId": "8086"
+        },
+        {
+          "name": "NVIDIA GeForce RTX 4070 Ti",
+          "adapterRamBytes": 4293918720,
+          "driver": "32.0.16.1088",
+          "pciVendorId": "10DE"
+        }
+      ],
+      "displayClassRegistry": [
+        {
+          "name": "NVIDIA GeForce RTX 4070 Ti",
+          "vramBytes": 12878610432,
+          "likelyIntegrated": false
+        },
+        {
+          "name": "Intel(R) UHD Graphics 770",
+          "vramBytes": null,
+          "likelyIntegrated": true
+        }
+      ]
+    }
+  },
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "binaryPath": "C:\\Users\\<USER>\\AppData\\Local\\Programs\\Ollama\\ollama.exe",
+    "cliVersion": "0.32.5",
+    "apiReachable": true,
+    "apiVersion": "0.32.5",
+    "installedModels": [
+      {
+        "name": "qwen3:8b",
+        "sizeBytes": 5225388164,
+        "family": "qwen3",
+        "parameterSize": "8.2B",
+        "quantization": "Q4_K_M",
+        "digest": "500a1f067a9f"
+      },
+      {
+        "name": "qwen3:4b",
+        "sizeBytes": 2497293931,
+        "family": "qwen3",
+        "parameterSize": "4.0B",
+        "quantization": "Q4_K_M",
+        "digest": "359d7dd4bcda"
+      },
+      {
+        "name": "llama3.1-8b-broken:latest",
+        "sizeBytes": 4920753340,
+        "family": "llama",
+        "parameterSize": "8.0B",
+        "quantization": "Q4_K_M",
+        "digest": "fa8275a6a2ac"
+      },
+      {
+        "name": "llama3.1:8b",
+        "sizeBytes": 4920753328,
+        "family": "llama",
+        "parameterSize": "8.0B",
+        "quantization": "Q4_K_M",
+        "digest": "46e0c10c039e"
+      },
+      {
+        "name": "qwen2.5-coder:7b",
+        "sizeBytes": 4683087561,
+        "family": "qwen2",
+        "parameterSize": "7.6B",
+        "quantization": "Q4_K_M",
+        "digest": "dae161e27b0e"
+      },
+      {
+        "name": "qwen3.6:latest",
+        "sizeBytes": 23938333577,
+        "family": "qwen35moe",
+        "parameterSize": "36.0B",
+        "quantization": "Q4_K_M",
+        "digest": "07d35212591f"
+      },
+      {
+        "name": "qwen3:14b-fast",
+        "sizeBytes": 9276198581,
+        "family": "qwen3",
+        "parameterSize": "14.8B",
+        "quantization": "Q4_K_M",
+        "digest": "2b9ffede4a51"
+      },
+      {
+        "name": "qwen2.5-coder:1.5b",
+        "sizeBytes": 986062089,
+        "family": "qwen2",
+        "parameterSize": "1.5B",
+        "quantization": "Q4_K_M",
+        "digest": "d7372fd82851"
+      },
+      {
+        "name": "nomic-embed-text:latest",
+        "sizeBytes": 274302450,
+        "family": "nomic-bert",
+        "parameterSize": "137M",
+        "quantization": "F16",
+        "digest": "0a109f422b47"
+      },
+      {
+        "name": "qwen2.5vl-light:latest",
+        "sizeBytes": 5969245901,
+        "family": "qwen25vl",
+        "parameterSize": "8.3B",
+        "quantization": "Q4_K_M",
+        "digest": "3cec22f576fc"
+      },
+      {
+        "name": "qwen3:14b",
+        "sizeBytes": 9276198565,
+        "family": "qwen3",
+        "parameterSize": "14.8B",
+        "quantization": "Q4_K_M",
+        "digest": "bdbd181c33f2"
+      }
+    ],
+    "loadedModels": [],
+    "modelStore": {
+      "path": "C:\\Users\\<USER>\\.ollama\\models",
+      "fromEnv": false,
+      "exists": true,
+      "freeBytes": 358737043456,
+      "totalBytes": 999115714560
+    }
+  },
+  "redactions": {
+    "rulesApplied": [
+      "windows-home"
+    ],
+    "note": "Home-directory paths replaced with <USER>. No other field was altered."
+  }
+}

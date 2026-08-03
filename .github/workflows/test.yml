@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      # All three platforms this tool claims to support are exercised. The
+      # collect/derive split is what makes that meaningful: the reporting layer
+      # is tested against committed real-hardware fixtures, so a runner with no
+      # GPU and no Ollama still validates Windows, Linux and macOS behaviour.
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # No `npm ci`: this package has zero dependencies and ships no lockfile
+      # to install from. Adding one would mean adding a dependency.
+      - run: npm test

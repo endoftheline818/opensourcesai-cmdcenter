@@ -1,0 +1,279 @@
+{
+  "captureSchemaVersion": 1,
+  "capturedAt": "2026-08-03T03:50:00.000Z",
+  "platform": {
+    "nodePlatform": "linux",
+    "nodeArch": "x64",
+    "nodeVersion": "v22.22.1",
+    "osRelease": "7.0.0-28-generic",
+    "distro": "Ubuntu 26.04 LTS",
+    "isWsl": false
+  },
+  "system": {
+    "cpu": {
+      "nodeOsCpus": {
+        "model": "12th Gen Intel(R) Core(TM) i9-12900K",
+        "logicalCount": 24
+      },
+      "procCpuinfo": {
+        "model": "12th Gen Intel(R) Core(TM) i9-12900K"
+      }
+    },
+    "memory": {
+      "nodeTotalmem": {
+        "bytes": 32817025024
+      },
+      "procMeminfo": {
+        "bytes": 32817025024
+      }
+    }
+  },
+  "gpu": {
+    "nvidiaSmi": {
+      "available": true,
+      "gpus": [
+        {
+          "index": 0,
+          "name": "NVIDIA GeForce RTX 3080",
+          "vramBytes": 10737418240,
+          "vramUsedBytes": 5896142848,
+          "driver": "595.71.05"
+        }
+      ]
+    },
+    "linux": {
+      "lspci": {
+        "displayDevices": [
+          "00:02.0 Display controller [0380]: Intel Corporation Alder Lake-S GT1 [UHD Graphics 770] [8086:4680] (rev 0c)",
+          "01:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3080 Lite Hash Rate] [10de:2216] (rev a1)"
+        ]
+      },
+      "sysfsDrm": {
+        "note": "no mem_info_vram_total nodes (expected on the NVIDIA proprietary driver)"
+      },
+      "rocmSmi": {
+        "error": "not-found"
+      }
+    }
+  },
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "binaryPath": "/usr/local/bin/ollama",
+    "cliVersion": "0.32.5",
+    "apiReachable": true,
+    "apiVersion": "0.32.5",
+    "installedModels": [
+      {
+        "name": "qwen3:30b",
+        "sizeBytes": 18556699314,
+        "family": "qwen3moe",
+        "parameterSize": "30.5B",
+        "quantization": "Q4_K_M",
+        "digest": "ad815644918f"
+      },
+      {
+        "name": "qwen3.6:35b-a3b",
+        "sizeBytes": 23938333577,
+        "family": "qwen35moe",
+        "parameterSize": "36.0B",
+        "quantization": "Q4_K_M",
+        "digest": "07d35212591f"
+      },
+      {
+        "name": "qwen3.6:27b",
+        "sizeBytes": 17420432739,
+        "family": "qwen35",
+        "parameterSize": "27.8B",
+        "quantization": "Q4_K_M",
+        "digest": "a50eda8ed977"
+      },
+      {
+        "name": "gemma4:31b",
+        "sizeBytes": 19868981791,
+        "family": "gemma4",
+        "parameterSize": "31.3B",
+        "quantization": "Q4_K_M",
+        "digest": "6316f0629137"
+      },
+      {
+        "name": "gemma4:26b",
+        "sizeBytes": 17987581215,
+        "family": "gemma4",
+        "parameterSize": "25.8B",
+        "quantization": "Q4_K_M",
+        "digest": "5571076f3d70"
+      },
+      {
+        "name": "north-mini-code-1.0:latest",
+        "sizeBytes": 18593967008,
+        "family": "cohere2moe",
+        "parameterSize": "30.5B",
+        "quantization": "Q4_K_M",
+        "digest": "d8b269ad5c7c"
+      },
+      {
+        "name": "laguna-xs-2.1:latest",
+        "sizeBytes": 20274303147,
+        "family": "laguna",
+        "parameterSize": "33.4B",
+        "quantization": "Q4_K_M",
+        "digest": "0175be1e57f4"
+      },
+      {
+        "name": "llama3.1-8b-broken:latest",
+        "sizeBytes": 4920753340,
+        "family": "llama",
+        "parameterSize": "8.0B",
+        "quantization": "Q4_K_M",
+        "digest": "fa8275a6a2ac"
+      },
+      {
+        "name": "llama3.1-8b-cpuonly:latest",
+        "sizeBytes": 4920753340,
+        "family": "llama",
+        "parameterSize": "8.0B",
+        "quantization": "Q4_K_M",
+        "digest": "a80b1d017503"
+      },
+      {
+        "name": "llama3.1:8b",
+        "sizeBytes": 4920753328,
+        "family": "llama",
+        "parameterSize": "8.0B",
+        "quantization": "Q4_K_M",
+        "digest": "46e0c10c039e"
+      },
+      {
+        "name": "qwen3:4b",
+        "sizeBytes": 2497293931,
+        "family": "qwen3",
+        "parameterSize": "4.0B",
+        "quantization": "Q4_K_M",
+        "digest": "359d7dd4bcda"
+      },
+      {
+        "name": "llama3:70b",
+        "sizeBytes": 39969745349,
+        "family": "llama",
+        "parameterSize": "70.6B",
+        "quantization": "Q4_0",
+        "digest": "786f3184aec0"
+      },
+      {
+        "name": "qwen3:32b",
+        "sizeBytes": 20201253829,
+        "family": "qwen3",
+        "parameterSize": "32.8B",
+        "quantization": "Q4_K_M",
+        "digest": "030ee887880f"
+      },
+      {
+        "name": "qwen2.5:7b-instruct-q8_0",
+        "sizeBytes": 8098538978,
+        "family": "qwen2",
+        "parameterSize": "7.6B",
+        "quantization": "Q8_0",
+        "digest": "2d9500c94841"
+      },
+      {
+        "name": "deepseek-r1:8b-0528-qwen3-q8_0",
+        "sizeBytes": 8851077421,
+        "family": "qwen3",
+        "parameterSize": "8.2B",
+        "quantization": "Q8_0",
+        "digest": "cade62fd2850"
+      },
+      {
+        "name": "qwen3:8b-q8_0",
+        "sizeBytes": 8851089538,
+        "family": "qwen3",
+        "parameterSize": "8.2B",
+        "quantization": "Q8_0",
+        "digest": "e56358ca25dd"
+      },
+      {
+        "name": "phi3:3.8b-mini-128k-instruct-fp16",
+        "sizeBytes": 7643299040,
+        "family": "phi3",
+        "parameterSize": "3.8B",
+        "quantization": "F16",
+        "digest": "40010fd60dc7"
+      },
+      {
+        "name": "qwen3:4b-fp16",
+        "sizeBytes": 8051298337,
+        "family": "qwen3",
+        "parameterSize": "4.0B",
+        "quantization": "F16",
+        "digest": "c2a4b6294479"
+      },
+      {
+        "name": "qwen3-coder:30b",
+        "sizeBytes": 18556700761,
+        "family": "qwen3moe",
+        "parameterSize": "30.5B",
+        "quantization": "Q4_K_M",
+        "digest": "06c1097efce0"
+      },
+      {
+        "name": "qwen3:8b",
+        "sizeBytes": 5225388164,
+        "family": "qwen3",
+        "parameterSize": "8.2B",
+        "quantization": "Q4_K_M",
+        "digest": "500a1f067a9f"
+      },
+      {
+        "name": "qwen3-web:latest",
+        "sizeBytes": 5225388180,
+        "family": "qwen3",
+        "parameterSize": "8.2B",
+        "quantization": "Q4_K_M",
+        "digest": "b3e2287c81ab"
+      },
+      {
+        "name": "nomic-embed-text:latest",
+        "sizeBytes": 274302450,
+        "family": "nomic-bert",
+        "parameterSize": "137M",
+        "quantization": "F16",
+        "digest": "0a109f422b47"
+      },
+      {
+        "name": "qwen3-14b-1k:latest",
+        "sizeBytes": 9276198580,
+        "family": "qwen3",
+        "parameterSize": "14.8B",
+        "quantization": "Q4_K_M",
+        "digest": "0ed0cf0579da"
+      },
+      {
+        "name": "qwen3-14b-2k:latest",
+        "sizeBytes": 9276198580,
+        "family": "qwen3",
+        "parameterSize": "14.8B",
+        "quantization": "Q4_K_M",
+        "digest": "8284c732396b"
+      }
+    ],
+    "loadedModels": [
+      {
+        "name": "qwen3:8b",
+        "sizeBytes": 5578204118,
+        "sizeVramBytes": 5578204118,
+        "expiresAt": "2026-08-03T19:26:05.75872297-07:00"
+      }
+    ],
+    "modelStore": {
+      "path": "/usr/share/ollama/.ollama/models",
+      "fromEnv": false,
+      "exists": true,
+      "freeBytes": 466056810496,
+      "totalBytes": 982240026624
+    }
+  },
+  "redactions": {
+    "rulesApplied": [],
+    "note": "Home-directory paths replaced with <USER>. No other field was altered."
+  }
+}

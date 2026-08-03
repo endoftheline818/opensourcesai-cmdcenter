@@ -1,0 +1,41 @@
+{
+  "name": "@opensourcesai/cmdcenter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only diagnostic for a local Ollama machine — real hardware detection, model inventory, and a shareable summary that carries no exact specs.",
+  "type": "module",
+  "bin": {
+    "osai-cmdcenter": "src/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/cli.js && node --test",
+    "prepack": "npm run check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endoftheline818/opensourcesai-cmdcenter.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "ollama",
+    "local-llm",
+    "diagnostics",
+    "hardware-detection"
+  ]
+}

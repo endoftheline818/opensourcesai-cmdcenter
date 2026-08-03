@@ -1,0 +1,66 @@
+{
+  "source": {
+    "repository": "opensourcesai.com",
+    "modules": [
+      "src/lib/hardwareTelemetry.js",
+      "src/lib/appleMemory.js"
+    ],
+    "takenAt": "2026-08-02"
+  },
+  "GPU_VENDORS": [
+    "nvidia",
+    "amd",
+    "apple",
+    "intel",
+    "other",
+    "none"
+  ],
+  "MEMORY_BANDS": [
+    "unknown",
+    "lt-8",
+    "8-11",
+    "12-15",
+    "16-23",
+    "24-31",
+    "32-47",
+    "48-plus"
+  ],
+  "APPLE_USABLE_MEMORY_FRACTION": 0.75,
+  "memoryBand": {
+    "0": "unknown",
+    "1": "lt-8",
+    "8": "8-11",
+    "12": "12-15",
+    "16": "16-23",
+    "24": "24-31",
+    "32": "32-47",
+    "48": "48-plus",
+    "64": "48-plus",
+    "128": "48-plus",
+    "7.9": "lt-8",
+    "11.9": "8-11",
+    "15.9": "12-15",
+    "23.9": "16-23",
+    "31.9": "24-31",
+    "47.9": "32-47"
+  },
+  "appleUsableMemoryGb": {
+    "8": 6,
+    "16": 12,
+    "24": 18,
+    "32": 24,
+    "36": 27,
+    "48": 36,
+    "64": 48,
+    "128": 96
+  },
+  "gpuVendorClass": {
+    "NVIDIA GeForce RTX 4070 Ti": "nvidia",
+    "Radeon RX 7900 XTX": "amd",
+    "Apple M1": "apple",
+    "Intel(R) UHD Graphics 770": "intel",
+    "Some Unknown Part": "other",
+    "": "none",
+    "null": "none"
+  }
+}
