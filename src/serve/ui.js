@@ -450,6 +450,92 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   border-color: var(--color-border); opacity: 1;
 }
 
+.trust-readout {
+  display: grid; gap: var(--space-4);
+}
+.trust-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4); align-items: start;
+}
+.trust-title {
+  margin: 0; color: var(--color-text); font-size: 1.5rem;
+  line-height: 1.1; font-weight: 750; letter-spacing: 0;
+}
+.trust-detail {
+  margin: 0.45rem 0 0; max-width: 48rem;
+  color: var(--color-text-muted); font-size: var(--fs-small);
+}
+.trust-grid, .share-rows, .limits-list, .source-list {
+  display: grid; gap: 1px; overflow: hidden;
+  border: 1px solid var(--color-border); border-radius: 0.75rem;
+  background: var(--color-border);
+}
+.trust-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.trust-cell, .share-row, .limit-item, .source-card {
+  min-width: 0; padding: 0.9rem; background: rgba(6, 9, 19, 0.30);
+}
+.trust-cell .k, .share-row .k {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
+}
+.trust-cell .v, .share-row .v {
+  margin-top: 0.2rem; color: var(--color-text); font-size: 1rem;
+  font-weight: 700; line-height: 1.2; overflow-wrap: anywhere;
+}
+.trust-cell .d, .share-row .d {
+  margin-top: 0.25rem; color: var(--color-text-muted);
+  font-size: var(--fs-overline); line-height: 1.35;
+}
+.source-card {
+  display: grid; gap: var(--space-3);
+}
+.source-head {
+  display: flex; justify-content: space-between; gap: var(--space-3); align-items: start;
+}
+.source-title {
+  color: var(--color-text); font-weight: 700; overflow-wrap: anywhere;
+}
+.source-claims {
+  display: grid; gap: 0.45rem;
+}
+.source-claim {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3); align-items: center;
+  padding: 0.55rem 0.65rem; border-radius: 0.55rem;
+  background: rgba(148, 163, 184, 0.08);
+}
+.source-claim.selected {
+  background: var(--accent-wash); border: 1px solid var(--accent-border);
+}
+.source-claim.unreliable {
+  background: rgba(245, 181, 68, 0.10); border: 1px solid rgba(245, 181, 68, 0.28);
+}
+.source-name {
+  color: var(--color-text); font-weight: 650; overflow-wrap: anywhere;
+}
+.source-value {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+}
+.report-safety {
+  display: grid; gap: var(--space-4);
+}
+.safety-strip {
+  display: flex; gap: var(--space-2); flex-wrap: wrap;
+}
+.safety-strip span {
+  padding: 0.22rem 0.55rem; border: 1px solid var(--color-border);
+  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
+  color: var(--color-text-muted); font-size: var(--fs-overline); font-weight: 600;
+}
+.share-panel {
+  display: grid; gap: var(--space-4);
+}
+.share-copy {
+  display: flex; justify-content: flex-end;
+}
+
 table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: auto; }
 th {
   text-align: left; color: var(--color-text-muted); font-weight: 600;
@@ -654,6 +740,12 @@ select {
   .summary-main { grid-template-columns: minmax(0, 1fr); }
   .summary-grid { grid-template-columns: minmax(0, 1fr); }
   .summary-title { font-size: 1.75rem; }
+  .trust-hero { grid-template-columns: minmax(0, 1fr); }
+  .trust-grid { grid-template-columns: minmax(0, 1fr); }
+  .source-head { flex-direction: column; }
+  .source-claim { grid-template-columns: minmax(0, 1fr); }
+  .share-copy { justify-content: stretch; }
+  .share-copy button { width: 100%; }
   .action-controls { grid-template-columns: minmax(0, 1fr); }
   .action-controls button { width: 100%; }
   .loaded-item, .installed-item { grid-template-columns: minmax(0, 1fr); }
@@ -808,6 +900,80 @@ function hardwareCapacity(d) {
   return "CPU / RAM only";
 }
 
+function basisLabel(d) {
+  if (d.hardware.basis === "apple-unified-usable") return "Apple usable unified memory";
+  if (d.hardware.basis === "discrete-vram-nameplate") return "Discrete VRAM nameplate";
+  if (d.hardware.basis === "cpu-only") return "CPU / RAM offload";
+  return d.hardware.basis.split("-").join(" ");
+}
+
+function gradingValue(d) {
+  if (d.hardware.basis === "apple-unified-usable") return d.hardware.vramGb + " GB usable";
+  if (d.report.gpu) return d.hardware.vramGb + " GB VRAM";
+  return "No GPU";
+}
+
+function selectedSourceLabel(d) {
+  if (d.hardware.basis === "apple-unified-usable") return "sysctl hw.memsize";
+  if (d.report.gpu) return d.report.gpu.selectedSource || "selected source";
+  return "No VRAM source";
+}
+
+function selectedSourceDetail(d) {
+  if (d.hardware.basis === "apple-unified-usable") return "Unified memory facts stay in Machine facts";
+  if (d.report.gpu) return "Raw source kept visible below";
+  return "Catalog uses CPU/RAM offload";
+}
+
+function sourceConfidence(d) {
+  const sources = d.report.vramSources || { independentSources: 0 };
+  if (d.report.disagreements.length) {
+    return { tone: "warn", label: "Visible disagreement" };
+  }
+  if (d.hardware.basis === "apple-unified-usable" && d.report.appleMemory && d.report.appleMemory.sourcesAgree === true) {
+    return { tone: "ready", label: "Cross-checked" };
+  }
+  if (sources.independentSources >= 2) return { tone: "ready", label: "Cross-checked" };
+  if (sources.independentSources === 1) return { tone: "warn", label: "Single source" };
+  return { tone: "critical", label: "Limited evidence" };
+}
+
+function trustCell(label, value, detail) {
+  const cell = el("div", "trust-cell");
+  cell.append(el("div", "k", label), el("div", "v", value), el("div", "d", detail));
+  return cell;
+}
+
+function hardwareTrustPanel(d) {
+  const p = panel("Hardware trust readout");
+  p.className += " trust-readout";
+  const confidence = sourceConfidence(d);
+  const sources = d.report.vramSources || { independentSources: 0 };
+  const independentSources = Number(sources.independentSources || 0);
+  const disagreementCount = d.report.disagreements.length;
+
+  const hero = el("div", "trust-hero");
+  const copy = el("div");
+  copy.append(el("p", "trust-title", "Catalog grading uses " + gradingValue(d)));
+  copy.append(el("p", "trust-detail", d.hardware.note));
+  hero.append(copy, el("span", "status-chip " + confidence.tone, confidence.label));
+  p.append(hero);
+
+  const grid = el("div", "trust-grid");
+  grid.append(
+    trustCell("Basis", basisLabel(d), "Used for Catalog fit decisions"),
+    trustCell("Selected source", selectedSourceLabel(d), selectedSourceDetail(d)),
+    trustCell(
+      "Cross-checks",
+      independentSources + " independent",
+      disagreementCount ? disagreementCount + " disagreement" + (disagreementCount === 1 ? "" : "s") : "No source disagreement",
+    ),
+    trustCell("Public report", d.report.exportable.vram_band, "VRAM band only; exact values stay local"),
+  );
+  p.append(grid);
+  return p;
+}
+
 function overviewSummaryPanel(d) {
   const p = panel();
   p.className += " summary-panel";
@@ -848,7 +1014,7 @@ function overviewSummaryPanel(d) {
 }
 
 function machinePanel(d) {
-  const p = panel("This machine");
+  const p = panel("Machine facts");
   const g = el("div", "grid");
   const r = d.report;
   g.append(kv("Platform", (r.platform.distro || r.platform.os) + " (" + r.platform.arch + ")"));
@@ -871,18 +1037,30 @@ function machinePanel(d) {
 
 function disagreementPanel(d) {
   if (!d.report.disagreements.length) return null;
-  const p = panel("Sources disagree about this GPU");
+  const p = panel("Source disagreement");
+  p.append(el("p", "trust-detail", "Conflicting source claims stay visible; the selected source is what grades the Catalog."));
+  const list = el("div", "source-list");
   for (const dis of d.report.disagreements) {
-    const n = el("div", "notice");
-    n.append(el("div", null, dis.card + " — " + dis.spreadGib + " GiB spread (" + dis.ratio + "x)"));
+    const card = el("div", "source-card");
+    const head = el("div", "source-head");
+    head.append(el("div", "source-title", dis.card), el("span", "pill tight", dis.spreadGib + " GiB spread"));
+    card.append(head);
+    const claims = el("div", "source-claims");
     for (const c of dis.claims) {
-      const line = el("div", "mono muted");
-      line.textContent = c.source + " = " + c.gib + " GiB" + (c.knownUnreliable ? "   (known-unreliable source)" : "");
-      n.append(line);
+      const selected = d.report.gpu && c.source === d.report.gpu.selectedSource;
+      const claim = el("div", "source-claim" + (selected ? " selected" : "") + (c.knownUnreliable ? " unreliable" : ""));
+      const fact = el("div");
+      fact.append(el("div", "source-name", c.source), el("div", "source-value", c.gib + " GiB"));
+      claim.append(
+        fact,
+        el("span", "pill " + (c.knownUnreliable ? "tight" : selected ? "known" : "unlisted"), c.knownUnreliable ? "known unreliable" : selected ? "selected" : "recorded"),
+      );
+      claims.append(claim);
     }
-    p.append(n);
+    card.append(claims, el("p", "trust-detail", dis.ratio + "x ratio between recorded claims"));
+    list.append(card);
   }
-  p.append(el("p", "explain", "Kept visible rather than resolved silently. The figure used above comes from the most corroborated source."));
+  p.append(list);
   return p;
 }
 
@@ -1391,22 +1569,47 @@ function localToolsPanel(d) {
   return p;
 }
 
+function reportSafetyPanel(d) {
+  const p = panel("Report safety");
+  p.className += " report-safety";
+  p.append(el("p", "trust-detail", "The shareable report uses bounded bands and counts. Exact local specs stay on this page."));
+  const strip = el("div", "safety-strip");
+  strip.append(
+    el("span", null, Object.keys(d.report.exportable).length + " share fields"),
+    el("span", null, d.report.limits.length + " stated limits"),
+    el("span", null, "exact specs stay local"),
+    el("span", null, "loopback only"),
+  );
+  p.append(strip);
+  return p;
+}
+
 function limitsPanel(d) {
-  if (!d.report.limits.length) return null;
-  const p = panel("What this report does not claim");
-  const ul = el("ul", "limits");
-  for (const l of d.report.limits) ul.append(el("li", null, l));
-  p.append(ul);
+  const p = panel("Report limits");
+  if (!d.report.limits.length) {
+    p.append(el("p", "empty", "No additional report limits were added for this capture."));
+    return p;
+  }
+  const list = el("div", "limits-list");
+  for (const l of d.report.limits) list.append(el("div", "limit-item", l));
+  p.append(list);
   return p;
 }
 
 function sharePanel(d) {
   const p = panel("Shareable summary");
-  p.append(el("p", "explain", "Coarse bands only — no exact specs. Safe to paste into a public issue or forum thread."));
-  const box = el("div", "cmd");
+  p.className += " share-panel";
+  p.append(el("p", "trust-detail", "This is the only part of the report intended for public paste."));
   const text = Object.entries(d.report.exportable).map(([k, v]) => k + ": " + v).join("  |  ");
-  box.append(el("code", null, text), copyButton(text, "Copy shareable summary"));
-  p.append(box);
+  const rows = el("div", "share-rows");
+  for (const [key, value] of Object.entries(d.report.exportable)) {
+    const row = el("div", "share-row");
+    row.append(el("div", "k", key), el("div", "v", value), el("div", "d", "safe share field"));
+    rows.append(row);
+  }
+  const copy = el("div", "share-copy");
+  copy.append(copyButton(text, "Copy shareable summary"));
+  p.append(rows, copy);
   return p;
 }
 
@@ -1617,12 +1820,12 @@ const VIEWS = [
     // Surfaced in the nav because an unresolved source disagreement is
     // something the user should know exists without hunting for it.
     count: (d) => (d.report.disagreements.length ? d.report.disagreements.length : null),
-    build: (d) => [machinePanel(d), disagreementPanel(d)],
+    build: (d) => [hardwareTrustPanel(d), machinePanel(d), disagreementPanel(d)],
   },
   {
     id: "report",
     label: "Report",
-    build: (d) => [limitsPanel(d), sharePanel(d)],
+    build: (d) => [reportSafetyPanel(d), limitsPanel(d), sharePanel(d)],
   },
 ];
 
