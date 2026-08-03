@@ -8,6 +8,7 @@ import { CSS, HTML, TOKENS } from "../src/serve/ui.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tokens = async () =>
   JSON.parse(await readFile(path.join(root, "fixtures", "website-design-tokens.json"), "utf8"));
+const tokens_ = tokens;
 
 // BRAND PARITY GUARD.
 //
@@ -46,6 +47,35 @@ test("dashboard colours match the website's tokens exactly, both modes", async (
   }
 });
 
+// THE HUD PALETTE IS PINNED THE SAME WAY THE SITE TOKENS ARE.
+//
+// The dashboard's chrome follows the social-image style guide so the product
+// looks like one product across its surfaces. That palette is a COPY, parsed
+// from the guide's own colour table by the sync script — so a restyle there
+// fails here rather than drifting.
+test("HUD colours match the social-image style guide exactly", async () => {
+  const { HUD } = await import("../src/serve/ui.js");
+  const fixture = JSON.parse(
+    await readFile(path.join(root, "fixtures", "website-social-palette.json"), "utf8"),
+  );
+  for (const [key, value] of Object.entries(fixture.palette)) {
+    assert.equal(HUD[key], value, `HUD.${key} drifted from the style guide`);
+  }
+  // And the values must actually reach the served stylesheet, not merely exist
+  // in an object nobody references.
+  for (const value of Object.values(fixture.palette)) {
+    assert.ok(CSS.includes(value), `${value} missing from the served CSS`);
+  }
+});
+
+test("semantic colours still come from the site tokens", async () => {
+  // success and error mean the same thing on every surface, so they stay on
+  // the site palette even though the chrome moved to the HUD one.
+  const tokens = await tokens_();
+  assert.ok(CSS.includes(tokens.dark["color-success"]), "success must stay a site token");
+  assert.ok(CSS.includes(tokens.dark["color-error"]), "error must stay a site token");
+});
+
 test("structural tokens match the website", async () => {
   const fixture = await tokens();
   assert.equal(TOKENS.radiusCard, fixture.structural["radius-card"]);
@@ -53,15 +83,25 @@ test("structural tokens match the website", async () => {
   assert.equal(TOKENS.content, fixture.structural.content);
 });
 
-test("both colour schemes are actually emitted into the stylesheet", async () => {
+// The HUD is deliberately dark-only.
+//
+// This test previously required a light theme to be served. The dashboard's
+// chrome now follows the social-image language, which has no light variant —
+// a light HUD reads as a mistake rather than a choice. The site's light tokens
+// remain PINNED (the parity test above still covers them) and available to any
+// future surface; they are simply not what this instrument uses.
+test("the HUD is dark-only and says so, rather than half-supporting light", async () => {
   const fixture = await tokens();
-  // A token object that is never referenced by the CSS would pass the parity
-  // test above while changing nothing on screen, so assert the values reach
-  // the served stylesheet too.
-  assert.match(CSS, /prefers-color-scheme:\s*light/, "the light theme must be served");
-  assert.ok(CSS.includes(fixture.dark["color-primary"]), "dark primary missing from CSS");
-  assert.ok(CSS.includes(fixture.light["color-primary"]), "light primary missing from CSS");
-  assert.ok(CSS.includes(fixture.dark["color-bg"]), "dark background missing from CSS");
+
+  // If a light scheme is declared at all, it must not silently repaint the HUD
+  // into a half-working state — it may only pin color-scheme.
+  const lightBlock = /@media \(prefers-color-scheme: light\) \{([\s\S]*?)\n\}/.exec(CSS);
+  assert.ok(lightBlock, "the light-scheme intent should be stated explicitly, not omitted");
+  assert.doesNotMatch(lightBlock[1], /--color-bg|--color-surface|--color-text/, "the HUD must not partially theme for light");
+
+  // The site's light tokens stay pinned by the parity test even though the
+  // stylesheet no longer emits them.
+  assert.ok(fixture.light["color-primary"], "the light palette must remain pinned for future surfaces");
 });
 
 test("the site's typography stack is used, not a generic one", async () => {

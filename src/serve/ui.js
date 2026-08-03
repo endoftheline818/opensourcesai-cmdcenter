@@ -22,6 +22,31 @@
 //   - The site's light theme is available, but this defaults to dark and follows
 //     the OS, because a diagnostic is usually opened next to a terminal.
 
+/**
+ * HUD palette copied from the social-image style guide.
+ *
+ * WHY A SECOND PALETTE, AND WHY THIS SURFACE USES IT
+ * The site tokens below still govern semantic colour (success, error) and are
+ * still pinned. But the dashboard's *chrome* now follows the social-image HUD
+ * language — deep navy, corner brackets, monospace status lines — because that
+ * is the visual identity this product already publishes, and because a HUD is
+ * one of the few places where the treatment is functional rather than
+ * decorative: this is a monitoring instrument.
+ *
+ * Pinned by fixtures/website-social-palette.json, PARSED from the style guide's
+ * own colour table. A restyle there fails a test here.
+ */
+export const HUD = {
+  backgroundDeep: "#060913",
+  backgroundNavy: "#0b1225",
+  panel: "#0f1b34",
+  accentCyan: "#38bdf8",
+  accentCyanGlow: "#67e8f9",
+  headline: "#f8fafc",
+  bodyText: "#cbd5e1",
+  mutedText: "#94a3b8",
+};
+
 /** Design tokens copied from opensourcesai.com src/index.css. */
 export const TOKENS = {
   light: {
@@ -78,6 +103,9 @@ export const HTML = (token) => `<!doctype html>
 <div class="layout shell">
   <nav id="sidenav" class="sidenav" aria-label="Dashboard sections"></nav>
   <main id="app" aria-busy="true">
+    <pre class="hud-readout" id="hud-readout" aria-hidden="true">OSAI:// COMMAND CENTER
+STATUS: <span class="v">READING MACHINE</span>
+HOST:   <span class="v">LOOPBACK ONLY</span></pre>
     <p class="loading">Reading this machine…</p>
   </main>
 </div>
@@ -90,14 +118,26 @@ export const HTML = (token) => `<!doctype html>
 </html>`;
 
 export const CSS = `:root {
-  --color-bg: ${TOKENS.dark.bg};
-  --color-surface: ${TOKENS.dark.surface};
-  --color-surface-soft: ${TOKENS.dark.surfaceSoft};
-  --color-border: ${TOKENS.dark.border};
-  --color-text: ${TOKENS.dark.text};
-  --color-text-muted: ${TOKENS.dark.textMuted};
-  --color-primary: ${TOKENS.dark.primary};
-  --color-primary-hover: ${TOKENS.dark.primaryHover};
+  /* HUD chrome, from the social-image style guide. */
+  --hud-deep: ${HUD.backgroundDeep};
+  --hud-navy: ${HUD.backgroundNavy};
+  --hud-panel: ${HUD.panel};
+  --hud-cyan: ${HUD.accentCyan};
+  --hud-glow: ${HUD.accentCyanGlow};
+  --hud-headline: ${HUD.headline};
+  --hud-body: ${HUD.bodyText};
+  --hud-muted: ${HUD.mutedText};
+
+  --color-bg: ${HUD.backgroundDeep};
+  --color-surface: ${HUD.panel};
+  --color-surface-soft: ${HUD.backgroundNavy};
+  --color-border: rgba(56, 189, 248, 0.18);
+  --color-text: ${HUD.headline};
+  --color-text-muted: ${HUD.mutedText};
+  --color-primary: ${HUD.accentCyan};
+  --color-primary-hover: ${HUD.accentCyanGlow};
+  /* Semantic colours stay on the SITE tokens — success and error mean the same
+     thing everywhere, and are pinned against src/index.css. */
   --color-success: ${TOKENS.dark.success};
   --color-error: ${TOKENS.dark.error};
 
@@ -123,30 +163,38 @@ export const CSS = `:root {
   --accent-border: color-mix(in srgb, var(--color-primary) 38%, transparent);
   color-scheme: dark;
 }
+/* The HUD is a dark-only treatment by design — the social surfaces it inherits
+   from have no light variant, and a light HUD reads as a mistake rather than a
+   choice. The site's light tokens stay pinned and available; they are simply
+   not what this instrument uses. */
 @media (prefers-color-scheme: light) {
-  :root {
-    --color-bg: ${TOKENS.light.bg};
-    --color-surface: ${TOKENS.light.surface};
-    --color-surface-soft: ${TOKENS.light.surfaceSoft};
-    --color-border: ${TOKENS.light.border};
-    --color-text: ${TOKENS.light.text};
-    --color-text-muted: ${TOKENS.light.textMuted};
-    --color-primary: ${TOKENS.light.primary};
-    --color-primary-hover: ${TOKENS.light.primaryHover};
-    --color-success: ${TOKENS.light.success};
-    --color-error: ${TOKENS.light.error};
-    color-scheme: light;
-  }
+  :root { color-scheme: dark; }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--color-bg);
+  background: var(--hud-deep);
   color: var(--color-text);
   font-family: var(--font-body);
   font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  /* A single soft cyan bloom off the top, plus fine scanlines — the two
+     background motifs the social renders carry. Both are pure CSS so nothing
+     is fetched and the CSP stays default-src 'none'. */
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(148, 163, 184, 0.035) 0 1px,
+      transparent 1px 3px
+    );
+  background-attachment: fixed;
+}
+@media (prefers-reduced-motion: reduce), (prefers-contrast: more) {
+  /* Scanlines are texture, not information. Anyone who has asked for reduced
+     motion or higher contrast gets the flat field instead. */
+  body { background-image: radial-gradient(120% 60% at 50% -10%, rgba(56,189,248,0.08), transparent 60%); }
 }
 .shell { max-width: var(--content); margin: 0 auto; padding: 0 var(--space-4); }
 
@@ -228,12 +276,42 @@ main.shell { padding-top: var(--space-6); padding-bottom: var(--space-6); }
 footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); font-size: var(--fs-overline); }
 .loading { color: var(--color-text-muted); }
 
+/* The HUD readout, matching the social renders' top-left block: short
+   monospace LABEL: value lines with the value in accent cyan. aria-hidden
+   because every fact in it is stated in real prose elsewhere on the page —
+   it is texture for sighted users, not a second source of truth. */
+.hud-readout {
+  font-family: var(--font-mono); font-size: var(--fs-overline);
+  line-height: 1.7; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--hud-muted); margin: 0 0 var(--space-4);
+  white-space: pre; overflow-x: auto;
+}
+.hud-readout .v { color: var(--hud-cyan); }
+
 .panel {
-  background: var(--color-surface);
+  position: relative;
+  background: linear-gradient(180deg, var(--hud-panel), var(--hud-navy));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-frame);
   padding: 1.25rem 1.4rem;
   margin-bottom: var(--space-4);
+}
+/* Four glowing cyan corner brackets — the HUD frame the social renders carry.
+   Drawn with two pseudo-elements and border edges rather than eight nodes or
+   an image, so it costs no markup and nothing is fetched. */
+.panel::before, .panel::after {
+  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  border-color: var(--hud-cyan); border-style: solid; opacity: 0.55;
+}
+.panel::before {
+  top: -1px; left: -1px; border-width: 1px 0 0 1px;
+  border-top-left-radius: var(--radius-frame);
+  box-shadow: -1px -1px 6px -2px var(--hud-cyan);
+}
+.panel::after {
+  bottom: -1px; right: -1px; border-width: 0 1px 1px 0;
+  border-bottom-right-radius: var(--radius-frame);
+  box-shadow: 1px 1px 6px -2px var(--hud-cyan);
 }
 .panel > h2 {
   margin: 0 0 var(--space-4);
@@ -270,22 +348,50 @@ tr:last-child td { border-bottom: 0; }
 .pill.derived { background: var(--accent-wash); color: var(--color-primary); }
 .pill.unlisted { background: color-mix(in srgb, var(--color-text-muted) 14%, transparent); color: var(--color-text-muted); }
 
-.gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--space-4) var(--space-6); }
-.gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
-.gauge-label { font-size: var(--fs-small); color: var(--color-text-muted); }
-.gauge-value { font-size: var(--fs-small); font-weight: 600; font-variant-numeric: tabular-nums; }
-.gauge-track {
-  height: 6px; margin-top: 0.4rem; border-radius: 999px;
-  background: var(--color-surface-soft); overflow: hidden;
+/* RADIAL GAUGES.
+   A 270-degree arc drawn with conic-gradient and masked to a ring — no SVG, no
+   canvas, no dependency. The arc starts at 135deg so the gap sits at the
+   bottom, the way a physical instrument reads. */
+.gauges {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--space-6) var(--space-4); justify-items: center;
 }
-.gauge-fill {
-  height: 100%; border-radius: 999px; background: var(--color-primary);
-  transition: width 0.4s ease;
+.gauge { display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; }
+.dial {
+  --p: 0;
+  --arc: var(--hud-cyan);
+  position: relative; width: 104px; height: 104px; border-radius: 50%;
+  background: conic-gradient(
+    from 135deg,
+    var(--arc) 0 calc(var(--p) * 0.75 * 1%),
+    rgba(148, 163, 184, 0.16) calc(var(--p) * 0.75 * 1%) 75%,
+    transparent 75%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(50% - 9px), #000 calc(50% - 8px));
+  mask: radial-gradient(farthest-side, transparent calc(50% - 9px), #000 calc(50% - 8px));
+  transition: background 0.45s ease;
 }
-.gauge-fill.warn { background: #f5b544; }
-.gauge-fill.critical { background: var(--color-error); }
-.gauge-detail { font-size: var(--fs-overline); color: var(--color-text-muted); margin-top: 0.3rem; }
-.gauge.unavailable .gauge-value { color: var(--color-text-muted); font-weight: 400; }
+.dial.warn { --arc: #f5b544; }
+.dial.critical { --arc: var(--color-error); }
+.dial.unknown { --arc: rgba(148, 163, 184, 0.35); }
+.dial-face {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px;
+}
+.dial-value {
+  font-family: var(--font-mono); font-size: 1.4rem; font-weight: 600;
+  color: var(--hud-headline); font-variant-numeric: tabular-nums; line-height: 1;
+}
+.dial-value.na { font-size: 1rem; color: var(--color-text-muted); }
+.gauge-label {
+  margin-top: 0.55rem; font-size: var(--fs-overline); font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-cyan);
+}
+.gauge-detail {
+  font-size: var(--fs-overline); color: var(--color-text-muted); margin-top: 0.15rem;
+  font-family: var(--font-mono);
+}
+@media (prefers-reduced-motion: reduce) { .dial { transition: none; } }
 
 .live-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 999px;
@@ -458,19 +564,22 @@ function renderGauges(live) {
   const wrap = el("div", "gauges");
   for (const gauge of live.gauges) {
     const cell = el("div", "gauge" + (gauge.available ? "" : " unavailable"));
-    const head = el("div", "gauge-head");
-    head.append(el("span", "gauge-label", gauge.label));
-    head.append(el("span", "gauge-value", gauge.available ? gauge.percent + "%" : "—"));
-    cell.append(head);
 
-    const track = el("div", "gauge-track");
-    const fill = el("div", "gauge-fill" + (gauge.severity === "normal" ? "" : " " + gauge.severity));
-    // Width is the only thing animated; an unavailable gauge stays at zero
-    // width and says why underneath rather than implying an idle reading.
-    fill.style.width = (gauge.available ? gauge.percent : 0) + "%";
-    track.append(fill);
-    cell.append(track);
+    const dial = el("div", "dial " + (gauge.available ? gauge.severity : "unknown"));
+    // An unavailable gauge draws an EMPTY ring, not a zero-filled one. Same
+    // rule as before, restated in the new form: nothing measurable must ever
+    // render as a real reading of zero.
+    dial.style.setProperty("--p", gauge.available ? gauge.percent : 0);
+    dial.setAttribute("role", "img");
+    dial.setAttribute("aria-label",
+      gauge.label + ": " + (gauge.available ? gauge.percent + " percent" : "unavailable"));
 
+    const face = el("div", "dial-face");
+    face.append(el("div", "dial-value" + (gauge.available ? "" : " na"), gauge.available ? gauge.percent + "%" : "n/a"));
+    dial.append(face);
+    cell.append(dial);
+
+    cell.append(el("div", "gauge-label", gauge.label));
     cell.append(el("div", "gauge-detail", gauge.available ? (gauge.detail || "") : gauge.reason));
     wrap.append(cell);
   }
@@ -931,11 +1040,27 @@ const VIEWS = [
 let dashboardData = null;
 let activeView = "overview";
 
+function hudReadout(d) {
+  const pre = el("pre", "hud-readout");
+  pre.setAttribute("aria-hidden", "true");
+  const line = (label, value) => {
+    pre.append(document.createTextNode(label.padEnd(8)));
+    pre.append(el("span", "v", value));
+    pre.append(document.createTextNode("\\n"));
+  };
+  pre.append(document.createTextNode("OSAI:// COMMAND CENTER\\n"));
+  line("STATUS:", d.report.ollama.installed ? "OLLAMA " + (d.report.ollama.version || "UP") : "OLLAMA DOWN");
+  line("HOST:", (d.report.platform.os || "?") + " · " + (d.hardware.basis === "apple-unified-usable" ? "APPLE UNIFIED" : (d.report.gpu ? d.report.gpu.name : "NO GPU")));
+  line("MODE:", "LOAD / UNLOAD ONLY · LOOPBACK");
+  return pre;
+}
+
 function renderView(id) {
   const view = VIEWS.find((v) => v.id === id) ?? VIEWS[0];
   activeView = view.id;
 
   app.textContent = "";
+  app.append(hudReadout(dashboardData));
   for (const node of view.build(dashboardData)) {
     if (node) app.append(node);
   }
