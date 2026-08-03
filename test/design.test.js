@@ -222,8 +222,32 @@ test("native controls are styled and specifically labelled", () => {
   const css = withoutComments(CSS);
   const js = withoutComments(JS);
 
-  assert.match(css, /button, select\s*\{[\s\S]*background:/, "buttons and selects must share the control surface");
+  assert.match(css, /button, select, input\s*\{[\s\S]*background:/, "buttons, selects, and inputs must share the control surface");
   assert.match(css, /select\s*\{[\s\S]*appearance:\s*none/, "the model picker should not fall back to a gray native control");
   assert.match(js, /setAttribute\("aria-label", "Load selected model"\)/);
-  assert.match(js, /copyButton\(m\.runCommand, "Copy command for " \+ m\.name\)/);
+  assert.match(js, /copyButton\(m\.runCommand, "Copy command for " \+ m\.name, true\)/);
+});
+
+test("catalog has search, fit filters, and compact command actions", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.catalog-toolbar\b/, "catalog controls should have a stable layout");
+  assert.match(css, /\.catalog-stats\b/, "catalog summary counts should be styled");
+  assert.match(css, /\.icon-button\b/, "repeated command copies should use compact controls");
+  assert.match(js, /let catalogFitFilter = "runs"/, "catalog should still default to runnable models");
+  assert.match(js, /let catalogQuery = ""/, "catalog search should be stateful");
+  assert.match(js, /search\.type = "search"/, "catalog needs a native search input");
+  assert.match(js, /searchableModelText\(m\)\.includes\(query\)/, "search should inspect model decision text");
+  for (const key of ["comfortable", "tight", "partial", "too_large", "all"]) {
+    assert.match(js, new RegExp('mkFilter\\("[^"]+", "' + key + '"'), `missing ${key} fit filter`);
+  }
+});
+
+test("catalog search keeps focus across filtered repaints", () => {
+  const js = withoutComments(JS);
+
+  assert.match(js, /let catalogFocusSearch = false/, "search repaint focus state must be explicit");
+  assert.match(js, /catalogFocusSearch = true;[\s\S]*renderView\(activeView\)/, "typing should request focus restoration");
+  assert.match(js, /getElementById\("catalog-search"\)[\s\S]*setSelectionRange\(end, end\)/, "the restored search should keep the cursor usable");
 });
