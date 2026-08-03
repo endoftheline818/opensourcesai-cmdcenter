@@ -46,8 +46,16 @@ function send(res, status, type, body, extraHeaders = {}) {
  * @param {() => string} [deps.now] Injected clock, so tests are deterministic.
  * @param {string} [deps.token]     Injected token, so tests are deterministic.
  */
-export function createServer({ collect, catalog, now = () => new Date().toISOString(), token = createSessionToken(), port = DEFAULT_PORT }) {
-  const routes = createRoutes({ collect, catalog, now });
+export function createServer({
+  collect,
+  catalog,
+  telemetry = null,
+  now = () => new Date().toISOString(),
+  monotonic = () => Date.now(),
+  token = createSessionToken(),
+  port = DEFAULT_PORT,
+}) {
+  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic });
 
   const server = http.createServer(async (req, res) => {
     // Parsed against a fixed base purely to extract a clean pathname; the base

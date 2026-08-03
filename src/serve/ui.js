@@ -220,6 +220,35 @@ tr:last-child td { border-bottom: 0; }
 .pill.derived { background: var(--accent-wash); color: var(--color-primary); }
 .pill.unlisted { background: color-mix(in srgb, var(--color-text-muted) 14%, transparent); color: var(--color-text-muted); }
 
+.gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--space-4) var(--space-6); }
+.gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.gauge-label { font-size: var(--fs-small); color: var(--color-text-muted); }
+.gauge-value { font-size: var(--fs-small); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gauge-track {
+  height: 6px; margin-top: 0.4rem; border-radius: 999px;
+  background: var(--color-surface-soft); overflow: hidden;
+}
+.gauge-fill {
+  height: 100%; border-radius: 999px; background: var(--color-primary);
+  transition: width 0.4s ease;
+}
+.gauge-fill.warn { background: #f5b544; }
+.gauge-fill.critical { background: var(--color-error); }
+.gauge-detail { font-size: var(--fs-overline); color: var(--color-text-muted); margin-top: 0.3rem; }
+.gauge.unavailable .gauge-value { color: var(--color-text-muted); font-weight: 400; }
+
+.live-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 999px;
+  background: var(--color-primary); margin-right: 0.4rem; vertical-align: 1px;
+}
+.live-dot.stale { background: var(--color-text-muted); }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+.panel-head h2 { margin-bottom: 0; }
+.panel-head .live-meta {
+  font-size: var(--fs-overline); color: var(--color-text-muted); font-variant-numeric: tabular-nums;
+}
+.empty { color: var(--color-text-muted); font-size: var(--fs-small); margin: 0; }
+
 .muted { color: var(--color-text-muted); }
 .explain { color: var(--color-text-muted); font-size: var(--fs-small); margin-top: 3px; }
 code, .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
@@ -344,28 +373,87 @@ function ollamaPanel(d) {
   g.append(kv("Status", o.installed ? "running" : "not detected"));
   g.append(kv("Version", o.version || "unknown"));
   g.append(kv("Installed models", o.installedModelCount != null ? o.installedModelCount : "—"));
-  g.append(kv("Loaded now", d.loaded.length));
   if (o.modelStore && o.modelStore.freeGb != null) {
     g.append(kv("Disk free", o.modelStore.freeGb + " / " + o.modelStore.totalGb + " GB"));
   }
   p.append(g);
-
-  if (d.loaded.length) {
-    const t = el("table");
-    const head = el("tr");
-    for (const h of ["Loaded model", "In VRAM", "Residency"]) head.append(el("th", null, h));
-    t.append(head);
-    for (const m of d.loaded) {
-      const row = el("tr");
-      row.append(el("td", null, m.name));
-      row.append(el("td", null, m.sizeVramGb + " / " + m.sizeGb + " GB"));
-      row.append(el("td", m.spilled ? "spilled" : null,
-        m.vramResidentPercent + "%" + (m.spilled ? " — partly on CPU" : "")));
-      t.append(row);
-    }
-    p.append(t);
-  }
   return p;
+}
+
+// ---------------------------------------------------------------------------
+// Live panels. These are rebuilt on every poll, so they are kept separate from
+// the static ones above — re-rendering the whole page twice a second would
+// fight the user's scroll position and drop any text selection they had.
+// ---------------------------------------------------------------------------
+
+function livePanelShell(id, title) {
+  const p = el("section", "panel");
+  const head = el("div", "panel-head");
+  head.append(el("h2", null, title));
+  const meta = el("span", "live-meta");
+  meta.id = id + "-meta";
+  head.append(meta);
+  p.append(head);
+  const body = el("div");
+  body.id = id + "-body";
+  p.append(body);
+  return p;
+}
+
+function renderGauges(live) {
+  const body = document.getElementById("gauges-body");
+  if (!body) return;
+  body.textContent = "";
+
+  const wrap = el("div", "gauges");
+  for (const gauge of live.gauges) {
+    const cell = el("div", "gauge" + (gauge.available ? "" : " unavailable"));
+    const head = el("div", "gauge-head");
+    head.append(el("span", "gauge-label", gauge.label));
+    head.append(el("span", "gauge-value", gauge.available ? gauge.percent + "%" : "—"));
+    cell.append(head);
+
+    const track = el("div", "gauge-track");
+    const fill = el("div", "gauge-fill" + (gauge.severity === "normal" ? "" : " " + gauge.severity));
+    // Width is the only thing animated; an unavailable gauge stays at zero
+    // width and says why underneath rather than implying an idle reading.
+    fill.style.width = (gauge.available ? gauge.percent : 0) + "%";
+    track.append(fill);
+    cell.append(track);
+
+    cell.append(el("div", "gauge-detail", gauge.available ? (gauge.detail || "") : gauge.reason));
+    wrap.append(cell);
+  }
+  body.append(wrap);
+}
+
+function renderLoaded(live) {
+  const body = document.getElementById("loaded-body");
+  if (!body) return;
+  body.textContent = "";
+
+  if (!live.loaded.reachable) {
+    body.append(el("p", "empty", "Ollama is not responding, so nothing can be reported as loaded."));
+    return;
+  }
+  if (!live.loaded.models.length) {
+    body.append(el("p", "empty", "No model is resident right now. Ollama unloads a model after a few minutes idle — run one and this fills in."));
+    return;
+  }
+
+  const t = el("table");
+  const head = el("tr");
+  for (const h of ["Model", "In VRAM", "Residency"]) head.append(el("th", null, h));
+  t.append(head);
+  for (const m of live.loaded.models) {
+    const row = el("tr");
+    row.append(el("td", null, m.name));
+    row.append(el("td", null, m.sizeVramGb + " / " + m.sizeGb + " GB"));
+    row.append(el("td", m.spilled ? "spilled" : null,
+      m.vramResidentPercent + "%" + (m.spilled ? " — partly on CPU, expect it to be slow" : "")));
+    t.append(row);
+  }
+  body.append(t);
 }
 
 function installedPanel(d) {
@@ -446,17 +534,81 @@ function sharePanel(d) {
   return p;
 }
 
+const POLL_INTERVAL_MS = 2000;
+let pollTimer = null;
+let consecutiveFailures = 0;
+
+async function poll() {
+  try {
+    const res = await fetch("/api/live", { headers: { "x-cmdcenter-token": TOKEN } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const live = await res.json();
+    if (!live.available) throw new Error(live.reason || "unavailable");
+
+    consecutiveFailures = 0;
+    renderGauges(live);
+    renderLoaded(live);
+
+    const stamp = live.sampledAt ? new Date(live.sampledAt).toLocaleTimeString() : "";
+    for (const id of ["gauges-meta", "loaded-meta"]) {
+      const meta = document.getElementById(id);
+      if (!meta) continue;
+      meta.textContent = "";
+      meta.append(el("span", "live-dot"), document.createTextNode("live · " + stamp));
+    }
+  } catch (err) {
+    consecutiveFailures += 1;
+    // Say it went stale rather than freezing on a number that is no longer
+    // true. A monitor silently showing old values is worse than one admitting
+    // it lost contact.
+    for (const id of ["gauges-meta", "loaded-meta"]) {
+      const meta = document.getElementById(id);
+      if (!meta) continue;
+      meta.textContent = "";
+      meta.append(el("span", "live-dot stale"), document.createTextNode("stale — " + String(err.message)));
+    }
+    // Back off rather than hammering a server that is clearly unhappy.
+    if (consecutiveFailures >= 5) stopPolling();
+  }
+}
+
+function startPolling() {
+  if (pollTimer !== null) return;
+  poll();
+  pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (pollTimer === null) return;
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+// Stop sampling when the tab is not visible. Polling nvidia-smi twice a second
+// behind a hidden tab costs the user real CPU for nothing.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopPolling();
+  else { consecutiveFailures = 0; startPolling(); }
+});
+
 async function load() {
   const res = await fetch("/api/dashboard", { headers: { "x-cmdcenter-token": TOKEN } });
   if (!res.ok) throw new Error("request failed: " + res.status);
   const d = await res.json();
 
   app.textContent = "";
-  for (const build of [machinePanel, disagreementPanel, ollamaPanel, installedPanel, catalogPanel, limitsPanel, sharePanel]) {
+  app.append(livePanelShell("gauges", "Live system"));
+  for (const build of [machinePanel, disagreementPanel, ollamaPanel]) {
+    const node = build(d);
+    if (node) app.append(node);
+  }
+  app.append(livePanelShell("loaded", "Loaded right now"));
+  for (const build of [installedPanel, catalogPanel, limitsPanel, sharePanel]) {
     const node = build(d);
     if (node) app.append(node);
   }
   app.setAttribute("aria-busy", "false");
+  startPolling();
 
   const meta = document.getElementById("meta");
   meta.textContent =

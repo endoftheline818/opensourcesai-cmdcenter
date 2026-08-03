@@ -8,8 +8,17 @@
 
 import { buildReport } from "../derive/report.js";
 import { gradeCatalog } from "../derive/fit.js";
+import { buildLivePayload } from "../derive/telemetry.js";
 import { nameplateGb, toGb } from "../units.js";
 import { CLIENT_VERSION, REPORT_CONTRACT_VERSION } from "../version.js";
+
+/**
+ * Floor on how often telemetry is actually sampled, regardless of how fast a
+ * client polls. The UI asks every 2s; a stuck or malicious loop asking a
+ * thousand times a second must not spawn a thousand nvidia-smi processes on
+ * the user's machine. Within the window the previous sample is returned as-is.
+ */
+export const TELEMETRY_MIN_INTERVAL_MS = 900;
 
 /**
  * Resolve the hardware figures the fit engine should grade against.
@@ -118,13 +127,35 @@ const json = (body) => ({ status: 200, type: "application/json; charset=utf-8", 
 
 /**
  * @param {object} deps
- * @param {() => Promise<object>} deps.collect  Re-runs collection on demand.
- * @param {object} deps.catalog                 The committed catalog snapshot.
- * @param {() => string} deps.now               Injected clock — the routes never read one.
+ * @param {() => Promise<object>} deps.collect    Re-runs full collection on demand.
+ * @param {object} deps.catalog                   The committed catalog snapshot.
+ * @param {() => string} deps.now                 Injected clock — the routes never read one.
+ * @param {() => Promise<object>} [deps.telemetry] Cheap poll-safe sample.
+ * @param {() => number} [deps.monotonic]         Injected elapsed-ms source, for the rate limiter.
  */
-export function createRoutes({ collect, catalog, now }) {
+export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now() }) {
+  // Rate-limiter state. Deliberately per-server rather than per-client: the
+  // resource being protected is the machine's CPU, and it does not care which
+  // tab asked.
+  let lastSampleAt = -Infinity;
+  let lastPayload = null;
+
   return {
     "/api/health": async () => json({ ok: true, clientVersion: CLIENT_VERSION }),
+
+    "/api/live": async () => {
+      if (!telemetry) return json({ available: false, reason: "telemetry collector not configured" });
+
+      const elapsed = monotonic() - lastSampleAt;
+      if (lastPayload && elapsed < TELEMETRY_MIN_INTERVAL_MS) {
+        return json({ ...lastPayload, cached: true });
+      }
+
+      const sample = await telemetry({ sampledAt: now() });
+      lastSampleAt = monotonic();
+      lastPayload = { available: true, ...buildLivePayload(sample) };
+      return json({ ...lastPayload, cached: false });
+    },
 
     "/api/dashboard": async () => {
       const generatedAt = now();
