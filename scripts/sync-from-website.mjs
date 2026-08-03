@@ -168,5 +168,61 @@ async function syncCatalogSnapshot() {
   return `data/checker-models-snapshot.json (${models.length} checker-visible models)`;
 }
 
-const written = [await syncBandsParity(), await syncEngineParity(), await syncCatalogSnapshot()];
+/**
+ * Pin the design tokens this package copies from the site's stylesheet.
+ *
+ * PARSED from src/index.css rather than transcribed, for the same reason the
+ * other fixtures are executed rather than retyped: a hand-copied colour drifts
+ * silently the moment the site is restyled, and "close enough" branding is
+ * exactly the failure this is meant to prevent.
+ */
+async function syncDesignTokens() {
+  const raw = await readFile(path.join(websiteRoot, "src", "index.css"), "utf8");
+
+  // Strip CSS comments BEFORE splitting. The stylesheet's header comment
+  // literally contains the words "@media (prefers-color-scheme: dark)", so
+  // searching the raw text matches that prose at line 5 and dumps the entire
+  // file into the dark bucket — which silently pinned the LIGHT primary as the
+  // dark one. Parse code, never prose.
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // The light values are declared on :root; the dark ones inside the
+  // prefers-color-scheme block. Split on that boundary and read each half.
+  const darkAt = css.search(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{/);
+  const lightSource = darkAt === -1 ? css : css.slice(0, darkAt);
+  const darkSource = darkAt === -1 ? "" : css.slice(darkAt);
+
+  const names = [
+    "color-bg", "color-surface", "color-surface-soft", "color-border",
+    "color-text", "color-text-muted", "color-primary", "color-primary-hover",
+    "color-success", "color-error",
+  ];
+  const read = (source, name) => {
+    const match = new RegExp(`--${name}\\s*:\\s*([^;]+);`).exec(source);
+    return match ? match[1].trim() : null;
+  };
+  const pick = (source) => Object.fromEntries(names.map((n) => [n, read(source, n)]));
+
+  const structural = ["radius-card", "radius-frame", "content", "font-body", "font-mono"];
+
+  const out = {
+    ...stamp({ modules: ["src/index.css"] }),
+    note:
+      "Design tokens copied into src/serve/ui.js so the dashboard reads as part of " +
+      "the platform. Parsed from the site's stylesheet, never transcribed.",
+    light: pick(lightSource),
+    dark: pick(darkSource),
+    structural: Object.fromEntries(structural.map((n) => [n, read(lightSource, n)])),
+  };
+
+  await writeFile(path.join(here, "fixtures", "website-design-tokens.json"), `${JSON.stringify(out, null, 2)}\n`);
+  return "fixtures/website-design-tokens.json";
+}
+
+const written = [
+  await syncBandsParity(),
+  await syncEngineParity(),
+  await syncCatalogSnapshot(),
+  await syncDesignTokens(),
+];
 for (const line of written) process.stdout.write(`wrote ${line}\n`);

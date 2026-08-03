@@ -1,0 +1,42 @@
+{
+  "source": {
+    "repository": "opensourcesai.com",
+    "generatedBy": "scripts/sync-from-website.mjs",
+    "generatedAt": "2026-08-03",
+    "modules": [
+      "src/index.css"
+    ]
+  },
+  "note": "Design tokens copied into src/serve/ui.js so the dashboard reads as part of the platform. Parsed from the site's stylesheet, never transcribed.",
+  "light": {
+    "color-bg": "#f8fafc",
+    "color-surface": "#ffffff",
+    "color-surface-soft": "#f1f5f9",
+    "color-border": "#dbe3ef",
+    "color-text": "#0f172a",
+    "color-text-muted": "#475569",
+    "color-primary": "#0f766e",
+    "color-primary-hover": "#115e59",
+    "color-success": "#166634",
+    "color-error": "#991b1b"
+  },
+  "dark": {
+    "color-bg": "#111110",
+    "color-surface": "#18171a",
+    "color-surface-soft": "#1e1d20",
+    "color-border": "#2e2d30",
+    "color-text": "#e2e1de",
+    "color-text-muted": "#a8a29e",
+    "color-primary": "#22d3ee",
+    "color-primary-hover": "#67e8f9",
+    "color-success": "#86efac",
+    "color-error": "#fca5a5"
+  },
+  "structural": {
+    "radius-card": "12px",
+    "radius-frame": "16px",
+    "content": "1120px",
+    "font-body": "var(--font-inter, -apple-system), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
+    "font-mono": "var(--font-jbm, ui-monospace), ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace"
+  }
+}
