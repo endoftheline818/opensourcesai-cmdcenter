@@ -159,3 +159,10 @@ Strategy and product history are coordinated with the website repository:
 - Private lab access details must stay out of this repository. Public fixtures should include only redacted captures.
 
 **When you change something a doc claims, update the doc in the same PR.** Several revisions in that changelog exist specifically because a doc was left contradicting the code.
+
+## 12. Public History Review
+
+Before changing repository visibility, read
+`docs/public-history-review-2026-08-03.md`. It records the full-history review
+and the deliberate decision not to rewrite history for accepted non-credential
+path and hostname exposure.
