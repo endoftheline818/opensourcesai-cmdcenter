@@ -7,6 +7,7 @@
 import { CAPTURE_SCHEMA_VERSION } from "../version.js";
 import { collectGpu, collectPlatform, collectSystem } from "./gpu.js";
 import { collectOllama, resolveHost } from "./ollama.js";
+import { collectTools } from "./tools.js";
 
 /**
  * Capture raw machine state.
@@ -22,11 +23,12 @@ export async function collect({ capturedAt = null, host = resolveHost() } = {}) 
   // Probes are independent, so run them concurrently — on Windows the
   // PowerShell-backed ones dominate wall time and serialising them roughly
   // doubles the run.
-  const [platform, system, gpu, ollama] = await Promise.all([
+  const [platform, system, gpu, ollama, tools] = await Promise.all([
     collectPlatform(),
     collectSystem(),
     collectGpu(),
     collectOllama(host),
+    collectTools(),
   ]);
 
   return {
@@ -36,7 +38,8 @@ export async function collect({ capturedAt = null, host = resolveHost() } = {}) 
     system,
     gpu,
     ollama,
+    tools,
   };
 }
 
-export { collectGpu, collectPlatform, collectSystem, collectOllama, resolveHost };
+export { collectGpu, collectPlatform, collectSystem, collectOllama, collectTools, resolveHost };

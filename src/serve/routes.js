@@ -9,6 +9,7 @@
 import { buildReport } from "../derive/report.js";
 import { gradeCatalog } from "../derive/fit.js";
 import { buildLivePayload } from "../derive/telemetry.js";
+import { buildToolsPayload, exportableTools } from "../derive/tools.js";
 import { nameplateGb, toGb } from "../units.js";
 import { CLIENT_VERSION, REPORT_CONTRACT_VERSION } from "../version.js";
 
@@ -91,6 +92,13 @@ export function buildDashboardPayload(capture, catalog, { generatedAt = null } =
   const report = buildReport(capture, { generatedAt });
   const hardware = resolveGradingHardware(report);
   const graded = gradeCatalog(catalog.models, hardware);
+  const tools = buildToolsPayload(capture.tools);
+
+  // Tooling contributes COUNTS ONLY to the shareable block. Server names,
+  // config filenames and env var names all reveal what someone works on and
+  // which vendors hold their credentials — none of which belongs in an
+  // artifact designed to be pasted in public.
+  const exportable = { ...report.exportable, ...exportableTools(tools) };
 
   const installedNames = (capture.ollama?.installedModels ?? []).map((m) => m.name);
   const reportWithNames = {
@@ -102,7 +110,8 @@ export function buildDashboardPayload(capture, catalog, { generatedAt = null } =
     clientVersion: CLIENT_VERSION,
     reportContractVersion: REPORT_CONTRACT_VERSION,
     generatedAt,
-    report,
+    report: { ...report, exportable },
+    tools,
     hardware,
     catalog: {
       // Surfaced so the UI can show the snapshot's age rather than implying the
