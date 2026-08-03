@@ -685,6 +685,78 @@ tr:last-child td { border-bottom: 0; }
 }
 .empty { color: var(--color-text-muted); font-size: var(--fs-small); margin: 0; }
 
+.live-summary, .loaded-summary {
+  display: grid; gap: var(--space-3); margin-bottom: var(--space-4);
+  padding: 0.85rem; border: 1px solid var(--color-border); border-radius: 0.75rem;
+  background: rgba(6, 9, 19, 0.26);
+}
+.live-summary.warn, .loaded-summary.spilled {
+  border-color: rgba(245, 181, 68, 0.32);
+  background: rgba(245, 181, 68, 0.08);
+}
+.live-summary.critical {
+  border-color: color-mix(in srgb, var(--color-error) 36%, transparent);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+.live-summary-main, .loaded-summary-main {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4); align-items: start;
+}
+.live-summary-label, .loaded-summary-label {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
+}
+.live-summary-title, .loaded-summary-title {
+  margin-top: 0.1rem; color: var(--color-text); font-size: 1.05rem;
+  font-weight: 750; line-height: 1.2; overflow-wrap: anywhere;
+}
+.live-summary-detail, .loaded-summary-detail {
+  margin-top: 0.25rem; color: var(--color-text-muted);
+  font-size: var(--fs-overline); line-height: 1.35;
+}
+.live-summary-value, .loaded-summary-value {
+  color: var(--hud-headline); font-family: var(--font-mono);
+  font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1.1; white-space: nowrap;
+}
+.live-summary.warn .live-summary-value, .loaded-summary.spilled .loaded-summary-value { color: #f5b544; }
+.live-summary.critical .live-summary-value { color: var(--color-error); }
+.live-summary.unavailable .live-summary-value, .loaded-summary.offline .loaded-summary-value { color: var(--color-text-muted); }
+.live-summary-chips, .loaded-summary-chips {
+  display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;
+}
+.live-summary-chips span, .loaded-summary-chips span {
+  display: inline-flex; align-items: center; min-height: 1.45rem;
+  padding: 0.1rem 0.52rem; border-radius: 999px;
+  background: rgba(148, 163, 184, 0.10); color: var(--color-text-muted);
+  font-size: var(--fs-overline); font-weight: 650;
+}
+.live-pressure-list {
+  display: grid; gap: 1px; overflow: hidden;
+  border: 1px solid var(--color-border); border-radius: 0.65rem;
+  background: var(--color-border);
+}
+.live-pressure-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3); align-items: center;
+  padding: 0.62rem 0.7rem; background: rgba(6, 9, 19, 0.30);
+}
+.live-pressure-row.warn .live-pressure-value { color: #f5b544; }
+.live-pressure-row.critical .live-pressure-value { color: var(--color-error); }
+.live-pressure-name {
+  color: var(--color-text); font-size: var(--fs-small); font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.live-pressure-detail {
+  margin-top: 0.05rem; color: var(--color-text-muted);
+  font-size: var(--fs-overline); line-height: 1.3; overflow-wrap: anywhere;
+}
+.live-pressure-value {
+  color: var(--hud-headline); font-family: var(--font-mono);
+  font-size: var(--fs-small); font-weight: 700; font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .loaded-list, .installed-list {
   display: grid; gap: 1px; overflow: hidden;
   border: 1px solid var(--color-border); border-radius: 0.75rem;
@@ -707,6 +779,17 @@ tr:last-child td { border-bottom: 0; }
 .loaded-metrics span, .installed-state {
   display: inline-flex; align-items: center; min-height: 1.45rem; padding: 0.1rem 0.5rem;
   border-radius: 999px; background: rgba(148, 163, 184, 0.10);
+}
+.loaded-state.resident-state {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+}
+.loaded-state.spilled-state {
+  color: #f5b544;
+  background: rgba(245, 181, 68, 0.12);
+}
+.loaded-state.unknown-state {
+  color: var(--color-text-muted);
 }
 .loaded-residency {
   margin-top: 0.65rem; display: grid; gap: 0.35rem;
@@ -812,6 +895,7 @@ select {
   .action-controls { grid-template-columns: minmax(0, 1fr); }
   .action-controls button { width: 100%; }
   .action-preview { grid-template-columns: minmax(0, 1fr); }
+  .live-summary-main, .loaded-summary-main, .live-pressure-row { grid-template-columns: minmax(0, 1fr); }
   .loaded-item, .installed-item { grid-template-columns: minmax(0, 1fr); }
   .loaded-actions, .installed-action { justify-content: stretch; justify-items: stretch; }
   .loaded-actions button, .installed-action button { width: 100%; }
@@ -1242,10 +1326,79 @@ function livePanelShell(id, title) {
   return p;
 }
 
+function rankLiveGauges(live) {
+  const rank = { critical: 3, warn: 2, normal: 1 };
+  return (live.gauges || [])
+    .filter((g) => g.available)
+    .slice()
+    .sort((a, b) => {
+      const severity = (rank[b.severity] || 0) - (rank[a.severity] || 0);
+      return severity || b.percent - a.percent;
+    });
+}
+
+function pressureDetail(top) {
+  if (!top) return "No live counters available for this sample.";
+  if (top.severity === "critical") return top.label + " is critical; review loaded residency before warming another model.";
+  if (top.severity === "warn") return top.label + " is elevated; check residency before adding pressure.";
+  return top.label + " is the current highest live reading.";
+}
+
+function livePressureRow(gauge) {
+  const row = el("div", "live-pressure-row " + (gauge.available ? gauge.severity : "unknown"));
+  const copy = el("div");
+  copy.append(
+    el("div", "live-pressure-name", gauge.label),
+    el("div", "live-pressure-detail", gauge.available ? (gauge.detail || "Live counter") : gauge.reason),
+  );
+  row.append(copy, el("div", "live-pressure-value", gauge.available ? gauge.percent + "%" : "n/a"));
+  return row;
+}
+
+function renderLiveSummary(live) {
+  const ranked = rankLiveGauges(live);
+  const unavailable = (live.gauges || []).filter((g) => !g.available);
+  const top = ranked[0] || null;
+  const summary = el("div", "live-summary " + (top ? top.severity : "unavailable"));
+  const main = el("div", "live-summary-main");
+  const copy = el("div");
+  copy.append(
+    el("div", "live-summary-label", "Pressure focus"),
+    el("div", "live-summary-title", top ? top.label : "No live counters"),
+    el("div", "live-summary-detail", pressureDetail(top)),
+  );
+  main.append(copy, el("div", "live-summary-value", top ? top.percent + "%" : "n/a"));
+  summary.append(main);
+
+  const chips = el("div", "live-summary-chips");
+  chips.append(
+    el("span", null, ranked.length + " measured"),
+    el("span", null, unavailable.length + " unavailable"),
+    el("span", null, "2s polling"),
+  );
+  summary.append(chips);
+
+  const rows = el("div", "live-pressure-list");
+  for (const gauge of ranked.slice(0, 3)) rows.append(livePressureRow(gauge));
+  if (!ranked.length) {
+    for (const gauge of unavailable.slice(0, 3)) rows.append(livePressureRow(gauge));
+  } else if (unavailable.length) {
+    rows.append(livePressureRow({
+      label: "Unavailable counters",
+      available: false,
+      reason: unavailable.length + " counter" + (unavailable.length === 1 ? "" : "s") + " did not return a measurement.",
+    }));
+  }
+  summary.append(rows);
+  return summary;
+}
+
 function renderGauges(live) {
   const body = document.getElementById("gauges-body");
   if (!body) return;
   body.textContent = "";
+
+  body.append(renderLiveSummary(live));
 
   const wrap = el("div", "gauges");
   for (const gauge of live.gauges) {
@@ -1360,10 +1513,62 @@ async function requestUnload(model, trigger) {
   await poll();
 }
 
+function renderLoadedSummary(live) {
+  const reachable = live.loaded.reachable;
+  const models = reachable ? live.loaded.models : [];
+  const spilled = models.filter((m) => m.spilled).length;
+  const fullyResident = models.filter((m) => m.vramResidentPercent === 100).length;
+  const unknown = models.filter((m) => m.vramResidentPercent === null).length;
+  const cls = !reachable ? " offline" : spilled ? " spilled" : "";
+  const summary = el("div", "loaded-summary" + cls);
+  const main = el("div", "loaded-summary-main");
+  const copy = el("div");
+  let title = "No resident models";
+  let value = "0";
+  let detail = "Warm an installed model when you need it ready; no pull or delete is involved.";
+
+  if (!reachable) {
+    title = "Cannot confirm residency";
+    value = "offline";
+    detail = "Ollama did not answer this poll, so loaded state is unknown.";
+  } else if (models.length) {
+    title = models.length + " model" + (models.length === 1 ? "" : "s") + " resident";
+    value = String(models.length);
+    detail = spilled
+      ? spilled + " partly on CPU; expect slower responses."
+      : "All resident models are fully in VRAM according to Ollama.";
+  }
+
+  copy.append(
+    el("div", "loaded-summary-label", "Residency"),
+    el("div", "loaded-summary-title", title),
+    el("div", "loaded-summary-detail", detail),
+  );
+  main.append(copy, el("div", "loaded-summary-value", value));
+  summary.append(main);
+
+  const chips = el("div", "loaded-summary-chips");
+  if (!reachable) {
+    chips.append(el("span", null, "Ollama offline"), el("span", null, "Loaded state unknown"));
+  } else if (!models.length) {
+    chips.append(el("span", null, "0 loaded"), el("span", null, "Installed only"), el("span", null, "No pull or delete"));
+  } else {
+    chips.append(
+      el("span", null, fullyResident + " fully in VRAM"),
+      el("span", null, spilled + " partly on CPU"),
+      el("span", null, unknown + " unknown"),
+      el("span", null, "Unload available"),
+    );
+  }
+  summary.append(chips);
+  return summary;
+}
+
 function renderLoaded(live) {
   const body = document.getElementById("loaded-body");
   if (!body) return;
   body.textContent = "";
+  body.append(renderLoadedSummary(live));
 
   if (!live.loaded.reachable) {
     body.append(el("p", "empty", "Ollama is not responding, so nothing can be reported as loaded."));
@@ -1381,20 +1586,28 @@ function renderLoaded(live) {
     main.append(el("div", "loaded-name", m.name));
 
     const metrics = el("div", "loaded-metrics");
+    const stateClass = m.vramResidentPercent === null
+      ? "unknown-state"
+      : m.spilled ? "spilled-state" : "resident-state";
+    const stateLabel = m.vramResidentPercent === null
+      ? "residency unknown"
+      : m.spilled ? "spilled to CPU" : "fully in VRAM";
     metrics.append(
       el("span", null, "VRAM " + m.sizeVramGb + " / " + m.sizeGb + " GB"),
-      el("span", null, m.vramResidentPercent + "% resident"),
+      el("span", null, m.vramResidentPercent === null ? "residency unknown" : m.vramResidentPercent + "% resident"),
+      el("span", "loaded-state " + stateClass, stateLabel),
     );
     main.append(metrics);
 
     const residency = el("div", "loaded-residency");
     const meter = el("div", "residency-meter");
     const fill = el("span");
-    fill.style.setProperty("--resident", Math.max(0, Math.min(100, m.vramResidentPercent)) + "%");
+    const percent = m.vramResidentPercent === null ? 0 : m.vramResidentPercent;
+    fill.style.setProperty("--resident", Math.max(0, Math.min(100, percent)) + "%");
     meter.append(fill);
     residency.append(meter);
     residency.append(el("div", m.spilled ? "explain spilled" : "explain",
-      m.spilled ? "Partly on CPU; expect slower responses." : "Fully resident according to Ollama."));
+      m.vramResidentPercent === null ? "Ollama did not report VRAM residency." : m.spilled ? "Partly on CPU; expect slower responses." : "Fully resident according to Ollama."));
     main.append(residency);
 
     const actions = el("div", "loaded-actions");
@@ -1857,17 +2070,12 @@ function renderSummaryLive(live) {
   const pressureValue = document.getElementById("summary-pressure-value");
   const pressureDetail = document.getElementById("summary-pressure-detail");
   if (!pressureValue || !pressureDetail) return;
-  const gauges = live.gauges.filter((g) => g.available);
+  const gauges = rankLiveGauges(live);
   if (!gauges.length) {
     pressureValue.textContent = "n/a";
     pressureDetail.textContent = "No live counters available";
     return;
   }
-  const rank = { critical: 3, warn: 2, normal: 1 };
-  gauges.sort((a, b) => {
-    const severity = (rank[b.severity] || 0) - (rank[a.severity] || 0);
-    return severity || b.percent - a.percent;
-  });
   const top = gauges[0];
   pressureValue.textContent = top.percent + "%";
   pressureDetail.textContent = top.label + (top.severity === "normal" ? " live" : " is " + top.severity);
