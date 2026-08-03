@@ -72,7 +72,7 @@ export const HTML = (token) => `<!doctype html>
     <span class="brand-divider" aria-hidden="true"></span>
     <span class="product">Command Center</span>
     <span id="livestrip" class="livestrip" aria-live="off"></span>
-    <span class="badge-readonly">Read-only</span>
+    <span class="badge-readonly" title="This tool can load and unload models. It never pulls, deletes or removes anything.">Load / unload only</span>
   </div>
 </header>
 <div class="layout shell">
@@ -995,7 +995,7 @@ async function load() {
     "Command Center " + d.clientVersion +
     " · report contract v" + d.reportContractVersion +
     " · catalog snapshot " + (d.catalog.generatedAt || "unknown") +
-    " (" + d.catalog.modelCount + " models) · read-only, nothing leaves this machine";
+    " (" + d.catalog.modelCount + " models) · nothing leaves this machine";
 }
 
 load().catch((err) => {

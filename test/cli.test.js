@@ -13,7 +13,11 @@ test("--help and --version are handled without touching the machine", async () =
   assert.equal(await main(["node", "cli", "--help"], help), 0);
   assert.match(help.text(), /osai-cmdcenter \[command\] \[options\]/);
   assert.match(help.text(), /serve/);
-  assert.match(help.text(), /read-only/i, "the read-only guarantee belongs in the help text");
+  // Was /read-only/i, which Phase 2 made false. The help text must state the
+  // guarantee that actually holds — nothing downloaded, nothing destroyed —
+  // rather than one that stopped being true when load/unload shipped.
+  assert.match(help.text(), /never pulls, deletes or removes/i, "the standing guarantee belongs in the help text");
+  assert.doesNotMatch(help.text(), /tool is read-only/i, "the stale read-only claim must be gone");
 
   const version = capture();
   assert.equal(await main(["node", "cli", "--version"], version), 0);
