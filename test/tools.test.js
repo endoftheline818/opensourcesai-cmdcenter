@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectTools, mcpConfigPaths, parseMcpConfig, summariseServer, toolLocations } from "../src/collect/tools.js";
+import { collectTools, mcpConfigPaths, parseMcpConfig, safeBasename, summariseServer, toolLocations } from "../src/collect/tools.js";
 import { buildToolsPayload, exportableTools } from "../src/derive/tools.js";
 
 // A config shaped like a real one, carrying sentinels no real secret would
@@ -53,6 +53,41 @@ test("no home directory or username survives collection", () => {
   assert.doesNotMatch(serialized, /C:\\\\Users|\/home\/|\/Users\//, "a home directory leaked");
   // The command is reduced to its basename, which is the useful part.
   assert.equal(parseMcpConfig(SYNTHETIC)[0].command, "npx.cmd");
+});
+
+// REGRESSION TEST FOR A REAL PRIVACY BUG THAT ONLY CI CAUGHT.
+//
+// The first version used path.basename, which is platform-dependent: on POSIX
+// it does not treat "\" as a separator, so a Windows path read on macOS or
+// Linux came back whole — username included. Windows CI passed while both
+// other platforms failed.
+//
+// Config files genuinely cross platforms (synced dotfiles, WSL, a repo checked
+// out on two machines), so the separator in the DATA cannot be assumed to match
+// the separator of the HOST. Both directions are asserted here so the test
+// fails on every runner, not just the ones whose separator differs.
+test("a path is reduced to its last segment regardless of separator", () => {
+  assert.equal(safeBasename("C:\\Users\\someone\\AppData\\npm\\npx.cmd"), "npx.cmd");
+  assert.equal(safeBasename("/home/someone/.local/bin/uvx"), "uvx");
+  assert.equal(safeBasename("C:/Users/someone/mixed/path.exe"), "path.exe");
+  assert.equal(safeBasename("C:\\Users\\someone/mixed\\separators.js"), "separators.js");
+  assert.equal(safeBasename("bare-command"), "bare-command");
+  for (const empty of ["", null, undefined, 42]) assert.equal(safeBasename(empty), null);
+});
+
+test("both separator styles are redacted whatever platform is reading", () => {
+  // The Windows-path case is what shipped broken; the POSIX one is its mirror.
+  const windowsStyle = parseMcpConfig({
+    mcpServers: { a: { command: "C:\\Users\\wintel\\bin\\node.exe", args: [], env: {} } },
+  });
+  const posixStyle = parseMcpConfig({
+    mcpServers: { a: { command: "/home/nixuser/bin/node", args: [], env: {} } },
+  });
+
+  assert.equal(windowsStyle[0].command, "node.exe");
+  assert.equal(posixStyle[0].command, "node");
+  assert.doesNotMatch(JSON.stringify(windowsStyle), /wintel/, "a Windows username leaked");
+  assert.doesNotMatch(JSON.stringify(posixStyle), /nixuser/, "a POSIX username leaked");
 });
 
 test("a package specifier is reported but a filesystem path is not", () => {

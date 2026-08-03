@@ -44,6 +44,25 @@ export function mcpConfigPaths(platform = process.platform, home = os.homedir(),
 const SECRET_NAME = /token|key|secret|password|passwd|credential|auth|api/i;
 
 /**
+ * Last path segment, splitting on BOTH separators.
+ *
+ * `path.basename` is platform-dependent and that is a privacy bug here, not a
+ * cosmetic one: on POSIX it does not treat "\" as a separator, so a Windows
+ * path like `C:\Users\someone\npx.cmd` read on macOS or Linux comes back
+ * unchanged — username and all. Config files genuinely cross platforms (synced
+ * dotfiles, WSL, a repo checked out on two machines), so the separator in the
+ * data cannot be assumed to match the separator of the host reading it.
+ *
+ * Caught by CI on Linux and macOS while Windows passed, which is exactly what
+ * the cross-platform matrix is for.
+ */
+export function safeBasename(value) {
+  if (typeof value !== "string" || value === "") return null;
+  const segments = value.split(/[\\/]/).filter(Boolean);
+  return segments.length ? segments[segments.length - 1] : null;
+}
+
+/**
  * Does this string look like it came off a filesystem, i.e. might carry a
  * username? Package specifiers are safe to report; paths are not.
  */
@@ -74,8 +93,9 @@ export function summariseServer(name, definition) {
     // stdio servers declare a command; remote ones declare a url. The url
     // itself is NOT returned — it can embed credentials in userinfo or query.
     transport: def.url ? "remote" : def.command ? "stdio" : "unknown",
-    // Basename only: a full command path leaks the home directory.
-    command: typeof def.command === "string" ? path.basename(def.command) : null,
+    // Basename only: a full command path leaks the home directory. Uses
+    // safeBasename, NOT path.basename — see the note there.
+    command: safeBasename(def.command),
     packageHint,
     envVarNames: envNames,
     envVarCount: envNames.length,
@@ -105,16 +125,19 @@ async function readMcpConfigs(paths) {
         client,
         present: true,
         // Basename only — the full path contains the home directory.
-        configFile: path.basename(file),
+        configFile: safeBasename(file),
         servers: parseMcpConfig(parsed),
       });
     } catch (err) {
       results.push({
         client,
         present: true,
-        configFile: path.basename(file),
+        configFile: safeBasename(file),
         servers: [],
-        error: `unreadable: ${String(err.message).slice(0, 80)}`,
+        // The message is scrubbed of anything path-shaped before truncation: a
+        // filesystem error embeds the full path it failed on, which is exactly
+        // the home directory the rest of this module works to keep out.
+        error: "unreadable: " + String(err.message).replace(/\S*[\\/]\S*/g, "<path>").slice(0, 80),
       });
     }
   }
