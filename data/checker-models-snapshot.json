@@ -1,0 +1,729 @@
+{
+  "source": {
+    "repository": "opensourcesai.com",
+    "generatedBy": "scripts/sync-from-website.mjs",
+    "generatedAt": "2026-08-03",
+    "modules": [
+      "src/data/checker-models.json"
+    ]
+  },
+  "snapshotVersion": 1,
+  "note": "Committed snapshot, not live data. Discovery-spec §8 decision 3 (a fetchable data manifest) is open; until it is decided this file is refreshed by rerunning scripts/sync-from-website.mjs. The dashboard displays its age.",
+  "modelCount": 31,
+  "models": [
+    {
+      "id": "qwen3-4b",
+      "name": "Qwen3 4B",
+      "family": "qwen3",
+      "parametersBillions": 4,
+      "contextWindowTokens": 32768,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 2.6,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 4.5,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 8,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen3:4b",
+      "ollamaTagQ8": "qwen3:4b-q8_0",
+      "ollamaTagFp16": "qwen3:4b-fp16",
+      "checkerOrder": 1
+    },
+    {
+      "id": "gemma-3-4b",
+      "name": "Gemma 3 4B",
+      "family": "gemma-3",
+      "parametersBillions": 4,
+      "contextWindowTokens": 131072,
+      "license": "Gemma Terms of Use",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 2.5,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 4.3,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 8,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "gemma3:4b",
+      "ollamaTagQ8": "gemma3:4b-it-q8_0",
+      "ollamaTagFp16": "gemma3:4b-it-fp16",
+      "checkerOrder": 2
+    },
+    {
+      "id": "phi-3-mini",
+      "name": "Phi-3 Mini 128K",
+      "family": "phi",
+      "parametersBillions": 3.8,
+      "contextWindowTokens": 131072,
+      "license": "MIT",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 4,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 6,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 8,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "phi3:mini-128k",
+      "ollamaTagQ8": "phi3:3.8b-mini-128k-instruct-q8_0",
+      "ollamaTagFp16": "phi3:3.8b-mini-128k-instruct-fp16",
+      "checkerOrder": 3
+    },
+    {
+      "id": "llama-3-1-8b-instruct",
+      "name": "Llama 3.1 8B Instruct",
+      "family": "llama-3",
+      "parametersBillions": 8,
+      "contextWindowTokens": 131072,
+      "license": "Llama 3.1 Community License",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 5.6,
+          "qualityTier": "good"
+        },
+        "q4_k_s": {
+          "vramGb": 5.2,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 9.5,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 16,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "llama3.1:8b",
+      "ollamaTagQ8": "llama3.1:8b-instruct-q8_0",
+      "ollamaTagFp16": "llama3.1:8b-instruct-fp16",
+      "checkerOrder": 4
+    },
+    {
+      "id": "qwen3-8b",
+      "name": "Qwen3 8B",
+      "family": "qwen3",
+      "parametersBillions": 8,
+      "contextWindowTokens": 32768,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 4.9,
+          "qualityTier": "good"
+        },
+        "q4_k_s": {
+          "vramGb": 4.6,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 8.7,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 16,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen3:8b",
+      "ollamaTagQ8": "qwen3:8b-q8_0",
+      "ollamaTagFp16": "qwen3:8b-fp16",
+      "checkerOrder": 5
+    },
+    {
+      "id": "deepseek-r1-8b",
+      "name": "DeepSeek-R1 8B (0528 Qwen3)",
+      "family": "deepseek-r1",
+      "parametersBillions": 8,
+      "contextWindowTokens": 32768,
+      "license": "MIT",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 5,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 8.8,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 16,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "deepseek-r1:8b",
+      "ollamaTagQ8": "deepseek-r1:8b-0528-qwen3-q8_0",
+      "ollamaTagFp16": "deepseek-r1:8b-0528-qwen3-fp16",
+      "checkerOrder": 6
+    },
+    {
+      "id": "gemma-3-12b",
+      "name": "Gemma 3 12B",
+      "family": "gemma-3",
+      "parametersBillions": 12,
+      "contextWindowTokens": 131072,
+      "license": "Gemma Terms of Use",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 7.6,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 13,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 24,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "gemma3:12b",
+      "ollamaTagQ8": "gemma3:12b-it-q8_0",
+      "ollamaTagFp16": "gemma3:12b-it-fp16",
+      "checkerOrder": 7
+    },
+    {
+      "id": "qwen3-14b",
+      "name": "Qwen3 14B",
+      "family": "qwen3",
+      "parametersBillions": 14,
+      "contextWindowTokens": 32768,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 8.9,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 15.5,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 28,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen3:14b",
+      "ollamaTagQ8": "qwen3:14b-q8_0",
+      "ollamaTagFp16": "qwen3:14b-fp16",
+      "checkerOrder": 8
+    },
+    {
+      "id": "deepseek-r1-14b",
+      "name": "DeepSeek-R1 Distill 14B",
+      "family": "deepseek-r1",
+      "parametersBillions": 14,
+      "contextWindowTokens": 32768,
+      "license": "MIT",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 9,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 15.5,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 28,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "deepseek-r1:14b",
+      "ollamaTagQ8": "deepseek-r1:14b-qwen-distill-q8_0",
+      "ollamaTagFp16": "deepseek-r1:14b-qwen-distill-fp16",
+      "checkerOrder": 9
+    },
+    {
+      "id": "phi-4",
+      "name": "Phi-4",
+      "family": "phi",
+      "parametersBillions": 14,
+      "contextWindowTokens": 16384,
+      "license": "MIT",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 8.5,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 15,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 28,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "phi4",
+      "ollamaTagQ8": "phi4:14b-q8_0",
+      "ollamaTagFp16": "phi4:14b-fp16",
+      "checkerOrder": 10
+    },
+    {
+      "id": "qwen3-32b",
+      "name": "Qwen3 32B",
+      "family": "qwen3",
+      "parametersBillions": 32,
+      "contextWindowTokens": 32768,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 20,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 34,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 64,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen3:32b",
+      "ollamaTagQ8": "qwen3:32b-q8_0",
+      "ollamaTagFp16": "qwen3:32b-fp16",
+      "checkerOrder": 11
+    },
+    {
+      "id": "llama-3-70b",
+      "name": "Llama 3 70B",
+      "family": "llama-3",
+      "parametersBillions": 70,
+      "contextWindowTokens": 8192,
+      "license": "Llama 3 Community License",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 41.5,
+          "qualityTier": "good"
+        },
+        "q4_k_s": {
+          "vramGb": 39,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 74,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 140,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "llama3:70b",
+      "ollamaTagQ8": "llama3:70b-instruct-q8_0",
+      "ollamaTagFp16": "llama3:70b-instruct-fp16",
+      "checkerOrder": 12
+    },
+    {
+      "id": "gemma-4-12b-qat",
+      "name": "Gemma 4 12B (QAT)",
+      "family": "gemma-4",
+      "parametersBillions": 12,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 9.5,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "gemma4:12b-it-qat",
+      "checkerOrder": 13
+    },
+    {
+      "id": "qwen2-5-7b",
+      "name": "Qwen2.5 7B",
+      "family": "qwen2.5",
+      "parametersBillions": 7,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 6,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 9,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 16,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen2.5:7b",
+      "ollamaTagQ8": "qwen2.5:7b-instruct-q8_0",
+      "ollamaTagFp16": "qwen2.5:7b-instruct-fp16",
+      "checkerOrder": 14
+    },
+    {
+      "id": "qwen2-5-14b",
+      "name": "Qwen2.5 14B",
+      "family": "qwen2.5",
+      "parametersBillions": 14,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 10,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 16,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 28,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen2.5:14b",
+      "ollamaTagQ8": "qwen2.5:14b-instruct-q8_0",
+      "ollamaTagFp16": "qwen2.5:14b-instruct-fp16",
+      "checkerOrder": 15
+    },
+    {
+      "id": "mistral-small-3-1",
+      "name": "Mistral Small 3.1",
+      "family": "mistral",
+      "parametersBillions": 24,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 14.4,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 25.5,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 48,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "mistral-small3.1:24b",
+      "ollamaTagQ8": "mistral-small3.1:24b-instruct-2503-q8_0",
+      "ollamaTagFp16": "mistral-small3.1:24b-instruct-2503-fp16",
+      "checkerOrder": 16
+    },
+    {
+      "id": "qwen2-5-32b",
+      "name": "Qwen2.5 32B",
+      "family": "qwen2.5",
+      "parametersBillions": 32,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 20,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 34,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 66,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen2.5:32b",
+      "ollamaTagQ8": "qwen2.5:32b-instruct-q8_0",
+      "ollamaTagFp16": "qwen2.5:32b-instruct-fp16",
+      "checkerOrder": 17
+    },
+    {
+      "id": "gemma-3-27b",
+      "name": "Gemma 3 27B",
+      "family": "gemma3",
+      "parametersBillions": 27,
+      "contextWindowTokens": 131072,
+      "license": "Gemma Terms of Use",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 17,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 29,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 56,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "gemma3:27b",
+      "ollamaTagQ8": "gemma3:27b-it-q8_0",
+      "ollamaTagFp16": "gemma3:27b-it-fp16",
+      "checkerOrder": 18
+    },
+    {
+      "id": "llama-3-3-70b",
+      "name": "Llama 3.3 70B",
+      "family": "llama3",
+      "parametersBillions": 70,
+      "contextWindowTokens": 131072,
+      "license": "Llama 3.3 Community License",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 41,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 72,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 142,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "llama3.3:70b",
+      "ollamaTagQ8": "llama3.3:70b-instruct-q8_0",
+      "ollamaTagFp16": "llama3.3:70b-instruct-fp16",
+      "checkerOrder": 19
+    },
+    {
+      "id": "llama-4-scout",
+      "name": "Llama 4 Scout",
+      "family": "llama4",
+      "parametersBillions": 109,
+      "contextWindowTokens": 10485760,
+      "license": "Llama 4 Community License",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 63,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "llama4:scout",
+      "checkerOrder": 20
+    },
+    {
+      "id": "qwen2-5-coder-7b",
+      "name": "Qwen2.5-Coder 7B",
+      "family": "qwen2.5-coder",
+      "parametersBillions": 7,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 6,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 9,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 16,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen2.5-coder:7b",
+      "ollamaTagQ8": "qwen2.5-coder:7b-instruct-q8_0",
+      "ollamaTagFp16": "qwen2.5-coder:7b-instruct-fp16",
+      "checkerOrder": 21
+    },
+    {
+      "id": "qwen2-5-coder-32b",
+      "name": "Qwen2.5-Coder 32B",
+      "family": "qwen2.5-coder",
+      "parametersBillions": 32,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 20,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 34,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 65,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen2.5-coder:32b",
+      "ollamaTagQ8": "qwen2.5-coder:32b-instruct-q8_0",
+      "ollamaTagFp16": "qwen2.5-coder:32b-instruct-fp16",
+      "checkerOrder": 22
+    },
+    {
+      "id": "gpt-oss-20b",
+      "name": "GPT-OSS 20B",
+      "family": "gpt-oss",
+      "parametersBillions": 20,
+      "contextWindowTokens": 128000,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 12.5,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "gpt-oss:20b",
+      "checkerOrder": 23
+    },
+    {
+      "id": "laguna-xs-2-1",
+      "name": "Laguna XS 2.1",
+      "family": "laguna",
+      "parametersBillions": 33.4,
+      "activeParametersBillions": 3,
+      "contextWindowTokens": 262144,
+      "license": "OpenMDW-1.1",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 20,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "laguna-xs-2.1",
+      "checkerOrder": 24
+    },
+    {
+      "id": "north-mini-code-1-0",
+      "name": "North Mini Code 1.0",
+      "family": "north",
+      "parametersBillions": 30.5,
+      "activeParametersBillions": 3,
+      "contextWindowTokens": 500000,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 18,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "north-mini-code-1.0",
+      "checkerOrder": 25
+    },
+    {
+      "id": "gemma-4-26b-a4b",
+      "name": "Gemma 4 26B (A4B)",
+      "family": "gemma-4",
+      "parametersBillions": 26,
+      "activeParametersBillions": 4,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 18,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "gemma4:26b",
+      "checkerOrder": 26
+    },
+    {
+      "id": "gemma-4-31b",
+      "name": "Gemma 4 31B",
+      "family": "gemma-4",
+      "parametersBillions": 31,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 20,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "gemma4:31b",
+      "checkerOrder": 27
+    },
+    {
+      "id": "qwen3-6-27b",
+      "name": "Qwen3.6 27B",
+      "family": "qwen3-6",
+      "parametersBillions": 27.8,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 17,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "qwen3.6:27b",
+      "checkerOrder": 28
+    },
+    {
+      "id": "qwen3-6-35b-a3b",
+      "name": "Qwen3.6 35B (A3B)",
+      "family": "qwen3-6",
+      "parametersBillions": 36,
+      "activeParametersBillions": 3,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 24,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "qwen3.6:35b-a3b",
+      "checkerOrder": 29
+    },
+    {
+      "id": "qwen3-30b-a3b",
+      "name": "Qwen3 30B (A3B)",
+      "family": "qwen3",
+      "parametersBillions": 30.5,
+      "activeParametersBillions": 3,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 19,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "qwen3:30b",
+      "checkerOrder": 30
+    },
+    {
+      "id": "qwen3-coder-30b-a3b",
+      "name": "Qwen3-Coder 30B (A3B)",
+      "family": "qwen3-coder",
+      "parametersBillions": 30.5,
+      "activeParametersBillions": 3,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 19,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "qwen3-coder:30b",
+      "checkerOrder": 31
+    }
+  ]
+}

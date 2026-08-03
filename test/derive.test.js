@@ -75,7 +75,7 @@ test("macos: capacity is banded from usable memory, not the sticker total", asyn
 
 test("every fixture produces a contract-valid, privacy-safe report", async () => {
   const names = (await readdir(path.join(root, "fixtures")))
-    .filter((n) => n.endsWith(".json") && n !== "website-bands-parity.json")
+    .filter((n) => n.endsWith(".json") && !n.startsWith("website-"))
     .map((n) => n.replace(/\.json$/, ""));
 
   assert.ok(names.length >= 3, "all three validated platforms must be represented");

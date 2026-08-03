@@ -7,8 +7,11 @@ import path from "node:path";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesDir = path.join(root, "fixtures");
 
+// `website-*` are parity pins generated from the website's modules, not machine
+// captures. Excluded by prefix rather than by an exact filename, so adding
+// another parity fixture cannot accidentally make it get validated as a capture.
 const captureFixtures = async () =>
-  (await readdir(fixturesDir)).filter((n) => n.endsWith(".json") && n !== "website-bands-parity.json");
+  (await readdir(fixturesDir)).filter((n) => n.endsWith(".json") && !n.startsWith("website-"));
 
 // PUBLISHABILITY GUARD.
 //
