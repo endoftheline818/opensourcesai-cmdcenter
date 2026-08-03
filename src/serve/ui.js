@@ -406,10 +406,49 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   margin-top: 0.25rem; color: var(--color-text-muted);
   font-size: var(--fs-overline); line-height: 1.35;
 }
+.summary-trust {
+  display: flex; gap: var(--space-2); flex-wrap: wrap; margin: 0 0 var(--space-4);
+}
+.summary-trust span {
+  display: inline-flex; align-items: center; min-height: 1.6rem;
+  padding: 0.18rem 0.58rem; border: 1px solid var(--color-border);
+  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
+  color: var(--color-text-muted); font-size: var(--fs-overline); font-weight: 650;
+}
 .summary-action {
-  margin-top: var(--space-4); color: var(--color-text-muted); font-size: var(--fs-small);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3); align-items: center;
+  margin-top: var(--space-4); padding: 0.85rem;
+  border: 1px solid var(--color-border); border-radius: 0.75rem;
+  background: rgba(6, 9, 19, 0.26);
+  color: var(--color-text-muted); font-size: var(--fs-small);
 }
 .summary-action b { color: var(--color-text); font-weight: 700; }
+.summary-action-copy {
+  display: grid; gap: 0.2rem;
+}
+.summary-action-label {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
+}
+.summary-next {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3); margin-top: var(--space-3);
+}
+.summary-next-card {
+  min-width: 0; display: grid; gap: 0.55rem; align-content: start;
+  padding: 0.85rem; border: 1px solid var(--color-border);
+  border-radius: 0.75rem; background: rgba(6, 9, 19, 0.24);
+}
+.summary-next-title {
+  color: var(--color-text); font-weight: 700; line-height: 1.2;
+}
+.summary-next-detail {
+  color: var(--color-text-muted); font-size: var(--fs-overline); line-height: 1.35;
+}
+.summary-next-card button {
+  justify-self: start;
+}
 
 .action-panel {
   display: grid; gap: var(--space-4);
@@ -430,6 +469,26 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 }
 .action-status {
   min-height: 1.35rem; margin: 0; color: var(--color-text-muted); font-size: var(--fs-small);
+}
+.action-preview {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px; overflow: hidden; border: 1px solid var(--color-border);
+  border-radius: 0.75rem; background: var(--color-border);
+}
+.action-preview-card {
+  min-width: 0; padding: 0.75rem; background: rgba(6, 9, 19, 0.30);
+}
+.action-preview-card .k {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
+}
+.action-preview-card .v {
+  margin-top: 0.2rem; color: var(--color-text); font-weight: 700;
+  line-height: 1.2; overflow-wrap: anywhere;
+}
+.action-preview-card .d {
+  margin-top: 0.25rem; color: var(--color-text-muted);
+  font-size: var(--fs-overline); line-height: 1.35;
 }
 .action-trust {
   display: flex; gap: var(--space-2); flex-wrap: wrap;
@@ -740,6 +799,10 @@ select {
   .summary-main { grid-template-columns: minmax(0, 1fr); }
   .summary-grid { grid-template-columns: minmax(0, 1fr); }
   .summary-title { font-size: 1.75rem; }
+  .summary-action { grid-template-columns: minmax(0, 1fr); }
+  .summary-action button { width: 100%; }
+  .summary-next { grid-template-columns: minmax(0, 1fr); }
+  .summary-next-card button { width: 100%; }
   .trust-hero { grid-template-columns: minmax(0, 1fr); }
   .trust-grid { grid-template-columns: minmax(0, 1fr); }
   .source-head { flex-direction: column; }
@@ -748,6 +811,7 @@ select {
   .share-copy button { width: 100%; }
   .action-controls { grid-template-columns: minmax(0, 1fr); }
   .action-controls button { width: 100%; }
+  .action-preview { grid-template-columns: minmax(0, 1fr); }
   .loaded-item, .installed-item { grid-template-columns: minmax(0, 1fr); }
   .loaded-actions, .installed-action { justify-content: stretch; justify-items: stretch; }
   .loaded-actions button, .installed-action button { width: 100%; }
@@ -974,6 +1038,97 @@ function hardwareTrustPanel(d) {
   return p;
 }
 
+function goToView(id) {
+  if (location.hash === "#" + id) renderView(id);
+  else location.hash = id;
+}
+
+function focusSwitcher() {
+  const select = document.getElementById("switcher-model");
+  if (!select) return;
+  select.scrollIntoView({ block: "center", inline: "nearest" });
+  select.focus();
+}
+
+function summaryTrustRail(d) {
+  const rail = el("div", "summary-trust");
+  const installed = d.installed.length;
+  rail.append(
+    el("span", null, "Loopback only"),
+    el("span", null, "Load / unload only"),
+    el("span", null, installed + " installed"),
+    el("span", null, d.report.disagreements.length ? d.report.disagreements.length + " hardware disagreement" : sourceConfidence(d).label),
+  );
+  return rail;
+}
+
+function overviewNextAction(d, runnable, loaded) {
+  if (!d.report.ollama.installed) {
+    return {
+      title: "Start Ollama locally",
+      detail: "Model actions and live residency need the local Ollama service.",
+      button: null,
+    };
+  }
+  if (!d.installed.length) {
+    return {
+      title: "Install a local model",
+      detail: runnable.length + " catalog models fit this machine; actions require an installed model.",
+      button: "Open Catalog",
+      onClick: () => { goToView("catalog"); },
+    };
+  }
+  if (!loaded.length) {
+    return {
+      title: "Warm an installed model",
+      detail: "The load request uses an empty prompt and does not download anything.",
+      button: "Choose Model",
+      onClick: focusSwitcher,
+    };
+  }
+  return {
+    title: "Manage resident models",
+    detail: loaded.length + " model" + (loaded.length === 1 ? "" : "s") + " currently reported as resident.",
+    button: "Review Controls",
+    onClick: focusSwitcher,
+  };
+}
+
+function summaryActionPanel(d, runnable, loaded) {
+  const action = overviewNextAction(d, runnable, loaded);
+  const wrap = el("div", "summary-action");
+  const copy = el("div", "summary-action-copy");
+  copy.append(el("div", "summary-action-label", "Next action"), el("b", null, action.title), el("span", null, action.detail));
+  wrap.append(copy);
+  if (action.button) {
+    const button = el("button", "primary-action", action.button);
+    button.type = "button";
+    button.addEventListener("click", action.onClick);
+    wrap.append(button);
+  }
+  return wrap;
+}
+
+function summaryNextCard(title, detail, label, target) {
+  const card = el("div", "summary-next-card");
+  card.append(el("div", "summary-next-title", title), el("div", "summary-next-detail", detail));
+  const button = el("button", null, label);
+  button.type = "button";
+  button.addEventListener("click", () => { goToView(target); });
+  card.append(button);
+  return card;
+}
+
+function summaryNextSteps(d, runnable) {
+  const wrap = el("div", "summary-next");
+  wrap.append(
+    summaryNextCard("Catalog fit", runnable.length + " runnable catalog models on this machine.", "Open Catalog", "catalog"),
+    summaryNextCard("Hardware evidence", d.report.disagreements.length ? d.report.disagreements.length + " source disagreement visible." : basisLabel(d), "Review Hardware", "hardware"),
+    summaryNextCard("Public report", Object.keys(d.report.exportable).length + " bounded share fields.", "Open Report", "report"),
+  );
+  return wrap;
+}
+
 function overviewSummaryPanel(d) {
   const p = panel();
   p.className += " summary-panel";
@@ -989,6 +1144,7 @@ function overviewSummaryPanel(d) {
   copy.append(el("p", "summary-detail", state.detail));
   main.append(copy, el("span", "status-chip " + state.tone, state.label));
   p.append(main);
+  p.append(summaryTrustRail(d));
 
   const cards = el("div", "summary-grid");
   cards.append(summaryCard("Capacity", runnable.length + " fit", best ? "Best first: " + best.name : "No catalog fit", null));
@@ -997,19 +1153,7 @@ function overviewSummaryPanel(d) {
   cards.append(summaryCard("Pressure", "Waiting", "Live telemetry updates every 2s", "summary-pressure"));
   p.append(cards);
 
-  const action = el("p", "summary-action");
-  if (!d.report.ollama.installed) {
-    action.append(document.createTextNode("Start Ollama locally, then refresh this page."));
-  } else if (!d.installed.length) {
-    action.append(document.createTextNode("Install a model in Ollama before using load actions here."));
-  } else if (!loaded.length) {
-    action.append(document.createTextNode("Next step: "));
-    action.append(el("b", null, "load an installed model"));
-    action.append(document.createTextNode(" from the control below. Nothing is downloaded or destroyed."));
-  } else {
-    action.append(document.createTextNode("Use the controls below to load or unload resident models. Nothing is downloaded or destroyed."));
-  }
-  p.append(action);
+  p.append(summaryActionPanel(d, runnable, loaded), summaryNextSteps(d, runnable));
   return p;
 }
 
@@ -1136,10 +1280,27 @@ function loadedModelMap(live) {
 }
 
 function describeLoadConsequence(target) {
+  if (!target) return "Choose an installed model.";
   const loaded = (lastLive && lastLive.loaded.reachable ? lastLive.loaded.models : []);
   if (loaded.some((m) => m.name === target)) return target + " is already resident in memory.";
   if (!loaded.length) return "No resident model right now; this loads " + target + " without downloading anything.";
   return "Loading " + target + " may evict " + loaded.map((m) => m.name).join(", ") + " to make room.";
+}
+
+function updateSwitcherPreview(target) {
+  const selected = document.getElementById("switcher-selected-model");
+  if (selected) selected.textContent = target || "No model selected";
+  const consequence = document.getElementById("switcher-preview-consequence");
+  if (consequence) consequence.textContent = describeLoadConsequence(target);
+}
+
+function actionPreviewCard(label, value, detail, id) {
+  const card = el("div", "action-preview-card");
+  card.append(el("div", "k", label));
+  const v = el("div", "v", value);
+  if (id) v.id = id;
+  card.append(v, el("div", "d", detail));
+  return card;
 }
 
 async function requestLoad(model, status, trigger) {
@@ -1465,6 +1626,13 @@ function switcherPanel(d) {
   const installed = (d.installed || []).map((m) => m.name);
   if (!d.report.ollama.installed || !installed.length) {
     p.append(el("p", "empty", "No installed models to load."));
+    const trust = el("div", "action-trust");
+    trust.append(
+      el("span", null, "Installed only"),
+      el("span", null, "Empty prompt"),
+      el("span", null, "No pull or delete"),
+    );
+    p.append(trust);
     return p;
   }
 
@@ -1487,6 +1655,14 @@ function switcherPanel(d) {
   go.setAttribute("aria-label", "Load selected model");
   row.append(select, go);
   p.append(row);
+
+  const preview = el("div", "action-preview");
+  preview.append(
+    actionPreviewCard("Selected model", installed[0], "Must already be installed in Ollama", "switcher-selected-model"),
+    actionPreviewCard("Request", "Empty prompt", "Fixed keep-alive, no inference text"),
+    actionPreviewCard("Consequence", "Waiting", "Live residency determines eviction risk", "switcher-preview-consequence"),
+  );
+  p.append(preview);
 
   const status = el("p", "action-status");
   status.id = "switcher-status";
@@ -1621,7 +1797,9 @@ let lastLive = null;
 function updateSwitcherConsequence() {
   const select = document.getElementById("switcher-model");
   const status = document.getElementById("switcher-status");
-  if (!select || !status || status.dataset.busy === "true" || status.dataset.result === "true") return;
+  if (!select) return;
+  updateSwitcherPreview(select.value);
+  if (!status || status.dataset.busy === "true" || status.dataset.result === "true") return;
   status.textContent = describeLoadConsequence(select.value);
 }
 
@@ -1901,8 +2079,7 @@ function buildSideNav(d) {
     b.addEventListener("click", () => {
       // Writing the hash drives the render through hashchange, so a click and
       // a pasted link take exactly the same path.
-      if (location.hash === "#" + view.id) renderView(view.id);
-      else location.hash = view.id;
+      goToView(view.id);
     });
     nav.append(b);
   }

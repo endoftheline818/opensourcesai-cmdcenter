@@ -218,6 +218,37 @@ test("overview starts with a public-ready command summary", () => {
   assert.match(js, /renderSummaryLive\(live\)/, "live telemetry should update the summary");
 });
 
+test("overview exposes trust state and safe next actions", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.summary-trust\b/, "overview trust chips must be styled");
+  assert.match(css, /\.summary-next\b/, "overview next-action cards must be styled");
+  assert.match(css, /\.summary-action\b/, "overview should have a distinct next-action surface");
+  assert.match(js, /summaryTrustRail\(d\)/, "overview must render trust chips");
+  assert.match(js, /summaryActionPanel\(d, runnable, loaded\)/, "overview must render the primary next action");
+  assert.match(js, /summaryNextSteps\(d, runnable\)/, "overview must render secondary next actions");
+  assert.match(js, /function goToView\(id\)/, "overview cards should use the existing view system");
+  assert.match(js, /function focusSwitcher\(\)/, "the primary action should focus the existing load console");
+  for (const text of ["Loopback only", "Load / unload only", "Open Catalog", "Review Hardware", "Open Report"]) {
+    assert.match(js, new RegExp(text.replace(/[ /]/g, (m) => (m === " " ? "\\s+" : "\\/"))), `${text} should be visible in the Overview`);
+  }
+});
+
+test("load console previews the selected safe action", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.action-preview\b/, "load action preview must be styled");
+  assert.match(css, /\.action-preview-card\b/, "preview facts should be separated from controls");
+  assert.match(js, /function updateSwitcherPreview\(target\)/, "selected model preview should update with the picker");
+  assert.match(js, /"switcher-selected-model"/, "selected model preview needs a stable id");
+  assert.match(js, /"switcher-preview-consequence"/, "consequence preview needs a stable id");
+  assert.match(js, /updateSwitcherPreview\(select\.value\)/, "selector changes should update the preview");
+  assert.match(js, /describeLoadConsequence\(target\)/, "preview should use the same consequence text as status");
+  assert.match(js, /actionPreviewCard\("Request", "Empty prompt"/, "the empty-prompt boundary should be visible before clicking Load");
+});
+
 test("native controls are styled and specifically labelled", () => {
   const css = withoutComments(CSS);
   const js = withoutComments(JS);
