@@ -608,6 +608,69 @@ function catalogPanel(d) {
   return p;
 }
 
+function toolsPanel(d) {
+  const t = d.tools;
+  const p = panel("MCP servers");
+
+  const g = el("div", "grid");
+  g.append(kv("Clients configured", t.summary.clientsConfigured));
+  g.append(kv("Servers configured", t.summary.serversConfigured, true));
+  g.append(kv("Distinct servers", t.summary.distinctServers));
+  g.append(kv("Holding credentials", t.summary.serversHoldingCredentials));
+  p.append(g);
+
+  if (!t.servers.length) {
+    p.append(el("p", "empty", "No MCP servers found in any known client configuration."));
+    return p;
+  }
+
+  const table = el("table");
+  const head = el("tr");
+  for (const h of ["Server", "Client", "Transport", "Package", "Needs"]) head.append(el("th", null, h));
+  table.append(head);
+  for (const s of t.servers) {
+    const row = el("tr");
+    row.append(el("td", null, s.name));
+    row.append(el("td", "muted", s.client));
+    row.append(el("td", "mono", s.transport));
+    row.append(el("td", "mono", s.packageHint || (s.command ? s.command : "—")));
+    const needs = el("td");
+    if (!s.envVarNames.length) {
+      needs.append(el("span", "muted", "—"));
+    } else {
+      needs.append(el("div", "mono muted", s.envVarNames.join(", ")));
+      if (s.secretShapedEnvCount > 0) {
+        needs.append(el("div", "explain", "Names only — this tool never reads their values."));
+      }
+    }
+    row.append(needs);
+    table.append(row);
+  }
+  p.append(table);
+  return p;
+}
+
+function localToolsPanel(d) {
+  const p = panel("Local AI tools");
+  const table = el("table");
+  const head = el("tr");
+  for (const h of ["Tool", "Detected"]) head.append(el("th", null, h));
+  table.append(head);
+  for (const tool of d.tools.tools) {
+    const row = el("tr");
+    row.append(el("td", null, tool.name));
+    const status = el("td");
+    status.append(el("span", "pill " + (tool.installed ? "known" : "unlisted"), tool.installed ? "installed" : "not found"));
+    row.append(status);
+    table.append(row);
+  }
+  p.append(table);
+  // Absence here is genuinely weaker evidence than presence, and saying so
+  // matters more than looking comprehensive.
+  if (d.tools.note) p.append(el("p", "explain", d.tools.note));
+  return p;
+}
+
 function limitsPanel(d) {
   if (!d.report.limits.length) return null;
   const p = panel("What this report does not claim");
@@ -745,6 +808,12 @@ const VIEWS = [
     label: "Catalog",
     count: (d) => d.models.filter((m) => m.fit !== "too_large").length,
     build: (d) => [catalogPanel(d)],
+  },
+  {
+    id: "tools",
+    label: "Tools",
+    count: (d) => d.tools.summary.serversConfigured,
+    build: (d) => [toolsPanel(d), localToolsPanel(d)],
   },
   {
     id: "hardware",
