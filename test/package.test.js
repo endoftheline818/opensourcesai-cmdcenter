@@ -44,7 +44,11 @@ test("package is private until a deliberate publish decision", async () => {
 // The two files permitted to reach the network, both talking only to Ollama.
 // An allowlist rather than a blanket exemption: adding a third has to be a
 // deliberate edit to this list, which is the point.
-const NETWORK_CAPABLE = [path.join("collect", "ollama.js"), path.join("collect", "telemetry.js")];
+const NETWORK_CAPABLE = [
+  path.join("collect", "ollama.js"),
+  path.join("collect", "telemetry.js"),
+  path.join("actions", "ollama.js"),
+];
 
 test("network access exists only in the Ollama collectors", async () => {
   const files = await sourceFiles(path.join(root, "src"));
@@ -181,18 +185,41 @@ test("the comment stripper used by these guards actually works", () => {
   assert.match(codeOnly('fetch(x); // c'), /fetch/);
 });
 
-// TRUST PROPERTY 2 — READ-ONLY.
-// Phase 0 is a diagnostic. It must not be able to mutate the machine even by
-// accident: no model pulls, no deletions, no service control. Read-only means
-// the mutation surface is absent, not disabled behind a flag.
-test("no mutating Ollama endpoint or destructive command is reachable", async () => {
+// TRUST PROPERTY 2 — A NARROW, ENUMERATED MUTATION SURFACE.
+//
+// This guard used to assert absolute read-only. Phase 2 deliberately opened two
+// actions (load, unload), so the absolute claim would now be false — and a
+// guard asserting something false is worse than no guard. It is REPLACED, not
+// relaxed: the destructive operations it existed to prevent are still named
+// individually and still unreachable, and the mutation surface is confined to
+// one directory. src/actions has its own dedicated suite in actions.test.js.
+test("destructive Ollama operations are unreachable from anywhere", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   for (const file of files) {
-    const source = await readFile(file, "utf8");
+    // Comments stripped: src/actions/ollama.js documents precisely which
+    // endpoints it must never call, and naming them in prose is exactly what
+    // makes that file trustworthy. Fifth instance of this repo's
+    // prose-versus-code trap — a guard must read code, never commentary.
+    const source = withoutComments(await readFile(file, "utf8"));
     const relative = path.relative(root, file);
-    assert.doesNotMatch(source, /\/api\/(pull|push|delete|create|copy)\b/, `mutating API in ${relative}`);
-    assert.doesNotMatch(source, /method:\s*["'](POST|PUT|PATCH|DELETE)["']/i, `write request in ${relative}`);
-    assert.doesNotMatch(source, /\bollama\s+(pull|rm|stop|serve|create|push)\b/, `mutating CLI call in ${relative}`);
+    // These endpoints download gigabytes or destroy data irreversibly. No
+    // phase has opened them and none is planned.
+    assert.doesNotMatch(source, /\/api\/(pull|push|delete|create|copy)\b/, `destructive API in ${relative}`);
+    assert.doesNotMatch(source, /\bollama\s+(pull|rm|stop|serve|create|push)\b/, `destructive CLI call in ${relative}`);
+    // PUT/PATCH/DELETE have no use here in any phase.
+    assert.doesNotMatch(source, /method:\s*["'](PUT|PATCH|DELETE)["']/i, `write verb in ${relative}`);
+  }
+});
+
+test("POST exists only in the action layer and the browser bundle", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  for (const file of files) {
+    const relative = path.relative(root, file);
+    // serve/ui.js posts to THIS server, not to Ollama, and is constrained by
+    // the same-origin rule asserted above.
+    if (relative.includes(path.join("src", "actions")) || relative.endsWith(path.join("serve", "ui.js"))) continue;
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /method:\s*["']POST["']/i, `unexpected POST in ${relative}`);
   }
 });
 

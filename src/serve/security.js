@@ -97,11 +97,31 @@ export function isAllowedOrigin(origin, port) {
  *
  * @returns {{ok: true} | {ok: false, status: number, reason: string}}
  */
-export function authorize(req, { token, port, requireToken = true }) {
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    // Phase 1 is read-only. Refusing the verb outright means a mutating route
-    // cannot be reached even if one were added by mistake.
-    return { ok: false, status: 405, reason: "read-only server: only GET and HEAD are accepted" };
+/**
+ * The complete set of paths that may be POSTed to. Everything else is
+ * read-only, and the check below is an exact-match allowlist rather than a
+ * prefix or pattern — so a new mutating route cannot appear by accident, only
+ * by being named here.
+ */
+export const ACTION_PATHS = new Set(["/api/actions/load", "/api/actions/unload"]);
+
+export function authorize(req, { token, port, requireToken = true, pathname = null }) {
+  const isAction = pathname !== null && ACTION_PATHS.has(pathname);
+
+  if (req.method === "POST") {
+    if (!isAction) {
+      return { ok: false, status: 405, reason: "this endpoint is read-only" };
+    }
+    // An action ALWAYS requires the session token, whatever the caller asks
+    // for. The `requireToken` relaxation exists only for unauthenticated UI
+    // assets, and must never extend to something that changes state.
+    if (!tokensMatch(req.headers?.[TOKEN_HEADER], token)) {
+      return { ok: false, status: 401, reason: "missing or invalid session token" };
+    }
+  } else if (req.method !== "GET" && req.method !== "HEAD") {
+    // PUT, PATCH, DELETE and the rest have no use here and never will. Refusing
+    // the verb outright means such a route cannot be reached even by mistake.
+    return { ok: false, status: 405, reason: "unsupported method" };
   }
   if (!isAllowedHost(req.headers?.host)) {
     return { ok: false, status: 403, reason: "host is not a loopback address" };

@@ -29,6 +29,50 @@ try {
   brandIcon = null;
 }
 
+/** Hard cap on a request body. An action payload is two short strings. */
+const MAX_BODY_BYTES = 4096;
+
+/**
+ * Read and parse a JSON request body, bounded.
+ *
+ * The size limit is enforced while reading rather than after, so an oversized
+ * body is refused before it is buffered — an unbounded read on a local server
+ * is a trivial way to exhaust memory.
+ */
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    let tooLarge = false;
+    const chunks = [];
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        // Stop BUFFERING, but keep draining. Destroying the socket here was a
+        // real bug: it killed the connection before the 400 could be written,
+        // so the client saw a transport error instead of the explanation — and
+        // because undici pools connections, it also poisoned the next request
+        // on that socket, which made two unrelated tests fail alongside it.
+        tooLarge = true;
+        chunks.length = 0;
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (tooLarge) {
+        reject(new Error("request body too large"));
+        return;
+      }
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      } catch {
+        reject(new Error("request body is not valid JSON"));
+      }
+    });
+    req.on("error", () => reject(new Error("request failed")));
+  });
+}
+
 function send(res, status, type, body, extraHeaders = {}) {
   res.writeHead(status, {
     "content-type": type,
@@ -50,12 +94,23 @@ export function createServer({
   collect,
   catalog,
   telemetry = null,
+  actions = null,
   now = () => new Date().toISOString(),
   monotonic = () => Date.now(),
   token = createSessionToken(),
   port = DEFAULT_PORT,
 }) {
   const routes = createRoutes({ collect, catalog, now, telemetry, monotonic });
+
+  // Mirrors security.js's ACTION_PATHS exactly. Two places name these routes —
+  // the authorizer and the dispatcher — and a test asserts the two lists agree,
+  // so neither can grow without the other.
+  const actionRoutes = actions
+    ? {
+        "/api/actions/load": (body) => actions.load(body?.model),
+        "/api/actions/unload": (body) => actions.unload(body?.model),
+      }
+    : {};
 
   const server = http.createServer(async (req, res) => {
     // Parsed against a fixed base purely to extract a clean pathname; the base
@@ -74,9 +129,27 @@ export function createServer({
     // that exposes machine state requires it.
     const isAsset =
       pathname === "/" || pathname === "/app.js" || pathname === "/app.css" || pathname === "/brand-icon.png";
-    const auth = authorize(req, { token, port, requireToken: !isAsset });
+    const auth = authorize(req, { token, port, requireToken: !isAsset, pathname });
     if (!auth.ok) {
       send(res, auth.status, "text/plain; charset=utf-8", auth.reason);
+      return;
+    }
+
+    if (req.method === "POST") {
+      const handler = actionRoutes[pathname];
+      if (!handler) {
+        send(res, 404, "text/plain; charset=utf-8", "not found");
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (err) {
+        send(res, 400, "application/json; charset=utf-8", JSON.stringify({ ok: false, reason: err.message }));
+        return;
+      }
+      const result = await handler(body);
+      send(res, result.ok ? 200 : (result.status ?? 400), "application/json; charset=utf-8", JSON.stringify(result));
       return;
     }
 

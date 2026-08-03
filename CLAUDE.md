@@ -42,8 +42,33 @@ Each is a trust property, not a preference, and each is enforced by a test in
 - **No network access except the local Ollama endpoint.** No telemetry, no
   upload, no update check, no analytics, no crash reporting. Not implemented,
   not stubbed, not behind a disabled flag. An audit must find zero outbound calls.
-- **No mutation of the user's machine.** No `pull`, `rm`, `stop`, `create`, no
-  POST/PUT/PATCH/DELETE, no service control. Read-only is the release boundary.
+- **The mutation surface is exactly two actions: load and unload.** Nothing
+  else, and widening it is a founder decision, not a refactor.
+  - **Why these two:** both are small, reversible and self-undoing — a loaded
+    model unloads itself when keep-alive expires; an unloaded one reloads on
+    next use. They destroy nothing.
+  - **Never:** `pull` (gigabytes over someone's connection), `delete`/`rm`
+    (irreversible), `push`, `create`, `copy`, or any service control. These are
+    named individually in `test/package.test.js` and stay unreachable.
+  - **PUT, PATCH and DELETE** have no use here in any phase and are refused for
+    every path.
+  - All mutation lives in `src/actions/`. A test asserts no `POST` appears
+    outside that directory and the browser bundle, so the blast radius of this
+    phase is one reviewable folder.
+  - The action layer calls exactly one Ollama endpoint — `/api/generate` — with
+    an **always-empty prompt**, so it can move models in and out of memory but
+    cannot run inference. `keep_alive` comes from a fixed internal set, never
+    from the caller, and the model name must exactly match one Ollama reports
+    as installed.
+  - `POST` is allowed only for paths in `ACTION_PATHS` (an exact-match
+    allowlist), always requires the session token even where assets do not, and
+    is subject to the same Host and Origin checks.
+
+  > **Phase 1 was absolutely read-only** — the server refused every non-GET verb
+  > before routing. That guarantee was replaced deliberately in Phase 2, not
+  > eroded: the guard that asserted it was rewritten to state the narrower
+  > property rather than deleted, because a guard asserting something no longer
+  > true is worse than no guard.
 - **No shell.** Every subprocess goes through `src/collect/exec.js`, which uses
   `execFile` with an explicit argv array and a hard timeout. Only that module
   may import `child_process`.

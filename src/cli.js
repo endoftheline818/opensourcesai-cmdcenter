@@ -11,6 +11,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { collect, resolveHost } from "./collect/index.js";
 import { collectTelemetry } from "./collect/telemetry.js";
+import { createActions } from "./actions/ollama.js";
 import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
@@ -47,6 +48,7 @@ export async function startDashboard({ port = DEFAULT_PORT } = {}) {
     collect,
     catalog,
     telemetry: ({ sampledAt }) => collectTelemetry({ host, storePath, sampledAt }),
+    actions: createActions({ host }),
     port,
   });
   return { ...started, catalog };

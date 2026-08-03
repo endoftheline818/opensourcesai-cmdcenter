@@ -493,7 +493,7 @@ function renderLoaded(live) {
 
   const t = el("table");
   const head = el("tr");
-  for (const h of ["Model", "In VRAM", "Residency"]) head.append(el("th", null, h));
+  for (const h of ["Model", "In VRAM", "Residency", ""]) head.append(el("th", null, h));
   t.append(head);
   for (const m of live.loaded.models) {
     const row = el("tr");
@@ -501,6 +501,28 @@ function renderLoaded(live) {
     row.append(el("td", null, m.sizeVramGb + " / " + m.sizeGb + " GB"));
     row.append(el("td", m.spilled ? "spilled" : null,
       m.vramResidentPercent + "%" + (m.spilled ? " — partly on CPU, expect it to be slow" : "")));
+
+    const actions = el("td");
+    const unload = el("button", null, "Unload");
+    unload.type = "button";
+    unload.addEventListener("click", async () => {
+      unload.disabled = true;
+      unload.textContent = "Unloading…";
+      try {
+        const res = await fetch("/api/actions/unload", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+          body: JSON.stringify({ model: m.name }),
+        });
+        const b = await res.json();
+        if (!b.ok) { unload.textContent = "Failed"; return; }
+      } catch { unload.textContent = "Failed"; return; }
+      // Repaint straight away rather than waiting up to two seconds for the
+      // next tick — an action with a visibly delayed effect reads as broken.
+      poll();
+    });
+    actions.append(unload);
+    row.append(actions);
     t.append(row);
   }
   body.append(t);
@@ -605,6 +627,77 @@ function catalogPanel(d) {
       hidden + " model" + (hidden === 1 ? "" : "s") +
       " in the catalog need more memory than this machine has. Choose Everything to see them and what they would require."));
   }
+  return p;
+}
+
+// ---------------------------------------------------------------------------
+// The one part of this interface that changes anything. Everything else
+// observes; this loads and unloads. It is deliberately explicit about that.
+// ---------------------------------------------------------------------------
+function switcherPanel(d) {
+  const p = panel("Load a model");
+
+  const installed = (d.installed || []).map((m) => m.name);
+  if (!d.report.ollama.installed || !installed.length) {
+    p.append(el("p", "empty", "No installed models to load."));
+    return p;
+  }
+
+  const row = el("div", "cmd");
+  const select = el("select");
+  select.id = "switcher-model";
+  select.setAttribute("aria-label", "Model to load");
+  for (const name of installed) {
+    const opt = el("option", null, name);
+    opt.value = name;
+    select.append(opt);
+  }
+  const go = el("button", null, "Load");
+  go.type = "button";
+  row.append(select, go);
+  p.append(row);
+
+  const status = el("p", "explain");
+  status.id = "switcher-status";
+  p.append(status);
+
+  // The confirm text is built from LIVE state, so it names what is actually
+  // resident right now rather than what was resident at page load.
+  const describeConsequence = () => {
+    const loaded = (lastLive && lastLive.loaded.reachable ? lastLive.loaded.models : []);
+    const target = select.value;
+    if (loaded.some((m) => m.name === target)) return target + " is already loaded.";
+    if (!loaded.length) return "Nothing is loaded right now, so this only adds " + target + " to memory.";
+    return "Loading " + target + " may evict " + loaded.map((m) => m.name).join(", ") + " to make room.";
+  };
+
+  const refreshConsequence = () => { status.textContent = describeConsequence(); };
+  select.addEventListener("change", refreshConsequence);
+  refreshConsequence();
+
+  go.addEventListener("click", async () => {
+    const model = select.value;
+    go.disabled = true;
+    status.textContent = "Loading " + model + "… this can take a while for a large model.";
+    try {
+      const res = await fetch("/api/actions/load", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+        body: JSON.stringify({ model: model }),
+      });
+      const body = await res.json();
+      status.textContent = body.ok
+        ? model + " loaded in " + Math.round(body.elapsedMs / 100) / 10 + "s."
+        : "Could not load " + model + ": " + body.reason;
+    } catch (err) {
+      status.textContent = "Could not load " + model + ": " + err.message;
+    } finally {
+      go.disabled = false;
+      poll();
+    }
+  });
+
+  p.append(el("p", "explain", "Loading and unloading are the only things this tool changes. It never pulls, deletes or removes a model."));
   return p;
 }
 
@@ -792,7 +885,12 @@ const VIEWS = [
   {
     id: "overview",
     label: "Overview",
-    build: (d) => [livePanelShell("gauges", "Live system"), livePanelShell("loaded", "Loaded right now"), ollamaPanel(d)],
+    build: (d) => [
+      livePanelShell("gauges", "Live system"),
+      livePanelShell("loaded", "Loaded right now"),
+      switcherPanel(d),
+      ollamaPanel(d),
+    ],
   },
   // Installed and catalog are separate views rather than one "Models" section:
   // together they were 75% of the original page, and they answer different
