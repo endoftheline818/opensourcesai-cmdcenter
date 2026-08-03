@@ -41,23 +41,22 @@ test("package is private until a deliberate publish decision", async () => {
 // The tool asks people to run it against their own machine. An audit must find
 // zero outbound calls. Network access exists in exactly one module and is
 // pinned to loopback; everywhere else it is absent by construction.
-test("network access exists only in the Ollama collector and is pinned to loopback", async () => {
+// The two files permitted to reach the network, both talking only to Ollama.
+// An allowlist rather than a blanket exemption: adding a third has to be a
+// deliberate edit to this list, which is the point.
+const NETWORK_CAPABLE = [path.join("collect", "ollama.js"), path.join("collect", "telemetry.js")];
+
+test("network access exists only in the Ollama collectors", async () => {
   const files = await sourceFiles(path.join(root, "src"));
-  const ollamaCollector = path.join("collect", "ollama.js");
   const browserBundle = path.join("serve", "ui.js");
 
   for (const file of files) {
     const source = await readFile(file, "utf8");
-
-    if (file.endsWith(ollamaCollector)) {
-      assert.match(source, /127\.0\.0\.1:11434/, "the one Node-side network target must be loopback");
-      continue;
-    }
+    if (NETWORK_CAPABLE.some((allowed) => file.endsWith(allowed))) continue;
 
     // serve/ui.js is BROWSER code carried as a string. Its fetches run in the
     // user's browser against this same server, which is a different thing from
-    // the Node process reaching the network — so it is checked by a stricter,
-    // more specific rule below rather than exempted.
+    // the Node process reaching the network — it has its own stricter rule.
     if (file.endsWith(browserBundle)) continue;
 
     assert.doesNotMatch(
@@ -66,6 +65,45 @@ test("network access exists only in the Ollama collector and is pinned to loopba
       `unexpected network call in ${path.relative(root, file)}`,
     );
   }
+});
+
+// THE PROPERTY THAT ACTUALLY MATTERS, and it is stronger than the file
+// allowlist above: no source file may contain an absolute URL pointing anywhere
+// other than loopback. `collect/telemetry.js` builds its request from a host
+// passed in by the caller and contains no URL literal of its own, so this is
+// what proves the whole package can only ever talk to this machine.
+test("every absolute URL in the package points at loopback", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  let found = 0;
+
+  for (const file of files) {
+    // Comments stripped, strings kept — a comment discussing `http://0.0.0.0`
+    // as a bug is documentation, not an outbound call. Fourth instance of this
+    // repo's prose-versus-code trap; see withoutComments() above.
+    const source = withoutComments(await readFile(file, "utf8"));
+    for (const match of source.matchAll(/https?:\/\/[^\s"'`)]+/g)) {
+      const url = match[0];
+      found += 1;
+      assert.match(
+        url,
+        // `${BIND_ADDRESS}` is permitted as a loopback form because the very
+        // next assertion proves that constant IS the loopback literal — an
+        // allowance grounded in a check, not in a comment claiming it is fine.
+        /^http:\/\/(127\.0\.0\.1|localhost|\[::1\]|\$\{BIND_ADDRESS\})(:|\/|$)/,
+        `${path.relative(root, file)} contains a non-loopback URL: ${url}`,
+      );
+    }
+  }
+  assert.ok(found > 0, "expected at least one loopback URL — otherwise this guard is vacuous");
+
+  // Grounds the ${BIND_ADDRESS} allowance above. If the server ever bound to
+  // 0.0.0.0, the URL guard would still pass on the template — this is what
+  // catches it.
+  const { BIND_ADDRESS } = await import("../src/serve/server.js");
+  assert.equal(BIND_ADDRESS, "127.0.0.1", "the server must bind loopback only");
+
+  const { DEFAULT_OLLAMA_HOST } = await import("../src/collect/ollama.js");
+  assert.match(DEFAULT_OLLAMA_HOST, /^http:\/\/127\.0\.0\.1:\d+$/);
 });
 
 test("the browser bundle only ever talks to its own origin", async () => {
@@ -93,21 +131,41 @@ test("the browser bundle only ever talks to its own origin", async () => {
  * that checks there is no telemetry — a false positive that would train the
  * next person to delete the guard rather than trust it.
  */
-function codeOnly(source) {
+/**
+ * Strip comments only, KEEPING string literals.
+ *
+ * Distinct from codeOnly() on purpose. A URL guard must still see
+ * `"http://127.0.0.1:11434"` — that string ships and is the thing being
+ * verified — while ignoring a comment that merely *discusses* an address. Using
+ * codeOnly() here would delete the only real URL and leave the guard vacuously
+ * passing, which is why it asserts it found at least one.
+ */
+function withoutComments(source) {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+function codeOnly(source) {
+  return withoutComments(source)
     .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
 }
 
-test("no telemetry, analytics, or update-check surface exists anywhere", async () => {
+// NOTE ON THE WORD "TELEMETRY". This guard originally forbade it outright,
+// which broke the moment local hardware counters arrived — `collectTelemetry`
+// reads this machine's own GPU and CPU and sends nothing anywhere, the exact
+// opposite of the phone-home sense the guard was written for. Two unrelated
+// meanings, one word. The word itself is therefore not the check; the
+// no-outbound-URL and network-allowlist guards above are, and this one names
+// the vendors and mechanisms that actually indicate exfiltration.
+test("no analytics, crash-reporting, or update-check surface exists anywhere", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   for (const file of files) {
     const code = codeOnly(await readFile(file, "utf8"));
     assert.doesNotMatch(
       code,
-      /\b(telemetry|analytics|gtag|sentry|crashReport|checkForUpdate|posthog|mixpanel)\b/i,
-      `telemetry-adjacent identifier in ${path.relative(root, file)}`,
+      /\b(analytics|gtag|dataLayer|sentry|posthog|mixpanel|amplitude|segment|crashReport|sendBeacon|checkForUpdate|phoneHome)\b/i,
+      `exfiltration-adjacent identifier in ${path.relative(root, file)}`,
     );
   }
 });

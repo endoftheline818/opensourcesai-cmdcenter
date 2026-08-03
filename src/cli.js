@@ -9,7 +9,8 @@
 import { pathToFileURL } from "node:url";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { collect } from "./collect/index.js";
+import { collect, resolveHost } from "./collect/index.js";
+import { collectTelemetry } from "./collect/telemetry.js";
 import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
@@ -21,6 +22,34 @@ export async function loadCatalog() {
   return JSON.parse(
     await readFile(path.join(packageRoot, "data", "checker-models-snapshot.json"), "utf8"),
   );
+}
+
+/**
+ * Wire up and start the dashboard.
+ *
+ * EXPORTED SO IT CAN BE TESTED. This wiring previously lived inline in main()'s
+ * serve branch, where it was unreachable from the suite — and a
+ * temporal-dead-zone reference to `now` shipped and only surfaced when the
+ * server was actually run by hand. A seam that returns the handle lets a test
+ * boot the real path on an ephemeral port and close it again.
+ */
+export async function startDashboard({ port = DEFAULT_PORT } = {}) {
+  const catalog = await loadCatalog();
+
+  // Resolve the Ollama endpoint and model-store path ONCE at startup and close
+  // over them, so each telemetry poll costs only the probes themselves rather
+  // than re-deriving configuration two times a second.
+  const host = resolveHost();
+  const bootstrap = await collect({ capturedAt: new Date().toISOString() });
+  const storePath = bootstrap.ollama?.modelStore?.path ?? null;
+
+  const started = await startServer({
+    collect,
+    catalog,
+    telemetry: ({ sampledAt }) => collectTelemetry({ host, storePath, sampledAt }),
+    port,
+  });
+  return { ...started, catalog };
 }
 
 function usage() {
@@ -80,8 +109,7 @@ export async function main(argv = process.argv, stdout = process.stdout) {
       stdout.write(`Invalid --port value. Expected an integer between 1 and 65535.\n`);
       return 1;
     }
-    const catalog = await loadCatalog();
-    const { url, token } = await startServer({ collect, catalog, port: args.port });
+    const { url, token, catalog } = await startDashboard({ port: args.port });
     stdout.write(
       [
         `OpenSourcesAI Command Center — read-only dashboard`,
