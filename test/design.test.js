@@ -92,9 +92,25 @@ test("the brand mark is served same-origin, never hotlinked or inlined", () => {
   assert.doesNotMatch(html, /data:image\/[a-z+]+;base64,[A-Za-z0-9+/]{200,}/, "a 57 KB inline data URI would bloat every page load");
 });
 
-test("read-only is stated in the interface, not just in the docs", () => {
+// THIS TEST PREVIOUSLY ENFORCED A CLAIM THAT BECAME FALSE.
+//
+// It asserted the interface says "Read-only". Phase 2 opened load and unload,
+// so the badge was still promising something the tool no longer honoured — a
+// stale trust claim, kept alive by a passing test. Caught from a screenshot,
+// not from the suite, which is the point: a test can only protect a property
+// someone remembered to restate when the property changed.
+//
+// The guarantee that still holds, and the one a user actually cares about, is
+// that nothing is downloaded or destroyed. That is what the badge now says.
+test("the interface states the CURRENT guarantee, not a stale one", () => {
   const html = HTML("t".repeat(64));
-  assert.match(html, /Read-only/, "the read-only guarantee must be visible to the user");
+  assert.match(html, /Load \/ unload only/, "the badge must state what the tool actually does");
+  assert.match(html, /never pulls, deletes or removes/, "the standing guarantee belongs in the interface");
+  assert.doesNotMatch(
+    html,
+    /">Read-only</,
+    "the read-only badge is no longer true — Phase 2 opened load and unload",
+  );
 });
 
 // THE BROWSER BUNDLE MUST ACTUALLY PARSE.

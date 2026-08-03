@@ -211,6 +211,28 @@ test("destructive Ollama operations are unreachable from anywhere", async () => 
   }
 });
 
+// NO USER-FACING SURFACE MAY CLAIM READ-ONLY.
+//
+// Phase 2 made that claim false, but it was asserted in five places — a badge,
+// two lines of help text, a startup banner and a footer — and only the badge
+// was visible in a screenshot. The suite happily passed the whole time, because
+// a test can only protect a property someone remembered to restate.
+//
+// Comments and internal identifiers may still discuss read-only accurately
+// (the JSON routes ARE read-only; actions are a separate surface). This guards
+// the strings a USER reads.
+test("no user-facing string still claims the tool is read-only", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  for (const file of files) {
+    const source = withoutComments(await readFile(file, "utf8"));
+    const relative = path.relative(root, file);
+    // Phrases that assert it TO A USER, rather than describing one subsystem.
+    for (const claim of [/tool is read-only/i, /read-only dashboard/i, /read-only,/i, /">Read-only</]) {
+      assert.doesNotMatch(source, claim, `stale read-only claim in ${relative}`);
+    }
+  }
+});
+
 test("POST exists only in the action layer and the browser bundle", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   for (const file of files) {

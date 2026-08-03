@@ -62,7 +62,7 @@ loaded models — and reports what it can actually verify.
 
 Commands:
   (none)        Print a diagnostic report as text
-  serve         Open the local read-only dashboard in a browser
+  serve         Open the local dashboard in a browser
 
 Options:
   --json        Emit the full report as JSON instead of text
@@ -71,9 +71,10 @@ Options:
   --version     Print the version
   --help        Show this help
 
-This tool is read-only and makes no external network calls. Its only network
-connection is to Ollama on loopback (127.0.0.1:11434). The dashboard binds to
-127.0.0.1 only and requires a per-session token.`;
+This tool makes no external network calls — its only connection is to Ollama on
+loopback (127.0.0.1:11434). The dashboard binds to 127.0.0.1 only and requires a
+per-session token. The only things it changes are loading and unloading a model;
+it never pulls, deletes or removes anything.`;
 }
 
 function parseArguments(argv) {
@@ -114,11 +115,12 @@ export async function main(argv = process.argv, stdout = process.stdout) {
     const { url, token, catalog } = await startDashboard({ port: args.port });
     stdout.write(
       [
-        `OpenSourcesAI Command Center — read-only dashboard`,
+        `OpenSourcesAI Command Center`,
         ``,
         `  ${url}`,
         ``,
         `Bound to 127.0.0.1 only, so it is not reachable from another machine.`,
+        `It can load and unload models; it never pulls, deletes or removes anything.`,
         `The page authenticates with a token generated for this session; it is`,
         `never written to disk and changes every time you start the server.`,
         `Catalog snapshot: ${catalog.source?.generatedAt ?? "unknown"} (${catalog.modelCount} models).`,
