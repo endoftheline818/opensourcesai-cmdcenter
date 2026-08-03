@@ -1,0 +1,21 @@
+{
+  "source": {
+    "repository": "opensourcesai.com",
+    "generatedBy": "scripts/sync-from-website.mjs",
+    "generatedAt": "2026-08-03",
+    "modules": [
+      "docs/social-image-system/social-image-style-guide.md"
+    ]
+  },
+  "note": "HUD palette copied into src/serve/ui.js so the dashboard reads as the same product as the social surfaces. Parsed from the style guide, never transcribed.",
+  "palette": {
+    "backgroundDeep": "#060913",
+    "backgroundNavy": "#0b1225",
+    "panel": "#0f1b34",
+    "accentCyan": "#38bdf8",
+    "accentCyanGlow": "#67e8f9",
+    "headline": "#f8fafc",
+    "bodyText": "#cbd5e1",
+    "mutedText": "#94a3b8"
+  }
+}

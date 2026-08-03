@@ -219,10 +219,52 @@ async function syncDesignTokens() {
   return "fixtures/website-design-tokens.json";
 }
 
+/**
+ * Pin the social-image HUD palette.
+ *
+ * PARSED from the style guide's own colour table, for the same reason every
+ * other fixture here is generated rather than typed: the dashboard is adopting
+ * a documented brand surface, and a hand-copied hex drifts the moment that
+ * surface is restyled. The guide's table rows look like:
+ *   | `accentCyan` | `#38bdf8` | Primary cyan accent … |
+ */
+async function syncSocialPalette() {
+  const guide = await readFile(
+    path.join(websiteRoot, "docs", "social-image-system", "social-image-style-guide.md"),
+    "utf8",
+  );
+
+  const palette = {};
+  for (const match of guide.matchAll(/^\|\s*`([A-Za-z][A-Za-z0-9]*)`\s*\|\s*`(#[0-9a-fA-F]{6})`\s*\|/gm)) {
+    palette[match[1]] = match[2].toLowerCase();
+  }
+
+  const required = [
+    "backgroundDeep", "backgroundNavy", "panel",
+    "accentCyan", "accentCyanGlow", "headline", "bodyText", "mutedText",
+  ];
+  const missing = required.filter((k) => !palette[k]);
+  if (missing.length) {
+    throw new Error(`social palette parse found no value for: ${missing.join(", ")}`);
+  }
+
+  const out = {
+    ...stamp({ modules: ["docs/social-image-system/social-image-style-guide.md"] }),
+    note:
+      "HUD palette copied into src/serve/ui.js so the dashboard reads as the same " +
+      "product as the social surfaces. Parsed from the style guide, never transcribed.",
+    palette: Object.fromEntries(required.map((k) => [k, palette[k]])),
+  };
+
+  await writeFile(path.join(here, "fixtures", "website-social-palette.json"), `${JSON.stringify(out, null, 2)}\n`);
+  return "fixtures/website-social-palette.json";
+}
+
 const written = [
   await syncBandsParity(),
   await syncEngineParity(),
   await syncCatalogSnapshot(),
   await syncDesignTokens(),
+  await syncSocialPalette(),
 ];
 for (const line of written) process.stdout.write(`wrote ${line}\n`);
