@@ -252,6 +252,50 @@ test("action console keeps the mutation boundary narrow", () => {
   assert.doesNotMatch(js, /\/api\/actions\/(pull|delete|remove|copy|create|push|stop|serve)\b/, "UI must not grow new action endpoints");
 });
 
+test("hardware view exposes grading trust evidence first", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.trust-readout\b/, "hardware trust readout styling must be served");
+  assert.match(css, /\.trust-grid\b/, "hardware trust facts should be scannable");
+  assert.match(css, /\.source-claim\.selected\b/, "selected source claims should have their own state");
+  assert.match(css, /\.source-claim\.unreliable\b/, "known unreliable source claims should have their own state");
+  assert.match(
+    js,
+    /hardwareTrustPanel\(d\),[\s\S]*machinePanel\(d\),[\s\S]*disagreementPanel\(d\)/,
+    "Hardware should lead with trust evidence before raw facts",
+  );
+  assert.match(js, /d\.hardware\.basis/, "the readout must show the grading basis");
+  assert.match(js, /d\.report\.vramSources/, "the readout must show source count evidence");
+  assert.match(js, /d\.report\.disagreements\.length/, "the readout must show disagreement evidence");
+  assert.match(js, /d\.report\.gpu\.selectedSource/, "the disagreement rows must identify the selected source");
+  assert.match(js, /c\.knownUnreliable/, "known-unreliable claims must stay visible");
+});
+
+test("report view keeps shareable facts visibly bounded", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+  const sharePanel = /function sharePanel\(d\) \{([\s\S]*?)\n\}/.exec(js);
+
+  assert.match(css, /\.report-safety\b/, "report safety styling must be served");
+  assert.match(css, /\.share-rows\b/, "shareable fields should render as rows, not one dense string");
+  assert.match(css, /\.limit-item\b/, "report limits should be visibly bounded");
+  assert.match(
+    js,
+    /reportSafetyPanel\(d\),[\s\S]*limitsPanel\(d\),[\s\S]*sharePanel\(d\)/,
+    "Report should lead with safety context, then limits, then copyable fields",
+  );
+  assert.match(js, /Object\.keys\(d\.report\.exportable\)\.length/, "the safety readout should count only exportable fields");
+  assert.match(js, /Object\.entries\(d\.report\.exportable\)/, "share rows must come from the exportable block");
+  assert.match(js, /copyButton\(text, "Copy shareable summary"\)/, "copy action must use the same bounded text");
+  assert.ok(sharePanel, "sharePanel must exist");
+  assert.doesNotMatch(
+    sharePanel[1],
+    /d\.report\.(gpu|memory|appleMemory)\b/,
+    "the share panel must not pull exact local specs into public copy",
+  );
+});
+
 test("catalog has search, fit filters, and compact command actions", () => {
   const css = withoutComments(CSS);
   const js = withoutComments(JS);
