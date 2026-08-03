@@ -6,6 +6,9 @@
 // ever read — non-GET verbs are rejected before routing.
 
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRoutes } from "./routes.js";
 import { CSS, HTML, JS } from "./ui.js";
 import { authorize, createSessionToken, securityHeaders, TOKEN_HEADER } from "./security.js";
@@ -13,6 +16,18 @@ import { authorize, createSessionToken, securityHeaders, TOKEN_HEADER } from "./
 export const DEFAULT_PORT = 7717;
 /** Loopback literal, never 0.0.0.0 — this must not be reachable off-machine. */
 export const BIND_ADDRESS = "127.0.0.1";
+
+// The brand mark, read once at startup from a FIXED path inside the package.
+// Nothing about the request influences which file is read, so this adds no
+// traversal surface — the route table stays a pure allowlist. Read failure is
+// non-fatal: a missing icon must never stop the diagnostic from running.
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+let brandIcon = null;
+try {
+  brandIcon = fs.readFileSync(path.join(packageRoot, "assets", "opensourcesai-icon.png"));
+} catch {
+  brandIcon = null;
+}
 
 function send(res, status, type, body, extraHeaders = {}) {
   res.writeHead(status, {
@@ -49,7 +64,8 @@ export function createServer({ collect, catalog, now = () => new Date().toISOStr
     // The UI assets are readable without the token: they contain no machine
     // data, and the HTML is what *delivers* the token to the page. Every route
     // that exposes machine state requires it.
-    const isAsset = pathname === "/" || pathname === "/app.js" || pathname === "/app.css";
+    const isAsset =
+      pathname === "/" || pathname === "/app.js" || pathname === "/app.css" || pathname === "/brand-icon.png";
     const auth = authorize(req, { token, port, requireToken: !isAsset });
     if (!auth.ok) {
       send(res, auth.status, "text/plain; charset=utf-8", auth.reason);
@@ -66,6 +82,14 @@ export function createServer({ collect, catalog, now = () => new Date().toISOStr
     }
     if (pathname === "/app.js") {
       send(res, 200, "text/javascript; charset=utf-8", JS);
+      return;
+    }
+    if (pathname === "/brand-icon.png") {
+      if (!brandIcon) {
+        send(res, 404, "text/plain; charset=utf-8", "not found");
+        return;
+      }
+      send(res, 200, "image/png", brandIcon);
       return;
     }
 
