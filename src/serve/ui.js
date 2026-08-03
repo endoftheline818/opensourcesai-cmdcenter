@@ -147,7 +147,7 @@ export const CSS = `:root {
   --fs-h3: 1.25rem;
   --fs-small: 0.875rem;
   --fs-overline: 0.75rem;
-  --track-tight: -0.02em;
+  --track-tight: 0;
 
   --radius-card: ${TOKENS.radiusCard};
   --radius-frame: ${TOKENS.radiusFrame};
@@ -179,28 +179,20 @@ body {
   font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  /* A single soft cyan bloom off the top, plus fine scanlines — the two
-     background motifs the social renders carry. Both are pure CSS so nothing
-     is fetched and the CSP stays default-src 'none'. */
-  background-image:
-    radial-gradient(120% 60% at 50% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(148, 163, 184, 0.035) 0 1px,
-      transparent 1px 3px
-    );
+  /* A quiet local-app field rather than the full social-render scanline
+     treatment. Pure CSS, so nothing is fetched and the CSP stays locked down. */
+  background-image: linear-gradient(180deg, rgba(15, 27, 52, 0.92) 0, var(--hud-deep) 430px);
   background-attachment: fixed;
 }
 @media (prefers-reduced-motion: reduce), (prefers-contrast: more) {
-  /* Scanlines are texture, not information. Anyone who has asked for reduced
-     motion or higher contrast gets the flat field instead. */
-  body { background-image: radial-gradient(120% 60% at 50% -10%, rgba(56,189,248,0.08), transparent 60%); }
+  body { background-image: linear-gradient(180deg, rgba(15, 27, 52, 0.72) 0, var(--hud-deep) 430px); }
 }
 .shell { max-width: var(--content); margin: 0 auto; padding: 0 var(--space-4); }
 
 .topbar {
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  background: rgba(11, 18, 37, 0.94);
+  backdrop-filter: blur(12px);
   position: sticky; top: 0; z-index: 10;
 }
 .topbar-inner {
@@ -236,14 +228,18 @@ body {
 .sidenav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 84px; }
 .sidenav button {
   text-align: left; width: 100%; border: 1px solid transparent; background: transparent;
-  color: var(--color-text-muted); padding: 0.5rem 0.7rem; border-radius: 0.5rem;
+  color: var(--color-text-muted); padding: 0.55rem 0.7rem; border-radius: 0.5rem;
   font-size: var(--fs-small); font-weight: 500; letter-spacing: 0;
 }
-.sidenav button:hover { background: var(--color-surface-soft); color: var(--color-text); }
+.sidenav button:hover { background: rgba(15, 27, 52, 0.74); color: var(--color-text); }
 .sidenav button[aria-current="page"] {
   background: var(--accent-wash); color: var(--color-primary); border-color: var(--accent-border);
 }
-.sidenav .count { float: right; opacity: 0.7; font-weight: 400; }
+.sidenav .count {
+  float: right; min-width: 1.45rem; padding: 0 0.35rem; border-radius: 999px;
+  text-align: center; opacity: 0.8; font-size: 0.7rem; font-weight: 600;
+  background: rgba(148, 163, 184, 0.10); color: var(--color-text-muted);
+}
 
 .filters { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .filters button { font-weight: 500; }
@@ -254,11 +250,13 @@ body {
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
   .sidenav {
-    position: static; flex-direction: row; overflow-x: auto;
+    position: static; flex-direction: row; overflow-x: auto; max-width: 100%;
     border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2);
+    scrollbar-width: none;
   }
-  .sidenav button { width: auto; white-space: nowrap; }
-  .sidenav .count { display: none; }
+  .sidenav::-webkit-scrollbar { display: none; }
+  .sidenav button { width: auto; white-space: nowrap; flex: 0 0 auto; }
+  .sidenav .count { float: none; margin-left: 0.4rem; display: inline-block; }
   .livestrip { display: none; }
   .badge-readonly { margin-left: auto; }
 }
@@ -290,18 +288,19 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 
 .panel {
   position: relative;
-  background: linear-gradient(180deg, var(--hud-panel), var(--hud-navy));
+  background: rgba(15, 27, 52, 0.88);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-frame);
   padding: 1.25rem 1.4rem;
   margin-bottom: var(--space-4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
 }
 /* Four glowing cyan corner brackets — the HUD frame the social renders carry.
    Drawn with two pseudo-elements and border edges rather than eight nodes or
    an image, so it costs no markup and nothing is fetched. */
 .panel::before, .panel::after {
   content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
-  border-color: var(--hud-cyan); border-style: solid; opacity: 0.55;
+  border-color: var(--hud-cyan); border-style: solid; opacity: 0.28;
 }
 .panel::before {
   top: -1px; left: -1px; border-width: 1px 0 0 1px;
@@ -313,11 +312,11 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   border-bottom-right-radius: var(--radius-frame);
   box-shadow: 1px 1px 6px -2px var(--hud-cyan);
 }
-.panel > h2 {
+.panel > h2, .panel-head h2 {
   margin: 0 0 var(--space-4);
   font-size: var(--fs-overline);
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-primary);
 }
@@ -326,7 +325,64 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 .kv .v { font-size: 1rem; margin-top: 2px; word-break: break-word; }
 .kv .v.big { font-size: var(--fs-h3); font-weight: 600; letter-spacing: var(--track-tight); }
 
-table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
+.summary-panel {
+  padding: 1.4rem;
+  background:
+    linear-gradient(180deg, rgba(15, 27, 52, 0.95), rgba(11, 18, 37, 0.94));
+}
+.summary-main {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4); align-items: start; margin-bottom: var(--space-4);
+}
+.summary-eyebrow {
+  margin: 0 0 0.2rem; font-size: var(--fs-overline);
+  color: var(--color-primary); font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.summary-title {
+  margin: 0; font-size: clamp(1.65rem, 3vw, 2.55rem);
+  line-height: 1.08; font-weight: 750; letter-spacing: 0;
+}
+.summary-detail {
+  max-width: 48rem; margin: 0.55rem 0 0;
+  color: var(--color-text-muted); font-size: 0.95rem;
+}
+.status-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center;
+  min-height: 2rem; padding: 0.3rem 0.7rem; border-radius: 999px;
+  font-size: var(--fs-overline); font-weight: 700; text-transform: uppercase;
+  color: var(--color-primary); background: var(--accent-wash); border: 1px solid var(--accent-border);
+  white-space: nowrap;
+}
+.status-chip.ready, .status-chip.ok { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, transparent); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
+.status-chip.warn { color: #f5b544; background: rgba(245, 181, 68, 0.12); border-color: rgba(245, 181, 68, 0.32); }
+.status-chip.critical { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 12%, transparent); border-color: color-mix(in srgb, var(--color-error) 32%, transparent); }
+.summary-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px; overflow: hidden; border: 1px solid var(--color-border);
+  border-radius: 0.75rem; background: var(--color-border);
+}
+.summary-card {
+  min-width: 0; padding: 0.9rem; background: rgba(6, 9, 19, 0.36);
+}
+.summary-card .k {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
+}
+.summary-card .v {
+  margin-top: 0.25rem; color: var(--color-text); font-size: 1.2rem;
+  font-weight: 700; line-height: 1.15; overflow-wrap: anywhere;
+}
+.summary-card .d {
+  margin-top: 0.25rem; color: var(--color-text-muted);
+  font-size: var(--fs-overline); line-height: 1.35;
+}
+.summary-action {
+  margin-top: var(--space-4); color: var(--color-text-muted); font-size: var(--fs-small);
+}
+.summary-action b { color: var(--color-text); font-weight: 700; }
+
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: auto; }
 th {
   text-align: left; color: var(--color-text-muted); font-weight: 600;
   font-size: var(--fs-overline); text-transform: uppercase; letter-spacing: 0.05em;
@@ -334,6 +390,13 @@ th {
 }
 td { padding: 0.6rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
 tr:last-child td { border-bottom: 0; }
+.catalog-table { table-layout: fixed; }
+.catalog-table th:nth-child(1) { width: 39%; }
+.catalog-table th:nth-child(2) { width: 13%; }
+.catalog-table th:nth-child(3) { width: 12%; }
+.catalog-table th:nth-child(4) { width: 12%; }
+.catalog-table th:nth-child(5) { width: 24%; }
+.model-name { font-weight: 650; color: var(--color-text); overflow-wrap: anywhere; }
 
 .pill {
   display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px;
@@ -361,6 +424,9 @@ tr:last-child td { border-bottom: 0; }
   --p: 0;
   --arc: var(--hud-cyan);
   position: relative; width: 104px; height: 104px; border-radius: 50%;
+}
+.dial::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
   background: conic-gradient(
     from 135deg,
     var(--arc) 0 calc(var(--p) * 0.75 * 1%),
@@ -377,6 +443,7 @@ tr:last-child td { border-bottom: 0; }
 .dial-face {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1px;
+  z-index: 1;
 }
 .dial-value {
   font-family: var(--font-mono); font-size: 1.4rem; font-weight: 600;
@@ -391,7 +458,7 @@ tr:last-child td { border-bottom: 0; }
   font-size: var(--fs-overline); color: var(--color-text-muted); margin-top: 0.15rem;
   font-family: var(--font-mono);
 }
-@media (prefers-reduced-motion: reduce) { .dial { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .dial::before { transition: none; } }
 
 .live-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 999px;
@@ -408,20 +475,36 @@ tr:last-child td { border-bottom: 0; }
 .muted { color: var(--color-text-muted); }
 .explain { color: var(--color-text-muted); font-size: var(--fs-small); margin-top: 3px; }
 code, .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
-.cmd { display: flex; gap: var(--space-2); align-items: center; margin-top: 0.4rem; flex-wrap: wrap; }
+.cmd { display: flex; gap: var(--space-2); align-items: center; margin-top: 0.4rem; flex-wrap: wrap; min-width: 0; }
 .cmd code {
   background: var(--color-surface-soft); padding: 0.2rem 0.45rem;
   border-radius: 0.4rem; border: 1px solid var(--color-border);
+  max-width: 100%; overflow-wrap: anywhere;
 }
-button {
+button, select {
   font: inherit; font-size: var(--fs-overline); font-weight: 600;
-  padding: 0.3rem 0.7rem; cursor: pointer;
-  background: transparent; color: var(--color-primary);
+  min-height: 2rem; padding: 0.35rem 0.75rem;
+  background: rgba(6, 9, 19, 0.48); color: var(--color-primary);
   border: 1px solid var(--accent-border); border-radius: 0.5rem;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+button { cursor: pointer; }
 button:hover { background: var(--accent-wash); border-color: var(--color-primary); }
-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+button:disabled { cursor: wait; opacity: 0.58; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+select {
+  color: var(--color-text); min-width: min(22rem, 100%);
+  appearance: none;
+  padding-right: 2rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-primary) 50%),
+    linear-gradient(135deg, var(--color-primary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1rem) 50%,
+    calc(100% - 0.65rem) 50%;
+  background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
 
 .notice {
   border-left: 3px solid var(--color-primary);
@@ -437,11 +520,42 @@ button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 
 .footer-link:hover { color: var(--color-primary-hover); text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) {
-  button { transition: none; }
+  button, select { transition: none; }
 }
 @media (max-width: 720px) {
+  .topbar-inner { min-height: 64px; }
   .panel { padding: 1rem; }
   .product { display: none; }
+  .summary-main { grid-template-columns: minmax(0, 1fr); }
+  .summary-grid { grid-template-columns: minmax(0, 1fr); }
+  .summary-title { font-size: 1.75rem; }
+  .hud-readout { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6) var(--space-3); }
+  .dial { width: 96px; height: 96px; }
+  .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
+    display: block; width: 100%;
+  }
+  .responsive-table thead, .responsive-table th { display: none; }
+  .responsive-table tr {
+    padding: 0.85rem 0; border-bottom: 1px solid var(--color-border);
+  }
+  .responsive-table tr:last-child { border-bottom: 0; }
+  .responsive-table td {
+    border-bottom: 0; padding: 0.24rem 0;
+  }
+  .responsive-table td[data-label] {
+    display: grid; grid-template-columns: minmax(4.7rem, 31%) minmax(0, 1fr);
+    gap: var(--space-3); align-items: start;
+  }
+  .responsive-table td[data-label]::before {
+    content: attr(data-label); color: var(--color-text-muted);
+    font-size: var(--fs-overline); font-weight: 700; text-transform: uppercase;
+  }
+  .responsive-table .cmd {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  }
+  .responsive-table .cmd code { min-width: 0; }
+  select { width: 100%; }
 }
 `;
 
@@ -471,9 +585,31 @@ function panel(title) {
   return p;
 }
 
-function copyButton(text) {
+function tableHead(headers) {
+  const thead = el("thead");
+  const row = el("tr");
+  for (const h of headers) row.append(el("th", null, h));
+  thead.append(row);
+  return thead;
+}
+
+function dataTable(headers, cls) {
+  const t = el("table", cls || "responsive-table");
+  const body = el("tbody");
+  t.append(tableHead(headers), body);
+  return { table: t, body: body };
+}
+
+function dataCell(label, cls, text) {
+  const td = el("td", cls, text);
+  td.setAttribute("data-label", label);
+  return td;
+}
+
+function copyButton(text, label) {
   const btn = el("button", null, "Copy");
   btn.type = "button";
+  if (label) btn.setAttribute("aria-label", label);
   btn.addEventListener("click", () => {
     navigator.clipboard.writeText(text).then(
       () => { btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy"; }, 1200); },
@@ -481,6 +617,99 @@ function copyButton(text) {
     );
   });
   return btn;
+}
+
+function summaryCard(label, value, detail, id) {
+  const card = el("div", "summary-card");
+  card.append(el("div", "k", label));
+  const v = el("div", "v", value);
+  const d = el("div", "d", detail);
+  if (id) {
+    v.id = id + "-value";
+    d.id = id + "-detail";
+  }
+  card.append(v, d);
+  return card;
+}
+
+function readiness(d) {
+  const runnable = d.models.filter((m) => m.fit !== "too_large");
+  const comfortable = d.models.filter((m) => m.fit === "comfortable");
+  if (!d.report.ollama.installed) {
+    return {
+      tone: "critical",
+      label: "Needs Ollama",
+      title: "Ollama is not reachable",
+      detail: "The machine was inspected, but model actions and live residency need the local Ollama service.",
+    };
+  }
+  if (!d.installed.length) {
+    return {
+      tone: "warn",
+      label: "No models",
+      title: "Machine checked. No local models installed.",
+      detail: runnable.length + " catalog models fit this hardware, but loading requires a model already installed in Ollama.",
+    };
+  }
+  if (comfortable.length) {
+    return {
+      tone: "ready",
+      label: "Ready",
+      title: "Ready to run local models",
+      detail: comfortable.length + " catalog models fit comfortably, with " + d.installed.length + " model" + (d.installed.length === 1 ? "" : "s") + " installed locally.",
+    };
+  }
+  return {
+    tone: "warn",
+    label: "Constrained",
+    title: "Models can run, but expect tradeoffs",
+    detail: runnable.length + " catalog models fit with CPU offload or tight memory pressure. Check the Catalog before loading.",
+  };
+}
+
+function hardwareCapacity(d) {
+  if (d.hardware.basis === "apple-unified-usable") return d.hardware.vramGb + " GB usable unified";
+  if (d.report.gpu) return d.report.gpu.nameplateGb + " GB VRAM";
+  return "CPU / RAM only";
+}
+
+function overviewSummaryPanel(d) {
+  const p = panel();
+  p.className += " summary-panel";
+  const state = readiness(d);
+  const runnable = d.models.filter((m) => m.fit !== "too_large");
+  const best = d.models.find((m) => m.fit === "comfortable") || runnable[0] || null;
+  const loaded = d.loaded || [];
+
+  const main = el("div", "summary-main");
+  const copy = el("div");
+  copy.append(el("p", "summary-eyebrow", "Local Ollama command surface"));
+  copy.append(el("h1", "summary-title", state.title));
+  copy.append(el("p", "summary-detail", state.detail));
+  main.append(copy, el("span", "status-chip " + state.tone, state.label));
+  p.append(main);
+
+  const cards = el("div", "summary-grid");
+  cards.append(summaryCard("Capacity", runnable.length + " fit", best ? "Best first: " + best.name : "No catalog fit", null));
+  cards.append(summaryCard("Hardware", hardwareCapacity(d), d.hardware.basis.split("-").join(" "), null));
+  cards.append(summaryCard("Loaded", String(loaded.length), loaded.length === 1 ? loaded[0].name : "Live residency updates below", "summary-loaded"));
+  cards.append(summaryCard("Pressure", "Waiting", "Live telemetry updates every 2s", "summary-pressure"));
+  p.append(cards);
+
+  const action = el("p", "summary-action");
+  if (!d.report.ollama.installed) {
+    action.append(document.createTextNode("Start Ollama locally, then refresh this page."));
+  } else if (!d.installed.length) {
+    action.append(document.createTextNode("Install a model in Ollama before using load actions here."));
+  } else if (!loaded.length) {
+    action.append(document.createTextNode("Next step: "));
+    action.append(el("b", null, "load an installed model"));
+    action.append(document.createTextNode(" from the control below. Nothing is downloaded or destroyed."));
+  } else {
+    action.append(document.createTextNode("Use the controls below to load or unload resident models. Nothing is downloaded or destroyed."));
+  }
+  p.append(action);
+  return p;
 }
 
 function machinePanel(d) {
@@ -600,18 +829,15 @@ function renderLoaded(live) {
     return;
   }
 
-  const t = el("table");
-  const head = el("tr");
-  for (const h of ["Model", "In VRAM", "Residency", ""]) head.append(el("th", null, h));
-  t.append(head);
+  const out = dataTable(["Model", "In VRAM", "Residency", ""], "responsive-table loaded-table");
   for (const m of live.loaded.models) {
     const row = el("tr");
-    row.append(el("td", null, m.name));
-    row.append(el("td", null, m.sizeVramGb + " / " + m.sizeGb + " GB"));
-    row.append(el("td", m.spilled ? "spilled" : null,
+    row.append(dataCell("Model", null, m.name));
+    row.append(dataCell("In VRAM", null, m.sizeVramGb + " / " + m.sizeGb + " GB"));
+    row.append(dataCell("Residency", m.spilled ? "spilled" : null,
       m.vramResidentPercent + "%" + (m.spilled ? " — partly on CPU, expect it to be slow" : "")));
 
-    const actions = el("td");
+    const actions = dataCell("Action");
     const unload = el("button", null, "Unload");
     unload.type = "button";
     unload.addEventListener("click", async () => {
@@ -632,25 +858,22 @@ function renderLoaded(live) {
     });
     actions.append(unload);
     row.append(actions);
-    t.append(row);
+    out.body.append(row);
   }
-  body.append(t);
+  body.append(out.table);
 }
 
 function installedPanel(d) {
   if (!d.installed.length) return null;
   const p = panel("Installed models");
-  const t = el("table");
-  const head = el("tr");
-  for (const h of ["Model", "Catalog", "Fit here"]) head.append(el("th", null, h));
-  t.append(head);
+  const out = dataTable(["Model", "Catalog", "Fit here"], "responsive-table installed-table");
   for (const m of d.installed) {
     const row = el("tr");
-    row.append(el("td", null, m.name));
-    const status = el("td");
+    row.append(dataCell("Model", null, m.name));
+    const status = dataCell("Catalog");
     status.append(el("span", "pill " + m.status, m.status));
     row.append(status);
-    const fit = el("td");
+    const fit = dataCell("Fit here");
     if (m.grade) {
       fit.append(el("span", "pill " + m.grade.fit, m.grade.fit.replace("_", " ")));
       fit.append(el("div", "explain", m.grade.explanation));
@@ -658,9 +881,9 @@ function installedPanel(d) {
       fit.append(el("span", "muted", m.status === "derived" ? "local build — not in the catalog" : "not in the catalog"));
     }
     row.append(fit);
-    t.append(row);
+    out.body.append(row);
   }
-  p.append(t);
+  p.append(out.table);
   return p;
 }
 
@@ -700,37 +923,34 @@ function catalogPanel(d) {
   p.append(filters);
 
   const rows = showAllModels ? d.models : runnable;
-  const t = el("table");
-  const head = el("tr");
-  for (const h of ["Model", "Fit", "Quant", "Needs", "Run it"]) head.append(el("th", null, h));
-  t.append(head);
+  const out = dataTable(["Model", "Fit", "Quant", "Needs", "Run it"], "catalog-table responsive-table");
   for (const m of rows) {
     const row = el("tr");
-    const name = el("td");
-    name.append(el("div", null, m.name + (m.sparseMoe ? "  (sparse MoE)" : "")));
+    const name = dataCell("Model");
+    name.append(el("div", "model-name", m.name + (m.sparseMoe ? "  (sparse MoE)" : "")));
     // The explanation is shown only where it changes a decision. For a
     // comfortable fit the pill and the "Needs" column already say everything,
     // and repeating "fits with N GB to spare" 27 times was the single largest
     // contributor to this table's height without adding information.
     if (m.fit !== "comfortable") name.append(el("div", "explain", m.explanation));
     row.append(name);
-    const fit = el("td");
+    const fit = dataCell("Fit");
     fit.append(el("span", "pill " + m.fit, m.fit.replace("_", " ")));
     row.append(fit);
-    row.append(el("td", "mono", m.quant || "—"));
-    row.append(el("td", null, m.requiredVramGb != null ? m.requiredVramGb + " GB" : "—"));
-    const cmd = el("td");
+    row.append(dataCell("Quant", "mono", m.quant || "—"));
+    row.append(dataCell("Needs", null, m.requiredVramGb != null ? m.requiredVramGb + " GB" : "—"));
+    const cmd = dataCell("Run it");
     if (m.runCommand) {
       const box = el("div", "cmd");
-      box.append(el("code", null, m.runCommand), copyButton(m.runCommand));
+      box.append(el("code", null, m.runCommand), copyButton(m.runCommand, "Copy command for " + m.name));
       cmd.append(box);
     } else {
       cmd.append(el("span", "muted", "—"));
     }
     row.append(cmd);
-    t.append(row);
+    out.body.append(row);
   }
-  p.append(t);
+  p.append(out.table);
   if (!showAllModels && hidden > 0) {
     p.append(el("p", "explain",
       hidden + " model" + (hidden === 1 ? "" : "s") +
@@ -763,6 +983,7 @@ function switcherPanel(d) {
   }
   const go = el("button", null, "Load");
   go.type = "button";
+  go.setAttribute("aria-label", "Load selected model");
   row.append(select, go);
   p.append(row);
 
@@ -826,17 +1047,14 @@ function toolsPanel(d) {
     return p;
   }
 
-  const table = el("table");
-  const head = el("tr");
-  for (const h of ["Server", "Client", "Transport", "Package", "Needs"]) head.append(el("th", null, h));
-  table.append(head);
+  const out = dataTable(["Server", "Client", "Transport", "Package", "Needs"], "responsive-table tools-table");
   for (const s of t.servers) {
     const row = el("tr");
-    row.append(el("td", null, s.name));
-    row.append(el("td", "muted", s.client));
-    row.append(el("td", "mono", s.transport));
-    row.append(el("td", "mono", s.packageHint || (s.command ? s.command : "—")));
-    const needs = el("td");
+    row.append(dataCell("Server", null, s.name));
+    row.append(dataCell("Client", "muted", s.client));
+    row.append(dataCell("Transport", "mono", s.transport));
+    row.append(dataCell("Package", "mono", s.packageHint || (s.command ? s.command : "—")));
+    const needs = dataCell("Needs");
     if (!s.envVarNames.length) {
       needs.append(el("span", "muted", "—"));
     } else {
@@ -846,27 +1064,24 @@ function toolsPanel(d) {
       }
     }
     row.append(needs);
-    table.append(row);
+    out.body.append(row);
   }
-  p.append(table);
+  p.append(out.table);
   return p;
 }
 
 function localToolsPanel(d) {
   const p = panel("Local AI tools");
-  const table = el("table");
-  const head = el("tr");
-  for (const h of ["Tool", "Detected"]) head.append(el("th", null, h));
-  table.append(head);
+  const out = dataTable(["Tool", "Detected"], "responsive-table local-tools-table");
   for (const tool of d.tools.tools) {
     const row = el("tr");
-    row.append(el("td", null, tool.name));
-    const status = el("td");
+    row.append(dataCell("Tool", null, tool.name));
+    const status = dataCell("Detected");
     status.append(el("span", "pill " + (tool.installed ? "known" : "unlisted"), tool.installed ? "installed" : "not found"));
     row.append(status);
-    table.append(row);
+    out.body.append(row);
   }
-  p.append(table);
+  p.append(out.table);
   // Absence here is genuinely weaker evidence than presence, and saying so
   // matters more than looking comprehensive.
   if (d.tools.note) p.append(el("p", "explain", d.tools.note));
@@ -887,7 +1102,7 @@ function sharePanel(d) {
   p.append(el("p", "explain", "Coarse bands only — no exact specs. Safe to paste into a public issue or forum thread."));
   const box = el("div", "cmd");
   const text = Object.entries(d.report.exportable).map(([k, v]) => k + ": " + v).join("  |  ");
-  box.append(el("code", null, text), copyButton(text));
+  box.append(el("code", null, text), copyButton(text, "Copy shareable summary"));
   p.append(box);
   return p;
 }
@@ -905,6 +1120,41 @@ function stampLiveMeta(live) {
     meta.textContent = "";
     meta.append(el("span", "live-dot"), document.createTextNode("live · " + stamp));
   }
+}
+
+function renderSummaryLive(live) {
+  const loadedValue = document.getElementById("summary-loaded-value");
+  const loadedDetail = document.getElementById("summary-loaded-detail");
+  if (loadedValue && loadedDetail) {
+    if (!live.loaded.reachable) {
+      loadedValue.textContent = "Offline";
+      loadedDetail.textContent = "Ollama is not responding";
+    } else {
+      const count = live.loaded.models.length;
+      loadedValue.textContent = String(count);
+      loadedDetail.textContent = count === 0
+        ? "No resident model"
+        : live.loaded.models.map((m) => m.name).join(", ");
+    }
+  }
+
+  const pressureValue = document.getElementById("summary-pressure-value");
+  const pressureDetail = document.getElementById("summary-pressure-detail");
+  if (!pressureValue || !pressureDetail) return;
+  const gauges = live.gauges.filter((g) => g.available);
+  if (!gauges.length) {
+    pressureValue.textContent = "n/a";
+    pressureDetail.textContent = "No live counters available";
+    return;
+  }
+  const rank = { critical: 3, warn: 2, normal: 1 };
+  gauges.sort((a, b) => {
+    const severity = (rank[b.severity] || 0) - (rank[a.severity] || 0);
+    return severity || b.percent - a.percent;
+  });
+  const top = gauges[0];
+  pressureValue.textContent = top.percent + "%";
+  pressureDetail.textContent = top.label + (top.severity === "normal" ? " live" : " is " + top.severity);
 }
 
 /**
@@ -948,6 +1198,7 @@ async function poll() {
     renderLoaded(live);
     renderLiveStrip(live);
     stampLiveMeta(live);
+    renderSummaryLive(live);
   } catch (err) {
     consecutiveFailures += 1;
     // Say it went stale rather than freezing on a number that is no longer
@@ -995,6 +1246,7 @@ const VIEWS = [
     id: "overview",
     label: "Overview",
     build: (d) => [
+      overviewSummaryPanel(d),
       livePanelShell("gauges", "Live system"),
       livePanelShell("loaded", "Loaded right now"),
       switcherPanel(d),
@@ -1067,13 +1319,17 @@ function renderView(id) {
 
   for (const button of document.querySelectorAll("#sidenav button")) {
     const isActive = button.dataset.view === view.id;
-    if (isActive) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
+    if (isActive) {
+      button.setAttribute("aria-current", "page");
+      button.scrollIntoView({ block: "nearest", inline: "center" });
+    } else {
+      button.removeAttribute("aria-current");
+    }
   }
 
   // The live panels only exist inside Overview, so repaint them from the last
   // sample on arrival rather than leaving them blank until the next tick.
-  if (lastLive) { renderGauges(lastLive); renderLoaded(lastLive); stampLiveMeta(lastLive); }
+  if (lastLive) { renderGauges(lastLive); renderLoaded(lastLive); stampLiveMeta(lastLive); renderSummaryLive(lastLive); }
 }
 
 function buildSideNav(d) {
