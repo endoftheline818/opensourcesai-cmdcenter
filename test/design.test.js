@@ -3,12 +3,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { CSS, HTML, TOKENS } from "../src/serve/ui.js";
+import { CSS, HTML, JS, TOKENS } from "../src/serve/ui.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tokens = async () =>
   JSON.parse(await readFile(path.join(root, "fixtures", "website-design-tokens.json"), "utf8"));
 const tokens_ = tokens;
+
+function withoutComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
 
 // BRAND PARITY GUARD.
 //
@@ -175,4 +181,49 @@ test("the navigation shell is present for the browser bundle to populate", () =>
   assert.match(html, /id="sidenav"/, "the side navigation mount point must exist");
   assert.match(html, /id="livestrip"/, "the persistent live readout mount point must exist");
   assert.match(html, /aria-label="Dashboard sections"/, "navigation must be labelled for screen readers");
+});
+
+test("gauge values are not clipped by the masked ring layer", () => {
+  const css = withoutComments(CSS);
+  const dialRule = /\n\.dial\s*\{([\s\S]*?)\n\}/.exec(css);
+  const ringRule = /\n\.dial::before\s*\{([\s\S]*?)\n\}/.exec(css);
+
+  assert.ok(dialRule, "the gauge container rule must exist");
+  assert.ok(ringRule, "the masked ring layer must exist");
+  assert.doesNotMatch(dialRule[1], /\bmask:/, "the container must not mask its text children");
+  assert.match(ringRule[1], /\bmask:/, "the ring layer should carry the radial mask");
+  assert.match(css, /\.dial-face\s*\{[\s\S]*z-index:\s*1/, "the readable value must sit above the ring");
+});
+
+test("catalog rows have a mobile-safe responsive table path", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /@media \(max-width: 720px\)[\s\S]*\.responsive-table tr/, "mobile table rules must be emitted");
+  assert.match(css, /\.responsive-table td\[data-label\]::before/, "mobile cells must show their labels");
+  assert.match(
+    js,
+    /dataTable\(\["Model", "Fit", "Quant", "Needs", "Run it"\], "catalog-table responsive-table"\)/,
+    "catalog must use the responsive table class",
+  );
+  assert.match(js, /dataCell\("Run it"\)/, "the command cell needs a mobile label");
+});
+
+test("overview starts with a public-ready command summary", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.summary-panel\b/, "summary panel styling must be served");
+  assert.match(js, /overviewSummaryPanel\(d\),[\s\S]*livePanelShell\("gauges"/, "summary must lead Overview");
+  assert.match(js, /renderSummaryLive\(live\)/, "live telemetry should update the summary");
+});
+
+test("native controls are styled and specifically labelled", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /button, select\s*\{[\s\S]*background:/, "buttons and selects must share the control surface");
+  assert.match(css, /select\s*\{[\s\S]*appearance:\s*none/, "the model picker should not fall back to a gray native control");
+  assert.match(js, /setAttribute\("aria-label", "Load selected model"\)/);
+  assert.match(js, /copyButton\(m\.runCommand, "Copy command for " \+ m\.name\)/);
 });
