@@ -246,6 +246,35 @@ body {
 .filters button[aria-pressed="true"] {
   background: var(--accent-wash); border-color: var(--color-primary);
 }
+.filters .count {
+  display: inline-block; min-width: 1.35rem; margin-left: 0.4rem; padding: 0 0.3rem;
+  border-radius: 999px; background: rgba(148, 163, 184, 0.10);
+  color: var(--color-text-muted); font-size: 0.7rem;
+}
+.catalog-controls {
+  display: grid; gap: var(--space-3); margin-bottom: var(--space-4);
+}
+.catalog-toolbar {
+  display: grid; grid-template-columns: minmax(13rem, 1fr) auto;
+  gap: var(--space-3); align-items: center;
+}
+.catalog-search {
+  width: 100%;
+}
+.catalog-stats {
+  display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+}
+.catalog-stats span {
+  padding: 0.18rem 0.55rem; border: 1px solid var(--color-border);
+  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
+}
+.catalog-stats b { color: var(--color-text); font-weight: 700; }
+.catalog-fit-filters { margin-bottom: 0; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
@@ -481,7 +510,7 @@ code, .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
   border-radius: 0.4rem; border: 1px solid var(--color-border);
   max-width: 100%; overflow-wrap: anywhere;
 }
-button, select {
+button, select, input {
   font: inherit; font-size: var(--fs-overline); font-weight: 600;
   min-height: 2rem; padding: 0.35rem 0.75rem;
   background: rgba(6, 9, 19, 0.48); color: var(--color-primary);
@@ -491,7 +520,11 @@ button, select {
 button { cursor: pointer; }
 button:hover { background: var(--accent-wash); border-color: var(--color-primary); }
 button:disabled { cursor: wait; opacity: 0.58; }
-button:focus-visible, select:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+input {
+  color: var(--color-text); font-weight: 500;
+}
+input::placeholder { color: var(--color-text-muted); opacity: 0.78; }
 select {
   color: var(--color-text); min-width: min(22rem, 100%);
   appearance: none;
@@ -504,6 +537,10 @@ select {
     calc(100% - 0.65rem) 50%;
   background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
   background-repeat: no-repeat;
+}
+.icon-button {
+  min-width: 2rem; padding: 0.25rem 0.5rem;
+  font-size: 1rem; line-height: 1; color: var(--color-primary);
 }
 
 .notice {
@@ -520,7 +557,7 @@ select {
 .footer-link:hover { color: var(--color-primary-hover); text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) {
-  button, select { transition: none; }
+  button, select, input { transition: none; }
 }
 @media (max-width: 720px) {
   .topbar-inner { min-height: 64px; }
@@ -529,6 +566,9 @@ select {
   .summary-main { grid-template-columns: minmax(0, 1fr); }
   .summary-grid { grid-template-columns: minmax(0, 1fr); }
   .summary-title { font-size: 1.75rem; }
+  .catalog-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .catalog-stats { gap: 0.35rem; }
+  .catalog-fit-filters button { flex: 1 1 auto; }
   .hud-readout { white-space: pre-wrap; overflow-wrap: anywhere; }
   .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6) var(--space-3); }
   .dial { width: 96px; height: 96px; }
@@ -554,6 +594,7 @@ select {
   .responsive-table .cmd {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
   }
+  .catalog-table tr { padding: 0.75rem 0; }
   .responsive-table .cmd code { min-width: 0; }
   select { width: 100%; }
 }
@@ -606,14 +647,15 @@ function dataCell(label, cls, text) {
   return td;
 }
 
-function copyButton(text, label) {
-  const btn = el("button", null, "Copy");
+function copyButton(text, label, iconOnly) {
+  const btn = el("button", iconOnly ? "icon-button" : null, iconOnly ? "⧉" : "Copy");
   btn.type = "button";
   if (label) btn.setAttribute("aria-label", label);
+  if (iconOnly && label) btn.title = label;
   btn.addEventListener("click", () => {
     navigator.clipboard.writeText(text).then(
-      () => { btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy"; }, 1200); },
-      () => { btn.textContent = "Copy failed"; },
+      () => { btn.textContent = iconOnly ? "OK" : "Copied"; setTimeout(() => { btn.textContent = iconOnly ? "⧉" : "Copy"; }, 1200); },
+      () => { btn.textContent = iconOnly ? "!" : "Copy failed"; },
     );
   });
   return btn;
@@ -889,26 +931,93 @@ function installedPanel(d) {
 
 // Default to hiding what cannot run here. Measured on the reference machine,
 // this one table was 63% of the whole page at 32 rows — and most of the hidden
-// rows are models the user has no decision to make about. "Everything" stays
-// one click away, because silently omitting data is its own kind of dishonesty.
-let showAllModels = false;
+// rows are models the user has no decision to make about. Filters keep the
+// hidden rows one click away, because silently omitting data is its own kind of
+// dishonesty.
+let catalogFitFilter = "runs";
+let catalogQuery = "";
+let catalogFocusSearch = false;
+
+function catalogCounts(models) {
+  return {
+    all: models.length,
+    runs: models.filter((m) => m.fit !== "too_large").length,
+    comfortable: models.filter((m) => m.fit === "comfortable").length,
+    tight: models.filter((m) => m.fit === "tight").length,
+    partial: models.filter((m) => m.fit === "partial").length,
+    too_large: models.filter((m) => m.fit === "too_large").length,
+  };
+}
+
+function searchableModelText(m) {
+  return [
+    m.name,
+    m.fit,
+    m.quant,
+    m.requiredVramGb == null ? "" : String(m.requiredVramGb),
+    m.runCommand,
+    m.explanation,
+    m.sparseMoe ? "sparse moe" : "",
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function modelMatchesCatalogFilter(m) {
+  if (catalogFitFilter === "all") return true;
+  if (catalogFitFilter === "runs") return m.fit !== "too_large";
+  return m.fit === catalogFitFilter;
+}
 
 function catalogPanel(d) {
   const p = panel("What this machine can run");
 
-  const runnable = d.models.filter((m) => m.fit !== "too_large");
-  const hidden = d.models.length - runnable.length;
+  const counts = catalogCounts(d.models);
+  const query = catalogQuery.trim().toLowerCase();
 
-  const filters = el("div", "filters");
-  const mkFilter = (label, isAll) => {
+  const controls = el("div", "catalog-controls");
+  const toolbar = el("div", "catalog-toolbar");
+
+  const searchWrap = el("div");
+  const searchLabel = el("label", "sr-only", "Search catalog");
+  searchLabel.setAttribute("for", "catalog-search");
+  const search = el("input", "catalog-search");
+  search.id = "catalog-search";
+  search.type = "search";
+  search.value = catalogQuery;
+  search.placeholder = "Search models, quant, command";
+  search.setAttribute("autocomplete", "off");
+  search.addEventListener("input", () => {
+    catalogQuery = search.value;
+    catalogFocusSearch = true;
+    renderView(activeView);
+  });
+  searchWrap.append(searchLabel, search);
+
+  const stats = el("div", "catalog-stats");
+  const stat = (label, value) => {
+    const s = el("span");
+    s.append(el("b", null, value), document.createTextNode(" " + label));
+    return s;
+  };
+  stats.append(
+    stat("runnable", counts.runs),
+    stat("comfortable", counts.comfortable),
+    stat("partial", counts.partial),
+    stat("too large", counts.too_large),
+  );
+  toolbar.append(searchWrap, stats);
+  controls.append(toolbar);
+
+  const filters = el("div", "filters catalog-fit-filters");
+  const mkFilter = (label, key, count) => {
     const b = el("button", null, label);
     b.type = "button";
-    b.setAttribute("aria-pressed", String(showAllModels === isAll));
+    b.setAttribute("aria-pressed", String(catalogFitFilter === key));
     b.addEventListener("click", () => {
-      if (showAllModels === isAll) return;
-      showAllModels = isAll;
+      if (catalogFitFilter === key) return;
+      catalogFitFilter = key;
       renderView(activeView);
     });
+    if (count !== null && count !== undefined) b.append(el("span", "count", count));
     return b;
   };
   // String concatenation, not template literals. This whole bundle is carried
@@ -917,12 +1026,17 @@ function catalogPanel(d) {
   // template instead of at runtime in the browser. Note this comment cannot
   // spell that syntax out either, for exactly the same reason.
   filters.append(
-    mkFilter("Runs here (" + runnable.length + ")", false),
-    mkFilter("Everything (" + d.models.length + ")", true),
+    mkFilter("Runs", "runs", counts.runs),
+    mkFilter("Comfortable", "comfortable", counts.comfortable),
+    mkFilter("Tight", "tight", counts.tight),
+    mkFilter("Partial", "partial", counts.partial),
+    mkFilter("Too large", "too_large", counts.too_large),
+    mkFilter("All", "all", counts.all),
   );
-  p.append(filters);
+  controls.append(filters);
+  p.append(controls);
 
-  const rows = showAllModels ? d.models : runnable;
+  const rows = d.models.filter((m) => modelMatchesCatalogFilter(m) && (!query || searchableModelText(m).includes(query)));
   const out = dataTable(["Model", "Fit", "Quant", "Needs", "Run it"], "catalog-table responsive-table");
   for (const m of rows) {
     const row = el("tr");
@@ -942,7 +1056,7 @@ function catalogPanel(d) {
     const cmd = dataCell("Run it");
     if (m.runCommand) {
       const box = el("div", "cmd");
-      box.append(el("code", null, m.runCommand), copyButton(m.runCommand, "Copy command for " + m.name));
+      box.append(el("code", null, m.runCommand), copyButton(m.runCommand, "Copy command for " + m.name, true));
       cmd.append(box);
     } else {
       cmd.append(el("span", "muted", "—"));
@@ -950,11 +1064,15 @@ function catalogPanel(d) {
     row.append(cmd);
     out.body.append(row);
   }
-  p.append(out.table);
-  if (!showAllModels && hidden > 0) {
+  if (rows.length) {
+    p.append(out.table);
+  } else {
+    p.append(el("p", "empty", "No catalog models match the current filters."));
+  }
+  if (catalogFitFilter === "runs" && !query && counts.too_large > 0) {
     p.append(el("p", "explain",
-      hidden + " model" + (hidden === 1 ? "" : "s") +
-      " in the catalog need more memory than this machine has. Choose Everything to see them and what they would require."));
+      counts.too_large + " model" + (counts.too_large === 1 ? "" : "s") +
+      " in the catalog need more memory than this machine has. Choose Too large or All to see what they would require."));
   }
   return p;
 }
@@ -1330,6 +1448,16 @@ function renderView(id) {
   // The live panels only exist inside Overview, so repaint them from the last
   // sample on arrival rather than leaving them blank until the next tick.
   if (lastLive) { renderGauges(lastLive); renderLoaded(lastLive); stampLiveMeta(lastLive); renderSummaryLive(lastLive); }
+
+  if (catalogFocusSearch) {
+    const search = document.getElementById("catalog-search");
+    if (search) {
+      search.focus();
+      const end = search.value.length;
+      search.setSelectionRange(end, end);
+    }
+    catalogFocusSearch = false;
+  }
 }
 
 function buildSideNav(d) {
