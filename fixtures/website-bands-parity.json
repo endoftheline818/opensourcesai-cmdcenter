@@ -1,11 +1,12 @@
 {
   "source": {
     "repository": "opensourcesai.com",
+    "generatedBy": "scripts/sync-from-website.mjs",
+    "generatedAt": "2026-08-03",
     "modules": [
       "src/lib/hardwareTelemetry.js",
       "src/lib/appleMemory.js"
-    ],
-    "takenAt": "2026-08-02"
+    ]
   },
   "GPU_VENDORS": [
     "nvidia",

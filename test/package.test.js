@@ -44,19 +44,47 @@ test("package is private until a deliberate publish decision", async () => {
 test("network access exists only in the Ollama collector and is pinned to loopback", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   const ollamaCollector = path.join("collect", "ollama.js");
+  const browserBundle = path.join("serve", "ui.js");
 
   for (const file of files) {
     const source = await readFile(file, "utf8");
+
     if (file.endsWith(ollamaCollector)) {
-      assert.match(source, /127\.0\.0\.1:11434/, "the one network target must be loopback");
+      assert.match(source, /127\.0\.0\.1:11434/, "the one Node-side network target must be loopback");
       continue;
     }
+
+    // serve/ui.js is BROWSER code carried as a string. Its fetches run in the
+    // user's browser against this same server, which is a different thing from
+    // the Node process reaching the network — so it is checked by a stricter,
+    // more specific rule below rather than exempted.
+    if (file.endsWith(browserBundle)) continue;
+
     assert.doesNotMatch(
       source,
       /\bfetch\s*\(|\bhttp\.request|\bhttps\.request|XMLHttpRequest|WebSocket/,
       `unexpected network call in ${path.relative(root, file)}`,
     );
   }
+});
+
+test("the browser bundle only ever talks to its own origin", async () => {
+  const source = await readFile(path.join(root, "src", "serve", "ui.js"), "utf8");
+
+  // No absolute URL of any kind: every request target must be a same-origin
+  // relative path. This is the property that makes the browser side incapable
+  // of exfiltrating machine data, and it is enforced again at runtime by the
+  // `connect-src 'self'` CSP.
+  assert.doesNotMatch(source, /https?:\/\//, "the UI must contain no absolute URL");
+
+  const targets = [...source.matchAll(/fetch\(\s*"([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(targets.length > 0, "expected at least one fetch — otherwise this guard is vacuous");
+  for (const target of targets) {
+    assert.match(target, /^\/[a-z/-]*$/, `fetch target must be a same-origin path, got: ${target}`);
+  }
+
+  // The page must not be able to open a socket or a worker either.
+  assert.doesNotMatch(source, /WebSocket|EventSource|new Worker|importScripts|sendBeacon/);
 });
 
 /**

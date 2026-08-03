@@ -1,0 +1,50 @@
+{
+  "source": {
+    "repository": "opensourcesai.com",
+    "generatedBy": "scripts/sync-from-website.mjs",
+    "generatedAt": "2026-08-03",
+    "modules": [
+      "lib/checker-engine.js"
+    ]
+  },
+  "RUNTIME_OVERHEAD_GB": 1.5,
+  "COMFORTABLE_HEADROOM_GB": 2,
+  "RAM_OFFLOAD_MULTIPLIER": 1.6,
+  "gradeVramFit": {
+    "12|5.6|32": "comfortable",
+    "12|10|32": "comfortable",
+    "12|10.5|32": "tight",
+    "12|12|32": "tight",
+    "10|9.5|32": "tight",
+    "10|20|32": "partial",
+    "0|5.6|32": "partial",
+    "0|5.6|4": "too_large",
+    "8|6|0": "comfortable",
+    "6|5.6|8": "tight",
+    "24|17|64": "comfortable",
+    "48|41|128": "comfortable"
+  },
+  "pickBestQuantization": {
+    "12|32": "q8_0",
+    "10|32": "q8_0",
+    "16|32": "fp16",
+    "6|32": "q4_k_m",
+    "0|32": "q4_k_m",
+    "0|4": null,
+    "4|0": null
+  },
+  "estimateTotalVram": {
+    "8|q4_k_m": 6.35,
+    "8|q8_0": 10,
+    "8|fp16": 17.5,
+    "70|q4_k_m": 43.9375,
+    "8|unknown_quant": 6.35
+  },
+  "ollamaRunCommand": {
+    "q4_k_m": "ollama run test:8b",
+    "q8_0": "ollama run test:8b-q8_0",
+    "fp16": "ollama run test:8b-fp16",
+    "q8_0|no-variant-tag": null,
+    "fp16|no-variant-tag": null
+  }
+}
