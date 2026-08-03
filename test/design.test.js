@@ -235,6 +235,37 @@ test("overview exposes trust state and safe next actions", () => {
   }
 });
 
+test("live system explains pressure before gauge dials", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.live-summary\b/, "live system needs an explanatory summary surface");
+  assert.match(css, /\.live-pressure-list\b/, "ranked pressure rows must be styled");
+  assert.match(css, /\.live-pressure-row\.warn\b/, "warning pressure rows need a distinct state");
+  assert.match(css, /\.live-summary-main,[\s\S]*\.loaded-summary-main/, "live and loaded summaries should share a compact structure");
+  assert.match(js, /function rankLiveGauges\(live\)/, "pressure ranking should be centralized");
+  assert.match(js, /function renderLiveSummary\(live\)/, "live pressure summary should be rendered explicitly");
+  assert.match(js, /body\.append\(renderLiveSummary\(live\)\)/, "summary must appear before the gauge grid");
+  assert.match(js, /const gauges = rankLiveGauges\(live\)/, "overview pressure card should use the same ranking");
+  assert.match(js, /"Pressure focus"/, "pressure summary needs a clear label");
+  assert.match(js, /"No live counters available/, "unknown telemetry must stay honest");
+});
+
+test("loaded view explains residency before unload controls", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.loaded-summary\b/, "loaded panel needs a residency summary");
+  assert.match(css, /\.loaded-summary\.spilled\b/, "spilled residency needs a distinct state");
+  assert.match(css, /\.loaded-state\.resident-state\b/, "fully resident model chips must be styled");
+  assert.match(css, /\.loaded-state\.spilled-state\b/, "CPU spill model chips must be styled");
+  assert.match(js, /function renderLoadedSummary\(live\)/, "loaded residency summary should be rendered explicitly");
+  assert.match(js, /body\.append\(renderLoadedSummary\(live\)\)/, "loaded summary must appear before unload controls");
+  assert.match(js, /m\.spilled \? "spilled to CPU" : "fully in VRAM"/, "each loaded row should name residency state");
+  assert.match(js, /"No pull or delete"/, "loaded empty state should restate the action boundary");
+  assert.match(js, /requestUnload\(m\.name, unload\)/, "unload must still use the existing action path");
+});
+
 test("load console previews the selected safe action", () => {
   const css = withoutComments(CSS);
   const js = withoutComments(JS);
