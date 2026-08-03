@@ -1,15 +1,18 @@
 # OpenSourcesAI Command Center
 
-A read-only diagnostic for a local Ollama machine. It reports what your hardware
-**actually is** — not what a browser can guess — what Ollama is actually running,
-and a shareable summary that carries no exact specs.
+A local command center for a machine running Ollama. It reports what your
+hardware **actually is** — not what a browser can guess — what Ollama is
+actually running, shows live system pressure, inventories local MCP servers, and
+can load or unload already-installed models within a narrow action boundary.
 
-> **Status: Phase 0.** This is the diagnostic core, not yet the dashboard. It is
-> unpublished (`private: true` in `package.json`) and installed by clone, not by
-> `npx`. See [Roadmap](#roadmap).
+> **Status: Phases 0, 1, and 2 complete.** This is the diagnostic core, local
+> dashboard, live telemetry view, model catalog, MCP inventory, and load/unload
+> action surface. It remains unpublished (`private: true` in `package.json`) and
+> installed by clone, not by `npx`. See [Roadmap](#roadmap).
 
 ```bash
 node src/cli.js            # human-readable report
+node src/cli.js serve      # local dashboard at http://127.0.0.1:7717
 node src/cli.js --json     # the full report as JSON
 node src/cli.js --capture  # raw machine capture, for bug reports and fixtures
 ```
@@ -31,10 +34,14 @@ This tool closes that gap by reading the machine directly.
   which is materially lower than the sticker RAM.
 - **Ollama**: version, reachability, installed models, loaded models and how
   much of each is actually resident in VRAM rather than spilled to CPU.
+- **Live pressure**: CPU, system memory, GPU, VRAM, GPU temperature, power, and
+  model-disk gauges where the platform can measure them.
+- **Local tools**: MCP server inventory with secret values and local paths
+  removed during collection.
 - **A shareable summary** — coarse bands only, safe to paste into a public issue.
 - **What it does not claim.** Every report ends with its own limitations.
 
-## Three things it will not do
+## Trust boundaries
 
 These are trust properties, enforced by tests in `test/package.test.js`, not
 preferences:
@@ -42,9 +49,9 @@ preferences:
 1. **It never transmits anything.** The only network call in the package is to
    Ollama on `127.0.0.1`. An audit must find zero outbound calls, and a test
    fails the build if one appears.
-2. **It never changes your machine.** No model pulls, no deletions, no starting
-   or stopping services. Read-only is the release boundary for this phase, not a
-   per-feature judgement call.
+2. **It has exactly two actions: load and unload.** No model pulls, no
+   deletions, no starting or stopping services. Both actions only target models
+   Ollama already reports as installed.
 3. **It never runs a shell.** Every subprocess goes through one `execFile`
    wrapper with an explicit argument array, so there is no command-injection
    surface to reason about — it is absent by construction.
@@ -55,6 +62,8 @@ preferences:
 |---|---|
 | `src/collect/**` | The only code that performs I/O. Captures raw responses and returns them unmodified — including ones known to be wrong. |
 | `src/derive/**` | Pure functions over a capture. No I/O, no clock, no randomness. |
+| `src/actions/**` | The only mutation surface: load and unload installed Ollama models. |
+| `src/serve/**` | Local HTTP server, security checks, and the browser dashboard bundle. |
 
 That split is what lets the entire reporting layer be tested against committed
 captures from real machines, on a CI runner with no GPU and no Ollama installed.
@@ -80,16 +89,19 @@ tier, and is why a mid-band card alone would never have surfaced it.
 
 A separate product with a separate lifecycle. It is never merged into the
 website repository and never imports from it — asserted by a test. The two are
-joined only by versioned contracts, and by
-`fixtures/website-bands-parity.json`, which pins this package's copy of the
-band vocabulary to what the website's own modules produce.
+joined only by versioned contracts and committed generated fixtures. The band
+vocabulary, fit engine, catalog snapshot, design tokens, and HUD palette are
+copied from the website and pinned here by fixtures.
 
 ## Roadmap
 
-- **Phase 0 (here):** the diagnostic core, validated on three real machines.
-- **Phase 1:** a local read-only dashboard over the same core.
-- **Later:** controlled actions with preview and rollback; benchmark
-  integration via `@opensourcesai/bench`; packaging.
+- **Phase 0:** diagnostic core, validated on Windows, Linux, and macOS captures.
+- **Phase 1:** local dashboard over the same core, with live telemetry, model
+  catalog, and public-safe report views.
+- **Phase 2:** narrow load/unload actions for already-installed Ollama models.
+- **Next:** request/activity history after filtering out the dashboard's own
+  polling, plus deferred deployment-intelligence and packaging work when their
+  inputs and maintainer decisions are ready.
 
 ## Requirements
 

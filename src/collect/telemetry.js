@@ -7,8 +7,8 @@
 // subject: anything here must be cheap enough to run on a timer, which in
 // practice means no PowerShell, no registry, and no system_profiler.
 //
-// Measured on the reference machines: nvidia-smi ~50ms, /api/ps ~2ms, the
-// os.* reads are free. The whole poll lands well under 100ms.
+// Validation measurements put nvidia-smi around 50ms, /api/ps around 2ms, and
+// os.* reads near-free. The whole poll lands well under 100ms.
 //
 // Static facts (GPU model, VRAM capacity, source disagreements, catalog
 // grading) are collected ONCE by collect/index.js and never re-polled — they

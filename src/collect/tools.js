@@ -1,10 +1,8 @@
 // Local AI tooling inventory — MCP servers and installed runtimes.
 //
 // THE HARD RULE, AND WHY IT SHAPES THE WHOLE MODULE
-// MCP config files routinely hold live credentials in their `env` blocks. On
-// the reference machine, five servers declared seven environment variables and
-// five of those had secret-shaped names. So this module NEVER puts an env value
-// into the object it returns.
+// MCP config files routinely hold live credentials in their `env` blocks. So
+// this module NEVER puts an env value into the object it returns.
 //
 // The redaction happens HERE, at collection, not in the derive layer or the UI.
 // That ordering is deliberate: `osai-cmdcenter --capture` writes the collected
