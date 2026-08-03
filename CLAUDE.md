@@ -2,17 +2,19 @@
 
 ## What this is
 
-A read-only diagnostic for a local Ollama machine, distributed as the scoped npm
-package `@opensourcesai/cmdcenter`. It reads real hardware and runtime state and
-turns it into a report that is honest about its own limits.
+A local command center for a machine running Ollama, packaged as the unpublished
+scoped npm package `@opensourcesai/cmdcenter`. It reads real hardware and
+runtime state, serves a local dashboard, inventories local MCP servers, exposes
+narrow load/unload actions for installed models, and turns the machine state
+into a report that is honest about its own limits.
 
 It supports opensourcesai.com but is **a separate product with a separate
 lifecycle**. It is never merged into the website repository, never imports from
 it, and the two are joined only by versioned contracts. Same boundary
 `opensourcesai-bench` holds.
 
-**This repository is intended to become public.** Assume every commit, comment,
-and branch name is publishable. No keys, no internal strategy notes, no
+**This repository is public-facing.** Assume every commit, comment,
+and branch name is publishable. No keys, no private strategy notes, no
 machine-identifying details (IPs, SSH users, absolute home paths).
 
 ## The governing document
@@ -22,12 +24,13 @@ The scoping decisions live in the website repository at
 roadmap revisions. That document is canon for *what this is allowed to become*;
 this file is canon for *how to work in here*.
 
-Two of its decisions are already taken and bind current work:
+These implementation decisions are already taken and bind current work:
 
-- **Phase 0 is a read-only diagnostic.** Mutating actions are a later phase with
-  their own preview/confirm/rollback design.
-- **The band vocabulary is a fixture-verified copy**, not an import and not an
-  extracted package (§8 decision 4). See "The parity fixture" below.
+- **Phases 0, 1 and 2 are complete.** The shipped boundary is diagnostic core,
+  local dashboard, live telemetry, MCP inventory, and exactly two actions: load
+  and unload installed Ollama models.
+- **The shared website data is fixture-verified copies**, not direct imports. See
+  "The parity fixture" below.
 
 Decisions 3 (a published data manifest vs. the website's "no public API"
 non-goal) and 4 (whether to extract the shared engine) are **open**. Do not
@@ -43,7 +46,7 @@ Each is a trust property, not a preference, and each is enforced by a test in
   upload, no update check, no analytics, no crash reporting. Not implemented,
   not stubbed, not behind a disabled flag. An audit must find zero outbound calls.
 - **The mutation surface is exactly two actions: load and unload.** Nothing
-  else, and widening it is a founder decision, not a refactor.
+  else, and widening it is a maintainer decision, not a refactor.
   - **Why these two:** both are small, reversible and self-undoing — a loaded
     model unloads itself when keep-alive expires; an unloaded one reloads on
     next use. They destroy nothing.
@@ -94,6 +97,8 @@ there are none, so it is a deliberate act.
 |---|---|
 | `src/collect/**` | The only code that performs I/O. Captures raw per-source responses and returns them **unmodified** — including sources known to be wrong. Never reconciles. |
 | `src/derive/**` | Pure functions over a capture. Reconciliation, banding, rendering. Data in, data out. |
+| `src/actions/**` | The only mutation surface. It may load or unload installed Ollama models, and nothing else. |
+| `src/serve/**` | Local HTTP server, security checks, and browser dashboard bundle. |
 
 **Raw captures are authoritative; every derived figure is recomputable from
 them.** So a change to how VRAM is interpreted re-derives history from the
@@ -139,9 +144,9 @@ must assert the set is non-empty first — a pass over zero files is not a pass.
 ## Working conventions
 
 - Branch and open a PR (`feat/`, `fix/`, `docs/`, `chore/` + kebab slug). Do not
-  push to `main` and do not force-push. The founder merges.
+  push to `main` and do not force-push. Maintainers merge.
 - Do not add AI attribution or co-author trailers to commits.
 - Commit messages record *why*, not just *what*.
 - **Do not remove `private: true` from `package.json`.** Publishing is a
-  deliberate founder action and is not yet decided; a test asserts the guard.
+  deliberate maintainer action and is not yet decided; a test asserts the guard.
 - Do not publish to npm from a session.

@@ -1680,8 +1680,8 @@ function installedPanel(d) {
   return p;
 }
 
-// Default to hiding what cannot run here. Measured on the reference machine,
-// this one table was 63% of the whole page at 32 rows — and most of the hidden
+// Default to hiding what cannot run here. Validation showed this one table can
+// dominate the page when every catalog row is visible, and most of the hidden
 // rows are models the user has no decision to make about. Filters keep the
 // hidden rows one click away, because silently omitting data is its own kind of
 // dishonesty.
@@ -2161,8 +2161,8 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Views. One section rendered at a time, because the single-page layout reached
-// 13.4 screens of scroll on the reference machine. A sidebar that merely jumps
+// Views. One section rendered at a time, because the full single-page layout
+// became too long for efficient repeated use. A sidebar that merely jumps
 // between anchors would not have fixed that — it would only be a faster way to
 // travel the same distance.
 // ---------------------------------------------------------------------------

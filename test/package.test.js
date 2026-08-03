@@ -29,9 +29,9 @@ test("package is executable, dependency-free, and version-aligned", async () => 
 });
 
 // PUBLISH GUARD. This package is deliberately unpublished: discovery-spec §8
-// decision 2 keeps it private until a publish is a considered founder action.
-// Removing `private: true` is exactly the mistake that once nearly pushed an
-// entire private website to npm, so it is asserted rather than trusted.
+// decision 2 keeps it unpublished until a release is a considered maintainer
+// action. Removing `private: true` would make publishing too easy, so it is
+// asserted rather than trusted.
 test("package is private until a deliberate publish decision", async () => {
   const pkg = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
   assert.equal(pkg.private, true, "do not remove private:true without a recorded decision");
