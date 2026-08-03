@@ -228,6 +228,30 @@ test("native controls are styled and specifically labelled", () => {
   assert.match(js, /copyButton\(m\.runCommand, "Copy command for " \+ m\.name, true\)/);
 });
 
+test("installed view has live-aware action rows", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.installed-list\b/, "installed models should render as a scannable list");
+  assert.match(css, /\.installed-action\b/, "each installed model should have an action area");
+  assert.match(js, /state\.dataset\.modelState = m\.name/, "installed rows should expose live residency state");
+  assert.match(js, /load\.dataset\.loadModel = m\.name/, "installed load buttons should be live-updatable");
+  assert.match(js, /requestLoad\(m\.name, state, load\)/, "installed actions should use the shared load path");
+  assert.match(js, /renderInstalledLive\(live\)/, "polling should refresh installed action state");
+});
+
+test("action console keeps the mutation boundary narrow", () => {
+  const css = withoutComments(CSS);
+  const js = withoutComments(JS);
+
+  assert.match(css, /\.action-panel\b/, "load controls should be styled as a deliberate action console");
+  assert.match(css, /\.primary-action\b/, "primary load controls should have a clear affordance");
+  assert.match(js, /fetch\("\/api\/actions\/load"/, "load must still use the existing load endpoint");
+  assert.match(js, /fetch\("\/api\/actions\/unload"/, "unload must still use the existing unload endpoint");
+  assert.equal((js.match(/body: JSON\.stringify\(\{ model: model \}\)/g) || []).length, 2, "load and unload should send only the selected model");
+  assert.doesNotMatch(js, /\/api\/actions\/(pull|delete|remove|copy|create|push|stop|serve)\b/, "UI must not grow new action endpoints");
+});
+
 test("catalog has search, fit filters, and compact command actions", () => {
   const css = withoutComments(CSS);
   const js = withoutComments(JS);

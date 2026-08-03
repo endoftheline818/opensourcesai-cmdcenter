@@ -411,6 +411,45 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 }
 .summary-action b { color: var(--color-text); font-weight: 700; }
 
+.action-panel {
+  display: grid; gap: var(--space-4);
+}
+.action-copy {
+  display: grid; gap: 0.25rem;
+}
+.action-title {
+  margin: 0; color: var(--color-text); font-size: 1.12rem;
+  font-weight: 750; line-height: 1.2;
+}
+.action-detail {
+  margin: 0; max-width: 44rem; color: var(--color-text-muted); font-size: var(--fs-small);
+}
+.action-controls {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3); align-items: center;
+}
+.action-status {
+  min-height: 1.35rem; margin: 0; color: var(--color-text-muted); font-size: var(--fs-small);
+}
+.action-trust {
+  display: flex; gap: var(--space-2); flex-wrap: wrap;
+}
+.action-trust span {
+  padding: 0.22rem 0.55rem; border: 1px solid var(--color-border);
+  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
+  color: var(--color-text-muted); font-size: var(--fs-overline); font-weight: 600;
+}
+.primary-action {
+  color: var(--hud-deep); background: var(--color-primary); border-color: var(--color-primary);
+}
+.primary-action:hover {
+  color: var(--hud-deep); background: var(--color-primary-hover); border-color: var(--color-primary-hover);
+}
+.primary-action:disabled:not([data-busy="true"]) {
+  color: var(--color-text-muted); background: rgba(148, 163, 184, 0.12);
+  border-color: var(--color-border); opacity: 1;
+}
+
 table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: auto; }
 th {
   text-align: left; color: var(--color-text-muted); font-weight: 600;
@@ -501,6 +540,54 @@ tr:last-child td { border-bottom: 0; }
 }
 .empty { color: var(--color-text-muted); font-size: var(--fs-small); margin: 0; }
 
+.loaded-list, .installed-list {
+  display: grid; gap: 1px; overflow: hidden;
+  border: 1px solid var(--color-border); border-radius: 0.75rem;
+  background: var(--color-border);
+}
+.loaded-item, .installed-item {
+  min-width: 0; background: rgba(6, 9, 19, 0.30); padding: 0.9rem;
+}
+.loaded-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4); align-items: start;
+}
+.loaded-name, .installed-name {
+  color: var(--color-text); font-weight: 700; overflow-wrap: anywhere;
+}
+.loaded-metrics, .installed-meta {
+  display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;
+  margin-top: 0.4rem; color: var(--color-text-muted); font-size: var(--fs-overline);
+}
+.loaded-metrics span, .installed-state {
+  display: inline-flex; align-items: center; min-height: 1.45rem; padding: 0.1rem 0.5rem;
+  border-radius: 999px; background: rgba(148, 163, 184, 0.10);
+}
+.loaded-residency {
+  margin-top: 0.65rem; display: grid; gap: 0.35rem;
+}
+.residency-meter {
+  height: 0.45rem; overflow: hidden; border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+}
+.residency-meter span {
+  display: block; height: 100%; width: var(--resident, 0%);
+  background: var(--color-primary);
+}
+.loaded-item.spilled .residency-meter span { background: #f5b544; }
+.loaded-actions { display: flex; justify-content: flex-end; }
+.installed-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4); align-items: start;
+}
+.installed-fit {
+  margin-top: 0.55rem;
+}
+.installed-action {
+  display: grid; gap: 0.45rem; justify-items: end; min-width: 7rem;
+}
+.installed-action button { min-width: 5.25rem; }
+
 .muted { color: var(--color-text-muted); }
 .explain { color: var(--color-text-muted); font-size: var(--fs-small); margin-top: 3px; }
 code, .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
@@ -520,6 +607,7 @@ button, select, input {
 button { cursor: pointer; }
 button:hover { background: var(--accent-wash); border-color: var(--color-primary); }
 button:disabled { cursor: wait; opacity: 0.58; }
+button:disabled:not([data-busy="true"]) { cursor: default; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 input {
   color: var(--color-text); font-weight: 500;
@@ -566,6 +654,11 @@ select {
   .summary-main { grid-template-columns: minmax(0, 1fr); }
   .summary-grid { grid-template-columns: minmax(0, 1fr); }
   .summary-title { font-size: 1.75rem; }
+  .action-controls { grid-template-columns: minmax(0, 1fr); }
+  .action-controls button { width: 100%; }
+  .loaded-item, .installed-item { grid-template-columns: minmax(0, 1fr); }
+  .loaded-actions, .installed-action { justify-content: stretch; justify-items: stretch; }
+  .loaded-actions button, .installed-action button { width: 100%; }
   .catalog-toolbar { grid-template-columns: minmax(0, 1fr); }
   .catalog-stats { gap: 0.35rem; }
   .catalog-fit-filters button { flex: 1 1 auto; }
@@ -857,6 +950,77 @@ function renderGauges(live) {
   body.append(wrap);
 }
 
+function loadedModelMap(live) {
+  const map = new Map();
+  if (!live || !live.loaded || !live.loaded.reachable) return map;
+  for (const m of live.loaded.models) map.set(m.name, m);
+  return map;
+}
+
+function describeLoadConsequence(target) {
+  const loaded = (lastLive && lastLive.loaded.reachable ? lastLive.loaded.models : []);
+  if (loaded.some((m) => m.name === target)) return target + " is already resident in memory.";
+  if (!loaded.length) return "No resident model right now; this loads " + target + " without downloading anything.";
+  return "Loading " + target + " may evict " + loaded.map((m) => m.name).join(", ") + " to make room.";
+}
+
+async function requestLoad(model, status, trigger) {
+  let ok = false;
+  trigger.disabled = true;
+  trigger.textContent = "Loading";
+  trigger.dataset.busy = "true";
+  if (status) {
+    status.dataset.busy = "true";
+    delete status.dataset.result;
+    status.textContent = "Loading " + model + "...";
+  }
+  try {
+    const res = await fetch("/api/actions/load", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ model: model }),
+    });
+    const body = await res.json();
+    ok = Boolean(body.ok);
+    if (status) {
+      if (status.id === "switcher-status" || !body.ok) status.dataset.result = "true";
+      status.textContent = body.ok
+        ? model + " loaded in " + Math.round(body.elapsedMs / 100) / 10 + "s."
+        : "Could not load " + model + ": " + body.reason;
+    }
+  } catch (err) {
+    if (status) {
+      if (status.id === "switcher-status") status.dataset.result = "true";
+      status.textContent = "Could not load " + model + ": " + err.message;
+    }
+  } finally {
+    delete trigger.dataset.busy;
+    await poll();
+    if (status) delete status.dataset.busy;
+    trigger.disabled = false;
+    trigger.textContent = "Load";
+    if (lastLive && ok) renderInstalledLive(lastLive);
+  }
+}
+
+async function requestUnload(model, trigger) {
+  trigger.disabled = true;
+  trigger.textContent = "Unloading";
+  try {
+    const res = await fetch("/api/actions/unload", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ model: model }),
+    });
+    const body = await res.json();
+    if (!body.ok) { trigger.textContent = "Failed"; return; }
+  } catch {
+    trigger.textContent = "Failed";
+    return;
+  }
+  await poll();
+}
+
 function renderLoaded(live) {
   const body = document.getElementById("loaded-body");
   if (!body) return;
@@ -867,65 +1031,100 @@ function renderLoaded(live) {
     return;
   }
   if (!live.loaded.models.length) {
-    body.append(el("p", "empty", "No model is resident right now. Ollama unloads a model after a few minutes idle — run one and this fills in."));
+    body.append(el("p", "empty", "No model is resident right now. Load an installed model below when you need it warm."));
     return;
   }
 
-  const out = dataTable(["Model", "In VRAM", "Residency", ""], "responsive-table loaded-table");
+  const list = el("div", "loaded-list");
   for (const m of live.loaded.models) {
-    const row = el("tr");
-    row.append(dataCell("Model", null, m.name));
-    row.append(dataCell("In VRAM", null, m.sizeVramGb + " / " + m.sizeGb + " GB"));
-    row.append(dataCell("Residency", m.spilled ? "spilled" : null,
-      m.vramResidentPercent + "%" + (m.spilled ? " — partly on CPU, expect it to be slow" : "")));
+    const item = el("div", "loaded-item" + (m.spilled ? " spilled" : ""));
+    const main = el("div");
+    main.append(el("div", "loaded-name", m.name));
 
-    const actions = dataCell("Action");
+    const metrics = el("div", "loaded-metrics");
+    metrics.append(
+      el("span", null, "VRAM " + m.sizeVramGb + " / " + m.sizeGb + " GB"),
+      el("span", null, m.vramResidentPercent + "% resident"),
+    );
+    main.append(metrics);
+
+    const residency = el("div", "loaded-residency");
+    const meter = el("div", "residency-meter");
+    const fill = el("span");
+    fill.style.setProperty("--resident", Math.max(0, Math.min(100, m.vramResidentPercent)) + "%");
+    meter.append(fill);
+    residency.append(meter);
+    residency.append(el("div", m.spilled ? "explain spilled" : "explain",
+      m.spilled ? "Partly on CPU; expect slower responses." : "Fully resident according to Ollama."));
+    main.append(residency);
+
+    const actions = el("div", "loaded-actions");
     const unload = el("button", null, "Unload");
     unload.type = "button";
-    unload.addEventListener("click", async () => {
-      unload.disabled = true;
-      unload.textContent = "Unloading…";
-      try {
-        const res = await fetch("/api/actions/unload", {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
-          body: JSON.stringify({ model: m.name }),
-        });
-        const b = await res.json();
-        if (!b.ok) { unload.textContent = "Failed"; return; }
-      } catch { unload.textContent = "Failed"; return; }
-      // Repaint straight away rather than waiting up to two seconds for the
-      // next tick — an action with a visibly delayed effect reads as broken.
-      poll();
-    });
+    unload.setAttribute("aria-label", "Unload " + m.name);
+    unload.addEventListener("click", () => { requestUnload(m.name, unload); });
     actions.append(unload);
-    row.append(actions);
-    out.body.append(row);
+    item.append(main, actions);
+    list.append(item);
   }
-  body.append(out.table);
+  body.append(list);
 }
 
 function installedPanel(d) {
   if (!d.installed.length) return null;
   const p = panel("Installed models");
-  const out = dataTable(["Model", "Catalog", "Fit here"], "responsive-table installed-table");
+  const counts = {
+    known: d.installed.filter((m) => m.status === "known").length,
+    derived: d.installed.filter((m) => m.status === "derived").length,
+    unlisted: d.installed.filter((m) => m.status === "unlisted").length,
+    comfortable: d.installed.filter((m) => m.grade && m.grade.fit === "comfortable").length,
+  };
+  const summary = el("div", "catalog-stats installed-summary");
+  const stat = (label, value) => {
+    const s = el("span");
+    s.append(el("b", null, value), document.createTextNode(" " + label));
+    return s;
+  };
+  summary.append(
+    stat("catalog matches", counts.known),
+    stat("local builds", counts.derived),
+    stat("unlisted", counts.unlisted),
+    stat("comfortable", counts.comfortable),
+  );
+  p.append(summary);
+
+  const list = el("div", "installed-list");
   for (const m of d.installed) {
-    const row = el("tr");
-    row.append(dataCell("Model", null, m.name));
-    const status = dataCell("Catalog");
-    status.append(el("span", "pill " + m.status, m.status));
-    row.append(status);
-    const fit = dataCell("Fit here");
+    const item = el("div", "installed-item");
+    const main = el("div");
+    main.append(el("div", "installed-name", m.name));
+
+    const meta = el("div", "installed-meta");
+    meta.append(el("span", "pill " + m.status, m.status));
+    if (m.grade) meta.append(el("span", "pill " + m.grade.fit, m.grade.fit.replace("_", " ")));
+    main.append(meta);
+
+    const fit = el("div", "installed-fit");
     if (m.grade) {
-      fit.append(el("span", "pill " + m.grade.fit, m.grade.fit.replace("_", " ")));
       fit.append(el("div", "explain", m.grade.explanation));
     } else {
       fit.append(el("span", "muted", m.status === "derived" ? "local build — not in the catalog" : "not in the catalog"));
     }
-    row.append(fit);
-    out.body.append(row);
+    main.append(fit);
+
+    const action = el("div", "installed-action");
+    const state = el("span", "installed-state", "Residency checking");
+    state.dataset.modelState = m.name;
+    const load = el("button", "primary-action", "Load");
+    load.type = "button";
+    load.dataset.loadModel = m.name;
+    load.setAttribute("aria-label", "Load " + m.name);
+    load.addEventListener("click", () => { requestLoad(m.name, state, load); });
+    action.append(state, load);
+    item.append(main, action);
+    list.append(item);
   }
-  p.append(out.table);
+  p.append(list);
   return p;
 }
 
@@ -1083,6 +1282,7 @@ function catalogPanel(d) {
 // ---------------------------------------------------------------------------
 function switcherPanel(d) {
   const p = panel("Load a model");
+  p.className += " action-panel";
 
   const installed = (d.installed || []).map((m) => m.name);
   if (!d.report.ollama.installed || !installed.length) {
@@ -1090,7 +1290,12 @@ function switcherPanel(d) {
     return p;
   }
 
-  const row = el("div", "cmd");
+  const copy = el("div", "action-copy");
+  copy.append(el("p", "action-title", "Warm an installed model"));
+  copy.append(el("p", "action-detail", "Choose one of the models Ollama already reports on this machine. The request uses an empty prompt and a fixed keep-alive."));
+  p.append(copy);
+
+  const row = el("div", "action-controls");
   const select = el("select");
   select.id = "switcher-model";
   select.setAttribute("aria-label", "Model to load");
@@ -1099,53 +1304,33 @@ function switcherPanel(d) {
     opt.value = name;
     select.append(opt);
   }
-  const go = el("button", null, "Load");
+  const go = el("button", "primary-action", "Load");
   go.type = "button";
   go.setAttribute("aria-label", "Load selected model");
   row.append(select, go);
   p.append(row);
 
-  const status = el("p", "explain");
+  const status = el("p", "action-status");
   status.id = "switcher-status";
   p.append(status);
 
-  // The confirm text is built from LIVE state, so it names what is actually
-  // resident right now rather than what was resident at page load.
-  const describeConsequence = () => {
-    const loaded = (lastLive && lastLive.loaded.reachable ? lastLive.loaded.models : []);
-    const target = select.value;
-    if (loaded.some((m) => m.name === target)) return target + " is already loaded.";
-    if (!loaded.length) return "Nothing is loaded right now, so this only adds " + target + " to memory.";
-    return "Loading " + target + " may evict " + loaded.map((m) => m.name).join(", ") + " to make room.";
-  };
+  select.addEventListener("change", () => {
+    delete status.dataset.result;
+    updateSwitcherConsequence();
+  });
+  updateSwitcherConsequence();
 
-  const refreshConsequence = () => { status.textContent = describeConsequence(); };
-  select.addEventListener("change", refreshConsequence);
-  refreshConsequence();
-
-  go.addEventListener("click", async () => {
-    const model = select.value;
-    go.disabled = true;
-    status.textContent = "Loading " + model + "… this can take a while for a large model.";
-    try {
-      const res = await fetch("/api/actions/load", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
-        body: JSON.stringify({ model: model }),
-      });
-      const body = await res.json();
-      status.textContent = body.ok
-        ? model + " loaded in " + Math.round(body.elapsedMs / 100) / 10 + "s."
-        : "Could not load " + model + ": " + body.reason;
-    } catch (err) {
-      status.textContent = "Could not load " + model + ": " + err.message;
-    } finally {
-      go.disabled = false;
-      poll();
-    }
+  go.addEventListener("click", () => {
+    requestLoad(select.value, status, go);
   });
 
-  p.append(el("p", "explain", "Loading and unloading are the only things this tool changes. It never pulls, deletes or removes a model."));
+  const trust = el("div", "action-trust");
+  trust.append(
+    el("span", null, "Installed only"),
+    el("span", null, "Empty prompt"),
+    el("span", null, "No pull or delete"),
+  );
+  p.append(trust);
   return p;
 }
 
@@ -1229,6 +1414,38 @@ const POLL_INTERVAL_MS = 2000;
 let pollTimer = null;
 let consecutiveFailures = 0;
 let lastLive = null;
+
+function updateSwitcherConsequence() {
+  const select = document.getElementById("switcher-model");
+  const status = document.getElementById("switcher-status");
+  if (!select || !status || status.dataset.busy === "true" || status.dataset.result === "true") return;
+  status.textContent = describeLoadConsequence(select.value);
+}
+
+function renderInstalledLive(live) {
+  const loaded = loadedModelMap(live);
+  const reachable = live && live.loaded && live.loaded.reachable;
+
+  for (const state of document.querySelectorAll("[data-model-state]")) {
+    if (state.dataset.busy === "true" || state.dataset.result === "true") continue;
+    const model = state.dataset.modelState;
+    const resident = loaded.get(model);
+    if (!reachable) {
+      state.textContent = "Ollama not responding";
+    } else if (resident) {
+      state.textContent = "Resident - " + resident.vramResidentPercent + "% in VRAM";
+    } else {
+      state.textContent = "Available to load";
+    }
+  }
+
+  for (const button of document.querySelectorAll("[data-load-model]")) {
+    if (button.dataset.busy === "true") continue;
+    const resident = loaded.has(button.dataset.loadModel);
+    button.disabled = !reachable || resident;
+    button.textContent = resident ? "Loaded" : "Load";
+  }
+}
 
 function stampLiveMeta(live) {
   const stamp = live.sampledAt ? new Date(live.sampledAt).toLocaleTimeString() : "";
@@ -1317,6 +1534,8 @@ async function poll() {
     renderLiveStrip(live);
     stampLiveMeta(live);
     renderSummaryLive(live);
+    renderInstalledLive(live);
+    updateSwitcherConsequence();
   } catch (err) {
     consecutiveFailures += 1;
     // Say it went stale rather than freezing on a number that is no longer
@@ -1447,7 +1666,14 @@ function renderView(id) {
 
   // The live panels only exist inside Overview, so repaint them from the last
   // sample on arrival rather than leaving them blank until the next tick.
-  if (lastLive) { renderGauges(lastLive); renderLoaded(lastLive); stampLiveMeta(lastLive); renderSummaryLive(lastLive); }
+  if (lastLive) {
+    renderGauges(lastLive);
+    renderLoaded(lastLive);
+    stampLiveMeta(lastLive);
+    renderSummaryLive(lastLive);
+    renderInstalledLive(lastLive);
+    updateSwitcherConsequence();
+  }
 
   if (catalogFocusSearch) {
     const search = document.getElementById("catalog-search");
