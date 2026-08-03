@@ -71,12 +71,16 @@ export const HTML = (token) => `<!doctype html>
     </span>
     <span class="brand-divider" aria-hidden="true"></span>
     <span class="product">Command Center</span>
+    <span id="livestrip" class="livestrip" aria-live="off"></span>
     <span class="badge-readonly">Read-only</span>
   </div>
 </header>
-<main id="app" class="shell" aria-busy="true">
-  <p class="loading">Reading this machine…</p>
-</main>
+<div class="layout shell">
+  <nav id="sidenav" class="sidenav" aria-label="Dashboard sections"></nav>
+  <main id="app" aria-busy="true">
+    <p class="loading">Reading this machine…</p>
+  </main>
+</div>
 <footer class="shell">
   <span id="meta"></span>
 </footer>
@@ -164,8 +168,54 @@ body {
   width: 1px; height: 22px; background: var(--color-border); margin: 0 0.35rem;
 }
 .product { font-weight: 500; font-size: 1rem; color: var(--color-text-muted); }
+/* Compact live readout that follows the user across every view. Without it,
+   switching away from Overview would hide the telemetry — which is the one
+   thing worth seeing no matter what you are looking at. */
+.livestrip {
+  margin-left: auto; display: flex; gap: 1rem; align-items: baseline;
+  font-size: var(--fs-overline); color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.livestrip b { color: var(--color-text); font-weight: 600; }
+.livestrip .warn { color: #f5b544; }
+.livestrip .critical { color: var(--color-error); }
+
+.layout {
+  display: grid; grid-template-columns: 190px minmax(0, 1fr);
+  gap: var(--space-6); align-items: start;
+  padding-top: var(--space-6); padding-bottom: var(--space-6);
+}
+.sidenav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 84px; }
+.sidenav button {
+  text-align: left; width: 100%; border: 1px solid transparent; background: transparent;
+  color: var(--color-text-muted); padding: 0.5rem 0.7rem; border-radius: 0.5rem;
+  font-size: var(--fs-small); font-weight: 500; letter-spacing: 0;
+}
+.sidenav button:hover { background: var(--color-surface-soft); color: var(--color-text); }
+.sidenav button[aria-current="page"] {
+  background: var(--accent-wash); color: var(--color-primary); border-color: var(--accent-border);
+}
+.sidenav .count { float: right; opacity: 0.7; font-weight: 400; }
+
+.filters { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.filters button { font-weight: 500; }
+.filters button[aria-pressed="true"] {
+  background: var(--accent-wash); border-color: var(--color-primary);
+}
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .sidenav {
+    position: static; flex-direction: row; overflow-x: auto;
+    border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2);
+  }
+  .sidenav button { width: auto; white-space: nowrap; }
+  .sidenav .count { display: none; }
+  .livestrip { display: none; }
+  .badge-readonly { margin-left: auto; }
+}
+
 .badge-readonly {
-  margin-left: auto;
   font-size: var(--fs-overline); font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 0.25rem 0.6rem; border-radius: 999px;
@@ -483,17 +533,55 @@ function installedPanel(d) {
   return p;
 }
 
+// Default to hiding what cannot run here. Measured on the reference machine,
+// this one table was 63% of the whole page at 32 rows — and most of the hidden
+// rows are models the user has no decision to make about. "Everything" stays
+// one click away, because silently omitting data is its own kind of dishonesty.
+let showAllModels = false;
+
 function catalogPanel(d) {
   const p = panel("What this machine can run");
+
+  const runnable = d.models.filter((m) => m.fit !== "too_large");
+  const hidden = d.models.length - runnable.length;
+
+  const filters = el("div", "filters");
+  const mkFilter = (label, isAll) => {
+    const b = el("button", null, label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(showAllModels === isAll));
+    b.addEventListener("click", () => {
+      if (showAllModels === isAll) return;
+      showAllModels = isAll;
+      renderView(activeView);
+    });
+    return b;
+  };
+  // String concatenation, not template literals. This whole bundle is carried
+  // inside a template literal in ui.js, so a nested backtick closes it early
+  // and a nested interpolation is evaluated at module scope by the outer
+  // template instead of at runtime in the browser. Note this comment cannot
+  // spell that syntax out either, for exactly the same reason.
+  filters.append(
+    mkFilter("Runs here (" + runnable.length + ")", false),
+    mkFilter("Everything (" + d.models.length + ")", true),
+  );
+  p.append(filters);
+
+  const rows = showAllModels ? d.models : runnable;
   const t = el("table");
   const head = el("tr");
   for (const h of ["Model", "Fit", "Quant", "Needs", "Run it"]) head.append(el("th", null, h));
   t.append(head);
-  for (const m of d.models) {
+  for (const m of rows) {
     const row = el("tr");
     const name = el("td");
     name.append(el("div", null, m.name + (m.sparseMoe ? "  (sparse MoE)" : "")));
-    name.append(el("div", "explain", m.explanation));
+    // The explanation is shown only where it changes a decision. For a
+    // comfortable fit the pill and the "Needs" column already say everything,
+    // and repeating "fits with N GB to spare" 27 times was the single largest
+    // contributor to this table's height without adding information.
+    if (m.fit !== "comfortable") name.append(el("div", "explain", m.explanation));
     row.append(name);
     const fit = el("td");
     fit.append(el("span", "pill " + m.fit, m.fit.replace("_", " ")));
@@ -512,6 +600,11 @@ function catalogPanel(d) {
     t.append(row);
   }
   p.append(t);
+  if (!showAllModels && hidden > 0) {
+    p.append(el("p", "explain",
+      hidden + " model" + (hidden === 1 ? "" : "s") +
+      " in the catalog need more memory than this machine has. Choose Everything to see them and what they would require."));
+  }
   return p;
 }
 
@@ -537,6 +630,45 @@ function sharePanel(d) {
 const POLL_INTERVAL_MS = 2000;
 let pollTimer = null;
 let consecutiveFailures = 0;
+let lastLive = null;
+
+function stampLiveMeta(live) {
+  const stamp = live.sampledAt ? new Date(live.sampledAt).toLocaleTimeString() : "";
+  for (const id of ["gauges-meta", "loaded-meta"]) {
+    const meta = document.getElementById(id);
+    if (!meta) continue;
+    meta.textContent = "";
+    meta.append(el("span", "live-dot"), document.createTextNode("live · " + stamp));
+  }
+}
+
+/**
+ * The compact header readout. This is what makes view-switching acceptable:
+ * leaving Overview must not mean losing sight of the machine.
+ */
+function renderLiveStrip(live) {
+  const strip = document.getElementById("livestrip");
+  if (!strip) return;
+  strip.textContent = "";
+
+  const wanted = ["cpu", "gpu", "vram"];
+  for (const id of wanted) {
+    const g = live.gauges.find((x) => x.id === id);
+    if (!g || !g.available) continue;
+    const item = el("span");
+    item.append(document.createTextNode(g.label + " "));
+    const value = el("b", g.severity === "normal" ? null : g.severity, g.percent + "%");
+    item.append(value);
+    strip.append(item);
+  }
+
+  const count = live.loaded.reachable ? live.loaded.models.length : null;
+  if (count !== null) {
+    const item = el("span");
+    item.append(el("b", null, String(count)), document.createTextNode(count === 1 ? " model loaded" : " models loaded"));
+    strip.append(item);
+  }
+}
 
 async function poll() {
   try {
@@ -546,16 +678,11 @@ async function poll() {
     if (!live.available) throw new Error(live.reason || "unavailable");
 
     consecutiveFailures = 0;
+    lastLive = live;
     renderGauges(live);
     renderLoaded(live);
-
-    const stamp = live.sampledAt ? new Date(live.sampledAt).toLocaleTimeString() : "";
-    for (const id of ["gauges-meta", "loaded-meta"]) {
-      const meta = document.getElementById(id);
-      if (!meta) continue;
-      meta.textContent = "";
-      meta.append(el("span", "live-dot"), document.createTextNode("live · " + stamp));
-    }
+    renderLiveStrip(live);
+    stampLiveMeta(live);
   } catch (err) {
     consecutiveFailures += 1;
     // Say it went stale rather than freezing on a number that is no longer
@@ -591,22 +718,108 @@ document.addEventListener("visibilitychange", () => {
   else { consecutiveFailures = 0; startPolling(); }
 });
 
+// ---------------------------------------------------------------------------
+// Views. One section rendered at a time, because the single-page layout reached
+// 13.4 screens of scroll on the reference machine. A sidebar that merely jumps
+// between anchors would not have fixed that — it would only be a faster way to
+// travel the same distance.
+// ---------------------------------------------------------------------------
+
+const VIEWS = [
+  {
+    id: "overview",
+    label: "Overview",
+    build: (d) => [livePanelShell("gauges", "Live system"), livePanelShell("loaded", "Loaded right now"), ollamaPanel(d)],
+  },
+  // Installed and catalog are separate views rather than one "Models" section:
+  // together they were 75% of the original page, and they answer different
+  // questions — "what do I already have" versus "what could I get".
+  {
+    id: "installed",
+    label: "Installed",
+    count: (d) => d.installed.length,
+    build: (d) => [installedPanel(d)],
+  },
+  {
+    id: "catalog",
+    label: "Catalog",
+    count: (d) => d.models.filter((m) => m.fit !== "too_large").length,
+    build: (d) => [catalogPanel(d)],
+  },
+  {
+    id: "hardware",
+    label: "Hardware",
+    // Surfaced in the nav because an unresolved source disagreement is
+    // something the user should know exists without hunting for it.
+    count: (d) => (d.report.disagreements.length ? d.report.disagreements.length : null),
+    build: (d) => [machinePanel(d), disagreementPanel(d)],
+  },
+  {
+    id: "report",
+    label: "Report",
+    build: (d) => [limitsPanel(d), sharePanel(d)],
+  },
+];
+
+let dashboardData = null;
+let activeView = "overview";
+
+function renderView(id) {
+  const view = VIEWS.find((v) => v.id === id) ?? VIEWS[0];
+  activeView = view.id;
+
+  app.textContent = "";
+  for (const node of view.build(dashboardData)) {
+    if (node) app.append(node);
+  }
+
+  for (const button of document.querySelectorAll("#sidenav button")) {
+    const isActive = button.dataset.view === view.id;
+    if (isActive) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  }
+
+  // The live panels only exist inside Overview, so repaint them from the last
+  // sample on arrival rather than leaving them blank until the next tick.
+  if (lastLive) { renderGauges(lastLive); renderLoaded(lastLive); stampLiveMeta(lastLive); }
+}
+
+function buildSideNav(d) {
+  const nav = document.getElementById("sidenav");
+  nav.textContent = "";
+  for (const view of VIEWS) {
+    const b = el("button", null, view.label);
+    b.type = "button";
+    b.dataset.view = view.id;
+    const n = view.count ? view.count(d) : null;
+    if (n !== null && n !== undefined) b.append(el("span", "count", n));
+    b.addEventListener("click", () => {
+      // Writing the hash drives the render through hashchange, so a click and
+      // a pasted link take exactly the same path.
+      if (location.hash === "#" + view.id) renderView(view.id);
+      else location.hash = view.id;
+    });
+    nav.append(b);
+  }
+}
+
+function viewFromHash() {
+  const id = location.hash.replace(/^#/, "");
+  return VIEWS.some((v) => v.id === id) ? id : "overview";
+}
+
+window.addEventListener("hashchange", () => {
+  if (dashboardData) renderView(viewFromHash());
+});
+
 async function load() {
   const res = await fetch("/api/dashboard", { headers: { "x-cmdcenter-token": TOKEN } });
   if (!res.ok) throw new Error("request failed: " + res.status);
-  const d = await res.json();
+  dashboardData = await res.json();
+  const d = dashboardData;
 
-  app.textContent = "";
-  app.append(livePanelShell("gauges", "Live system"));
-  for (const build of [machinePanel, disagreementPanel, ollamaPanel]) {
-    const node = build(d);
-    if (node) app.append(node);
-  }
-  app.append(livePanelShell("loaded", "Loaded right now"));
-  for (const build of [installedPanel, catalogPanel, limitsPanel, sharePanel]) {
-    const node = build(d);
-    if (node) app.append(node);
-  }
+  buildSideNav(d);
+  renderView(viewFromHash());
   app.setAttribute("aria-busy", "false");
   startPolling();
 

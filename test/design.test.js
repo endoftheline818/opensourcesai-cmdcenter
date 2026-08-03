@@ -96,3 +96,27 @@ test("read-only is stated in the interface, not just in the docs", () => {
   const html = HTML("t".repeat(64));
   assert.match(html, /Read-only/, "the read-only guarantee must be visible to the user");
 });
+
+// THE BROWSER BUNDLE MUST ACTUALLY PARSE.
+//
+// It is carried as a template literal inside this module, which makes two
+// mistakes invisible to `node --check` on the server file: a nested backtick
+// closes the outer literal early, and a nested interpolation is evaluated at
+// module scope instead of in the browser. Both were hit while adding the
+// sidebar — the second one inside a comment that was explaining the first.
+// Only the server file is syntax-checked by tooling; this checks the payload.
+test("the served JavaScript is syntactically valid", async () => {
+  const { JS } = await import("../src/serve/ui.js");
+  assert.doesNotThrow(() => new Function(JS), "the browser bundle does not parse");
+  assert.ok(JS.length > 1000, "suspiciously small bundle — the template may have closed early");
+});
+
+test("the navigation shell is present for the browser bundle to populate", () => {
+  const html = HTML("t".repeat(64));
+  // The nav and live strip are filled in by script, so the markup only has to
+  // provide their mount points — but if these ids drift, navigation silently
+  // stops working with no error anywhere.
+  assert.match(html, /id="sidenav"/, "the side navigation mount point must exist");
+  assert.match(html, /id="livestrip"/, "the persistent live readout mount point must exist");
+  assert.match(html, /aria-label="Dashboard sections"/, "navigation must be labelled for screen readers");
+});
