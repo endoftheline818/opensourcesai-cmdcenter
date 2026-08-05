@@ -36,6 +36,63 @@ async function installedModelNames(host) {
   return (body.models ?? []).map((m) => m.name);
 }
 
+// POST-UNLOAD VERIFICATION.
+//
+// HTTP 200 from Ollama means "I accepted the unload", not "the model is gone".
+// Those come apart in practice: anything else on the machine that requests the
+// model — an editor plugin, a benchmark run, a chat client — reloads it
+// immediately. On a machine with OLLAMA_KEEP_ALIVE set long, it then STAYS
+// loaded, so a working unload looks like a broken button.
+//
+// That exact confusion cost real debugging time on the Linux rig, where the
+// unload was correct all along and a background benchmark was re-requesting the
+// model against a 24-hour keep-alive. The tool reported success and showed the
+// model still resident, with nothing to reconcile the two.
+//
+// /api/ps is a GET. This adds no mutation surface — it only checks the
+// postcondition of one that already existed.
+const VERIFY_ATTEMPTS = 3;
+const VERIFY_DELAY_MS = 400;
+
+/**
+ * Names Ollama currently reports as resident, or NULL when that could not be
+ * read. Null and [] are deliberately different: "nothing is loaded" and "I
+ * could not tell" are different claims, and collapsing them would let a failed
+ * check masquerade as a confirmed unload.
+ */
+async function residentModelNames(host, fetchImpl) {
+  try {
+    const res = await fetchImpl(host + "/api/ps", { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return (body.models ?? []).map((m) => m.name);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Confirm a model actually left memory.
+ *
+ * Checks immediately — the common case, where the unload simply worked — and
+ * only then pays for retries, so a successful unload stays fast.
+ */
+async function confirmUnloaded({ host, model, fetchImpl, sleep }) {
+  let everChecked = false;
+
+  for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await sleep(VERIFY_DELAY_MS);
+    const resident = await residentModelNames(host, fetchImpl);
+    if (resident === null) continue;
+    everChecked = true;
+    if (!resident.includes(model)) return { state: "gone" };
+  }
+
+  return everChecked
+    ? { state: "still-resident" }
+    : { state: "unknown", reason: "could not read what is resident" };
+}
+
 /**
  * Validate a requested action against what is actually installed.
  *
@@ -81,7 +138,13 @@ export function buildActionBody({ action, model }) {
  * @param {string} deps.host        Resolved Ollama endpoint (loopback).
  * @param {typeof fetch} [deps.fetchImpl] Injected for tests.
  */
-export function createActions({ host, fetchImpl = fetch }) {
+export function createActions({
+  host,
+  fetchImpl = fetch,
+  // Injected so the verification retries do not make the suite wait in real
+  // time. Timers are fine here: this is the action layer, not derive/.
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}) {
   async function perform({ action, model }) {
     let installed;
     try {
@@ -108,7 +171,20 @@ export function createActions({ host, fetchImpl = fetch }) {
         return { ok: false, status: 502, reason: `Ollama refused: HTTP ${res.status}` };
       }
       await res.json().catch(() => null);
-      return { ok: true, action, model, elapsedMs: Date.now() - started };
+      const elapsedMs = Date.now() - started;
+
+      // A load already proves itself — the caller sees it appear in the loaded
+      // list. An unload has to prove a NEGATIVE, which is why only it is
+      // verified here.
+      //
+      // Note this stays ok:true when the model is resident again. The action
+      // did succeed; Ollama accepted it and released the model. Something else
+      // reloading it afterwards is a separate fact about the machine, and
+      // reporting it as a failed action would blame the wrong thing.
+      if (action === "unload") {
+        return { ok: true, action, model, elapsedMs, verified: await confirmUnloaded({ host, model, fetchImpl, sleep }) };
+      }
+      return { ok: true, action, model, elapsedMs };
     } catch (err) {
       // Generic on purpose: an error string from a runtime can carry a
       // filesystem path, and this response crosses a boundary.

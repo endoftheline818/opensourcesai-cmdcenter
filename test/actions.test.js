@@ -147,12 +147,25 @@ test("the authorizer's allowlist and the server's dispatch table agree", async (
 // loading a real model.
 // ===========================================================================
 
-function stubOllama() {
+/**
+ * @param {object} [options]
+ * @param {() => string[]} [options.resident] What /api/ps reports, called per
+ *   request so a test can change the answer between polls.
+ * @param {number} [options.psStatus] Status for /api/ps, to simulate a check
+ *   that cannot be read.
+ */
+function stubOllama({ resident = () => [], psStatus = 200 } = {}) {
   const seen = [];
   const server = http.createServer((req, res) => {
     if (req.url === "/api/tags") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ models: INSTALLED.map((name) => ({ name })) }));
+      return;
+    }
+    if (req.url === "/api/ps") {
+      seen.push({ url: req.url, method: req.method, body: null });
+      res.writeHead(psStatus, { "content-type": "application/json" });
+      res.end(JSON.stringify({ models: resident().map((name) => ({ name })) }));
       return;
     }
     let body = "";
@@ -193,6 +206,105 @@ test("an unload sends keep_alive 0", async () => {
   try {
     await createActions({ host }).unload("llama3.1:8b");
     assert.equal(seen[0].body.keep_alive, 0);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+// ===========================================================================
+// POST-UNLOAD VERIFICATION.
+//
+// HTTP 200 from Ollama means "accepted", not "the model is gone". On the Linux
+// rig those came apart: a background benchmark re-requested the model against
+// OLLAMA_KEEP_ALIVE=24h, so a CORRECT unload looked like a broken button and
+// cost real debugging time. The postcondition is now checked and reported.
+// ===========================================================================
+
+/** Never actually waits — the retry delay is injected. */
+const noSleep = async () => {};
+
+test("an unload confirms the model actually left memory", async () => {
+  const { server, seen } = stubOllama({ resident: () => [] });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const host = "http://127.0.0.1:" + server.address().port;
+  try {
+    const result = await createActions({ host, sleep: noSleep }).unload("llama3.1:8b");
+
+    assert.equal(result.ok, true);
+    assert.equal(result.verified.state, "gone");
+    // The confirmation must be a real observation, not an assumption.
+    assert.ok(seen.some((r) => r.url === "/api/ps"), "the postcondition must actually be checked");
+    // And it must be a GET — verification may not widen the mutation surface.
+    assert.ok(
+      seen.filter((r) => r.url === "/api/ps").every((r) => r.method === "GET"),
+      "/api/ps must be read-only",
+    );
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("an unload the machine immediately undoes is reported, not hidden", async () => {
+  // Something else on the box keeps the model warm — the exact 2570server case.
+  const { server } = stubOllama({ resident: () => ["llama3.1:8b"] });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const host = "http://127.0.0.1:" + server.address().port;
+  try {
+    const result = await createActions({ host, sleep: noSleep }).unload("llama3.1:8b");
+
+    assert.equal(result.verified.state, "still-resident");
+    // The ACTION succeeded — Ollama accepted it and released the model.
+    // Something else reloading it afterwards is a fact about the machine, and
+    // reporting it as a failed action would blame the wrong component.
+    assert.equal(result.ok, true, "the action worked; the machine undid it");
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("a slow unload is given time before being called resident", async () => {
+  // Present on the first poll, gone by the second: an unload in progress must
+  // not be reported as one that failed to take effect.
+  let polls = 0;
+  const { server } = stubOllama({ resident: () => (++polls === 1 ? ["llama3.1:8b"] : []) });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const host = "http://127.0.0.1:" + server.address().port;
+  try {
+    const result = await createActions({ host, sleep: noSleep }).unload("llama3.1:8b");
+    assert.equal(result.verified.state, "gone");
+    assert.ok(polls > 1, "it must retry rather than judge on a single sample");
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("a verification that cannot be read is unknown, never a confirmed unload", async () => {
+  // "I could not tell" and "it is gone" are different claims. Collapsing them
+  // would let a failed check masquerade as a confirmed unload — the same
+  // unavailable-is-not-zero rule the gauges follow.
+  const { server } = stubOllama({ psStatus: 500 });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const host = "http://127.0.0.1:" + server.address().port;
+  try {
+    const result = await createActions({ host, sleep: noSleep }).unload("llama3.1:8b");
+    assert.equal(result.verified.state, "unknown");
+    assert.notEqual(result.verified.state, "gone", "an unreadable check is not a confirmation");
+    assert.match(result.verified.reason, /could not read/);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("a load is not burdened with the unload's verification", async () => {
+  // A load proves itself: it appears in the loaded list. Only the negative
+  // needs proving, so a load must not pay for extra polls.
+  const { server, seen } = stubOllama();
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const host = "http://127.0.0.1:" + server.address().port;
+  try {
+    const result = await createActions({ host, sleep: noSleep }).load("qwen3:8b");
+    assert.equal(result.verified, undefined);
+    assert.equal(seen.filter((r) => r.url === "/api/ps").length, 0);
   } finally {
     await new Promise((r) => server.close(r));
   }
