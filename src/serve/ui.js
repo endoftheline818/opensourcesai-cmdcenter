@@ -791,6 +791,20 @@ tr:last-child td { border-bottom: 0; }
 .loaded-state.unknown-state {
   color: var(--color-text-muted);
 }
+.unload-notice {
+  margin: 0.75rem 0 0; padding: 0.6rem 0.75rem;
+  border: 1px solid transparent; border-radius: var(--radius-card);
+  font-size: var(--fs-small); line-height: 1.45;
+}
+.unload-notice.warn {
+  color: #f5b544;
+  background: rgba(245, 181, 68, 0.1);
+  border-color: rgba(245, 181, 68, 0.32);
+}
+.unload-notice.unknown {
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
 .loaded-residency {
   margin-top: 0.65rem; display: grid; gap: 0.35rem;
 }
@@ -1495,9 +1509,15 @@ async function requestLoad(model, status, trigger) {
   }
 }
 
+// Survives the re-render that poll() triggers. A label written onto the button
+// would be wiped by the very refresh that proves the point, so the notice is
+// held here and drawn by renderLoaded().
+var unloadNotice = null;
+
 async function requestUnload(model, trigger) {
   trigger.disabled = true;
   trigger.textContent = "Unloading";
+  unloadNotice = null;
   try {
     const res = await fetch("/api/actions/unload", {
       method: "POST",
@@ -1506,6 +1526,24 @@ async function requestUnload(model, trigger) {
     });
     const body = await res.json();
     if (!body.ok) { trigger.textContent = "Failed"; return; }
+
+    // Ollama accepting the unload is not proof the model left. Say which of
+    // those two happened rather than letting a stale row imply the button
+    // is broken.
+    var verified = body.verified || {};
+    if (verified.state === "still-resident") {
+      unloadNotice = {
+        model: model,
+        tone: "warn",
+        text: "Ollama released " + model + ", but it is loaded again already. Another program on this machine is asking for it.",
+      };
+    } else if (verified.state === "unknown") {
+      unloadNotice = {
+        model: model,
+        tone: "unknown",
+        text: "Ollama accepted the unload of " + model + ", but this could not be confirmed.",
+      };
+    }
   } catch {
     trigger.textContent = "Failed";
     return;
@@ -1569,6 +1607,16 @@ function renderLoaded(live) {
   if (!body) return;
   body.textContent = "";
   body.append(renderLoadedSummary(live));
+
+  // Drop the notice once the model it describes is genuinely gone — otherwise
+  // it outlives the condition and becomes its own false claim.
+  if (unloadNotice) {
+    var stillThere = live.loaded.models.some(function (m) { return m.name === unloadNotice.model; });
+    if (!stillThere) unloadNotice = null;
+  }
+  if (unloadNotice) {
+    body.append(el("p", "unload-notice " + unloadNotice.tone, unloadNotice.text));
+  }
 
   if (!live.loaded.reachable) {
     body.append(el("p", "empty", "Ollama is not responding, so nothing can be reported as loaded."));
