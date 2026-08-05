@@ -52,22 +52,55 @@ export function estimateTotalVram(paramsBillions, quantKey) {
   return estimateWeightVram(paramsBillions, bits) + RUNTIME_OVERHEAD_GB;
 }
 
-export function gradeVramFit(vramGb, requiredVramGb, systemRamGb = 0) {
+// The catalog's `quantizations[q].vramGb` is WEIGHTS ONLY. Fit must be graded
+// against weights PLUS runtime overhead — the safety margin the website's
+// /methodology page has always promised. Website #520 (2026-08-05) found that
+// promise unkept: `estimateTotalVram()` existed but no grading path called it,
+// so every surface graded bare weights. On an 8 GB M1 (6 GB effective) that
+// rated Qwen3 8B — 5.3 GB of weights — a "tight" fit, and it does not load at
+// all: measured resident was 5.58 GB before KV cache, and Ollama timed out.
+// This copy shipped the same dormant estimator and the same caller bug, and it
+// was caught by a cross-repo audit, not by the parity fixture — the fixture
+// pins function-for-function agreement, and both sides agreed on the bug.
+//
+// Non-numeric input passes through untouched: callers guard on a null
+// requirement, and quietly turning that into 1.5 would invent a fit.
+export function fitRequirementGb(weightsGb) {
+  const weights = Number(weightsGb);
+  if (!Number.isFinite(weights) || weights <= 0) return weightsGb;
+  return weights + RUNTIME_OVERHEAD_GB;
+}
+
+// `offloadBasisGb` exists because the two branches are calibrated against
+// different quantities. The VRAM branches take weights PLUS runtime overhead
+// (see fitRequirementGb). The offload branch takes bare WEIGHTS, because its
+// 1.6x multiplier was calibrated end-to-end against real offloaded runs and
+// already absorbs the runtime cost — inflating the basis too counts it twice.
+// Measured, not theoretical: qwen3:32b (20 GB Q4_K_M) ran at 2.36 tok/s on a
+// 10 GB / 32 GB rig — a genuine partial fit that double-counting would have
+// called too_large. Defaults to requiredVramGb so 2- and 3-argument calls
+// behave exactly as before.
+export function gradeVramFit(vramGb, requiredVramGb, systemRamGb = 0, offloadBasisGb = requiredVramGb) {
   if (vramGb > 0) {
     if (vramGb >= requiredVramGb + COMFORTABLE_HEADROOM_GB) return "comfortable";
     if (vramGb >= requiredVramGb) return "tight";
   }
-  if (systemRamGb >= requiredVramGb * RAM_OFFLOAD_MULTIPLIER) return "partial";
+  if (systemRamGb >= offloadBasisGb * RAM_OFFLOAD_MULTIPLIER) return "partial";
   return "too_large";
 }
 
 export function pickBestQuantization(model, vramGb, systemRamGb = 0) {
   const { q4_k_m, q8_0, fp16 } = model.quantizations ?? {};
+  // Same requirement the fit grade uses. If these two disagreed, the dashboard
+  // could offer a quantization it then rated too_large.
   if (vramGb > 0) {
-    if (fp16 && vramGb >= fp16.vramGb) return "fp16";
-    if (q8_0 && vramGb >= q8_0.vramGb) return "q8_0";
-    if (q4_k_m && vramGb >= q4_k_m.vramGb) return "q4_k_m";
+    if (fp16 && vramGb >= fitRequirementGb(fp16.vramGb)) return "fp16";
+    if (q8_0 && vramGb >= fitRequirementGb(q8_0.vramGb)) return "q8_0";
+    if (q4_k_m && vramGb >= fitRequirementGb(q4_k_m.vramGb)) return "q4_k_m";
   }
+  // Bare weights here, matching gradeVramFit's offload branch — the 1.6x
+  // multiplier is calibrated against weights and must not also carry the
+  // runtime overhead.
   if (q4_k_m && systemRamGb >= q4_k_m.vramGb * RAM_OFFLOAD_MULTIPLIER) return "q4_k_m";
   return null;
 }
@@ -93,12 +126,15 @@ export function isSparseMoe(model) {
  */
 export function explainFit({ model, quant, fit, vramGb }) {
   if (!quant || fit === "too_large") {
-    const minNeeded =
+    const minWeights =
       model.quantizations?.q4_k_m?.vramGb ?? model.quantizations?.q8_0?.vramGb ?? 0;
-    return `Needs about ${minNeeded} GB of VRAM, or roughly ${Math.ceil(minNeeded * RAM_OFFLOAD_MULTIPLIER)} GB of system RAM to run on CPU. This machine has neither.`;
+    // VRAM figure carries the runtime overhead; the RAM figure deliberately
+    // does not — the 1.6x offload multiplier already absorbs it.
+    const minNeeded = minWeights > 0 ? fitRequirementGb(minWeights) : 0;
+    return `Needs about ${minNeeded} GB of VRAM including runtime overhead, or roughly ${Math.ceil(minWeights * RAM_OFFLOAD_MULTIPLIER)} GB of system RAM to run on CPU. This machine has neither.`;
   }
 
-  const required = model.quantizations[quant].vramGb;
+  const required = fitRequirementGb(model.quantizations[quant].vramGb);
   const quantLabel = { fp16: "FP16", q8_0: "Q8_0", q4_k_m: "Q4_K_M" }[quant] ?? quant;
 
   if (fit === "comfortable") {
@@ -139,8 +175,12 @@ export function ollamaRunCommand(model, quant) {
  */
 export function gradeModel(model, { vramGb = 0, systemRamGb = 0 } = {}) {
   const quant = pickBestQuantization(model, vramGb, systemRamGb);
-  const requiredVramGb = quant ? model.quantizations[quant].vramGb : null;
-  const fit = quant ? gradeVramFit(vramGb, requiredVramGb, systemRamGb) : "too_large";
+  // Weights + overhead for the VRAM branches; bare weights as the offload
+  // basis. The exported requiredVramGb is the honest figure — what the machine
+  // actually needs free, not what the file weighs.
+  const weightsGb = quant ? model.quantizations[quant].vramGb : null;
+  const requiredVramGb = quant ? fitRequirementGb(weightsGb) : null;
+  const fit = quant ? gradeVramFit(vramGb, requiredVramGb, systemRamGb, weightsGb) : "too_large";
 
   return {
     id: model.id,
