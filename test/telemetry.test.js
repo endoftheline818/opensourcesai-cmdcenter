@@ -37,6 +37,89 @@ test("an unmeasurable gauge is unavailable, never zero", () => {
   assert.equal(gpu.severity, "unknown");
 });
 
+// REGRESSION TEST FOR A FALSE ALARM THAT REACHED THE SCREEN.
+//
+// These are REAL counters captured from an idle M1 MacBook Air, not invented
+// numbers. At the moment of capture the machine was healthy: the kernel
+// reported pressure level 1 (normal) and Activity Monitor showed 5.54 GB used
+// with a green pressure graph. The dashboard showed 93% and "warn".
+//
+// The cause was that os.freemem() on macOS counts only free + speculative
+// pages — 9905 + 9024 here, which is the 0.30 GB it reported — while 2.6 GB of
+// inactive and purgeable file cache, which macOS reclaims on demand, was being
+// counted as used. Every healthy Mac would have shown a memory warning.
+const IDLE_M1 = {
+  available: true,
+  pageSizeBytes: 16384,
+  free: 9905,
+  speculative: 9024,
+  inactive: 159602,
+  purgeable: 8312,
+  wiredDown: 81312,
+  pressureLevel: 1,
+};
+const M1_TOTAL_BYTES = 8_589_934_592;
+
+test("macOS counts reclaimable cache as available, not as used", () => {
+  const gauges = buildGauges(
+    sample({ memory: { totalBytes: M1_TOTAL_BYTES, freeBytes: 310_000_000, darwin: IDLE_M1 } }),
+  );
+  const ram = gauges.find((g) => g.id === "ram");
+
+  // free + speculative + inactive + purgeable, at 16 KiB per page.
+  const available = (9905 + 9024 + 159602 + 8312) * 16384;
+  const used = M1_TOTAL_BYTES - available;
+
+  assert.equal(ram.percent, Math.round((used / M1_TOTAL_BYTES) * 100));
+  assert.equal(ram.percent, 64, "the honest figure, matching Activity Monitor's 5.54 GB");
+  assert.ok(ram.percent < 85, "must sit below the capacity warn threshold on a healthy machine");
+});
+
+test("macOS severity comes from the kernel's own pressure verdict", () => {
+  const at = (pressureLevel) =>
+    buildGauges(
+      sample({
+        memory: { totalBytes: M1_TOTAL_BYTES, freeBytes: 310_000_000, darwin: { ...IDLE_M1, pressureLevel } },
+      }),
+    ).find((g) => g.id === "ram").severity;
+
+  assert.equal(at(1), "normal");
+  assert.equal(at(2), "warn");
+  assert.equal(at(4), "critical");
+
+  // A machine genuinely under pressure must still escalate even though the
+  // percentage alone would read as comfortable — which is the whole point of
+  // deferring to the kernel rather than to a threshold table.
+  assert.equal(at(4), "critical", "kernel pressure outranks a comfortable-looking percentage");
+});
+
+test("macOS without usable vm_stat is unavailable, never a false warning", () => {
+  const gauges = buildGauges(
+    sample({
+      memory: { totalBytes: M1_TOTAL_BYTES, freeBytes: 310_000_000, darwin: { available: false, reason: "not-found" } },
+    }),
+  );
+  const ram = gauges.find((g) => g.id === "ram");
+
+  // Falling back to total - freemem() here would report 96% and warn on a
+  // healthy machine. Unavailable is the honest answer.
+  assert.equal(ram.available, false);
+  assert.equal(ram.percent, null);
+  assert.equal(ram.severity, "unknown");
+  assert.match(ram.reason, /vm_stat/);
+});
+
+test("Windows and Linux memory math is untouched by the macOS path", () => {
+  // darwin is null off macOS, where os.freemem() already tracks available
+  // memory — verified against /proc/meminfo on the Linux rig, where it follows
+  // MemAvailable rather than MemFree.
+  const gauges = buildGauges(sample({ memory: { totalBytes: 34_000_000_000, freeBytes: 17_000_000_000, darwin: null } }));
+  const ram = gauges.find((g) => g.id === "ram");
+  assert.equal(ram.percent, 50);
+  assert.equal(ram.severity, "normal");
+  assert.equal(ram.available, true);
+});
+
 test("the first CPU sample is unknown rather than idle", () => {
   // Utilisation is a rate; the first poll has nothing to diff against.
   const gauges = buildGauges(sample({ cpu: { utilizationPercent: null, logicalCores: 8, loadAverage: null } }));

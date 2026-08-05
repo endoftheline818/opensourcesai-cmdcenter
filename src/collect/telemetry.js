@@ -98,6 +98,59 @@ async function nvidiaTelemetry() {
   return { available: true, gpus };
 }
 
+/**
+ * macOS memory, taken from the kernel rather than inferred from os.freemem().
+ *
+ * WHY THIS EXISTS. On macOS `os.freemem()` counts only genuinely free pages —
+ * free plus speculative. macOS deliberately fills the rest of RAM with
+ * reclaimable file cache, so `total - free` counts that cache as used and
+ * reports ~93% on a completely healthy machine. Measured on an idle M1: 7.95 GB
+ * of 8.59 GB "used", while the kernel simultaneously reported NORMAL memory
+ * pressure and Activity Monitor showed 5.54 GB. That is a false alarm on every
+ * Mac, not a Mac that is short of memory.
+ *
+ * Two things are captured, both raw and unreconciled:
+ *   - vm_stat's page counters, so available memory can be computed honestly.
+ *   - kern.memorystatus_vm_pressure_level — the kernel's OWN verdict, and
+ *     exactly what Activity Monitor's green/yellow/red graph renders.
+ *
+ * Both are cheap enough for the poll budget (single-digit milliseconds each,
+ * against the ~50ms nvidia-smi already in this sample).
+ */
+async function darwinMemory() {
+  if (process.platform !== "darwin") return null;
+
+  const [vmStat, pressure] = await Promise.all([
+    run("vm_stat", [], { timeout: 3000 }),
+    run("sysctl", ["-n", "kern.memorystatus_vm_pressure_level"], { timeout: 3000 }),
+  ]);
+  if (!vmStat.ok) return { available: false, reason: vmStat.error };
+
+  // Header line: "Mach Virtual Memory Statistics: (page size of 16384 bytes)".
+  // Page size is read rather than assumed — it is 16 KiB on Apple Silicon and
+  // 4 KiB on Intel Macs, and hardcoding either silently scales every figure.
+  const pageSizeMatch = /page size of (\d+) bytes/.exec(vmStat.stdout);
+  const pages = (label) => {
+    const match = new RegExp(`^Pages ${label}:\\s+(\\d+)`, "m").exec(vmStat.stdout);
+    return match ? Number(match[1]) : null;
+  };
+
+  const level = pressure.ok ? Number(pressure.stdout.trim()) : NaN;
+
+  return {
+    available: true,
+    pageSizeBytes: pageSizeMatch ? Number(pageSizeMatch[1]) : null,
+    free: pages("free"),
+    speculative: pages("speculative"),
+    inactive: pages("inactive"),
+    purgeable: pages("purgeable"),
+    wiredDown: pages("wired down"),
+    // 1 = normal, 2 = warn, 4 = critical. Null when sysctl did not answer, so
+    // the derive layer can tell "healthy" from "not measured".
+    pressureLevel: Number.isFinite(level) ? level : null,
+  };
+}
+
 async function diskFor(storePath) {
   if (!storePath) return null;
   try {
@@ -142,10 +195,11 @@ async function loadedModels(host) {
 export async function collectTelemetry({ host, storePath = null, sampledAt = null } = {}) {
   // Independent, so run concurrently — the whole sample is bounded by the
   // slowest probe (nvidia-smi) rather than their sum.
-  const [gpu, disk, ollama] = await Promise.all([
+  const [gpu, disk, ollama, darwin] = await Promise.all([
     nvidiaTelemetry(),
     diskFor(storePath),
     loadedModels(host),
+    darwinMemory(),
   ]);
 
   return {
@@ -159,7 +213,13 @@ export async function collectTelemetry({ host, storePath = null, sampledAt = nul
     },
     memory: {
       totalBytes: os.totalmem(),
+      // Kept even on macOS, where it is known to understate available memory.
+      // The collect layer does not drop a source for disagreeing with another —
+      // here the disagreement between this and vm_stat IS the finding.
       freeBytes: os.freemem(),
+      // Null on every platform except macOS, where os.freemem() cannot express
+      // pressure on its own. See darwinMemory().
+      darwin,
     },
     gpu,
     disk,

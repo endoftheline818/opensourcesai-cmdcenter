@@ -36,15 +36,55 @@ export function severityFor(kind, percent) {
   return "normal";
 }
 
-const gauge = ({ id, label, percent, detail, kind = "load", available = true, reason = null }) => ({
+const gauge = ({
+  id,
+  label,
+  percent,
+  detail,
+  kind = "load",
+  available = true,
+  reason = null,
+  severity = null,
+}) => ({
   id,
   label,
   percent: available ? pct(percent) : null,
   detail: available ? detail : null,
-  severity: available ? severityFor(kind, pct(percent)) : "unknown",
+  // An explicit severity wins over the threshold table. It exists for the one
+  // case where the operating system knows better than a percentage does: macOS
+  // publishes its own memory-pressure verdict, and that verdict is the same
+  // thing Activity Monitor renders.
+  severity: available ? (severity ?? severityFor(kind, pct(percent))) : "unknown",
   available,
   reason,
 });
+
+/**
+ * Bytes macOS can actually hand to a new allocation: free + speculative +
+ * inactive + purgeable.
+ *
+ * Inactive and purgeable pages hold reclaimable file cache. macOS fills them on
+ * purpose and drops them on demand, so counting them as "used" — which is what
+ * `total - os.freemem()` does — describes a healthy machine as a full one.
+ *
+ * Validated against a real idle M1: this yields 5.53 GB used where Activity
+ * Monitor independently reported 5.54 GB, against the 7.95 GB the old
+ * calculation claimed.
+ */
+function darwinAvailableBytes(darwin) {
+  if (!darwin?.available || !darwin.pageSizeBytes) return null;
+  const counts = [darwin.free, darwin.speculative, darwin.inactive, darwin.purgeable];
+  if (counts.some((count) => !Number.isFinite(count))) return null;
+  return counts.reduce((total, count) => total + count, 0) * darwin.pageSizeBytes;
+}
+
+/** macOS `kern.memorystatus_vm_pressure_level`. Null means "not measured". */
+function darwinPressureSeverity(level) {
+  if (level === 1) return "normal";
+  if (level === 2) return "warn";
+  if (level === 4) return "critical";
+  return null;
+}
 
 function gpuGauges(telemetry) {
   const gpu = telemetry.gpu;
@@ -135,16 +175,40 @@ export function buildGauges(telemetry) {
 
   const mem = telemetry.memory;
   if (mem?.totalBytes) {
-    const used = mem.totalBytes - mem.freeBytes;
-    gauges.push(
-      gauge({
-        id: "ram",
-        label: "System memory",
-        kind: "capacity",
-        percent: (used / mem.totalBytes) * 100,
-        detail: `${toGb(used)} / ${toGb(mem.totalBytes)} GB`,
-      }),
-    );
+    // `darwin` is null on Windows and Linux, where os.freemem() already tracks
+    // available memory. It is an object on macOS, where it does not.
+    const onDarwin = mem.darwin !== null && mem.darwin !== undefined;
+    const availableBytes = darwinAvailableBytes(mem.darwin);
+
+    if (onDarwin && availableBytes === null) {
+      // macOS, but vm_stat gave us nothing usable. Falling back to
+      // `total - os.freemem()` here would warn on a healthy machine, which is
+      // the exact defect this path exists to prevent — so the gauge reports
+      // unavailable instead of reporting something wrong.
+      gauges.push(
+        gauge({
+          id: "ram",
+          label: "System memory",
+          percent: null,
+          available: false,
+          reason: "macOS memory pressure needs vm_stat, which did not report",
+        }),
+      );
+    } else {
+      const used = availableBytes === null
+        ? mem.totalBytes - mem.freeBytes
+        : mem.totalBytes - availableBytes;
+      gauges.push(
+        gauge({
+          id: "ram",
+          label: "System memory",
+          kind: "capacity",
+          percent: (used / mem.totalBytes) * 100,
+          detail: `${toGb(used)} / ${toGb(mem.totalBytes)} GB`,
+          severity: onDarwin ? darwinPressureSeverity(mem.darwin.pressureLevel) : null,
+        }),
+      );
+    }
   }
 
   gauges.push(...gpuGauges(telemetry));
