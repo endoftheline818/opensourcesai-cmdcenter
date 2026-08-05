@@ -1,6 +1,6 @@
-# Maintainer Handoff — OpenSourcesAI Command Center
+# Maintainer Guide — OpenSourcesAI Command Center
 
-You are taking over development of a working, tested tool. **Read this whole file before writing code.** It exists because several of the rules below were learned by shipping bugs, and re-learning them costs more than reading.
+Working notes for anyone maintaining this tool. **Read this before making a substantial change.** Several of the rules below were learned by shipping bugs, and re-learning them costs more than reading.
 
 ---
 
@@ -130,7 +130,6 @@ MCP config files **routinely hold live credentials**.
 ## 9. Working conventions
 
 - **Branch and open a PR** (`feat/`, `fix/`, `docs/`, `chore/` + kebab slug). **Do not push to `main`. Do not force-push.** Maintainers merge.
-- **Do not add AI attribution or co-author trailers to commits.** This is a deliberate setting.
 - Commit messages record **why**, not what. The reasoning behind a decision is the most valuable thing in this repo's history.
 - **Do not publish to npm.**
 - Verify in a **real browser** for UI changes, not just tests. Two of the most important bugs in this project were caught by looking at the screen.
@@ -152,17 +151,7 @@ Do not start these blind — each has a finding attached that changes the answer
 
 ## 11. Website Coordination
 
-Strategy and product history are coordinated with the website repository:
+Strategy and product history for this tool are tracked alongside opensourcesai.com in internal planning documents that are not part of this repository. Two rules follow from that split:
 
-- `docs/control-center-discovery-spec-2026-08-02.md` — the governing spec, with supersession banners where reality diverged.
-- `docs/roadmap.md` / `docs/roadmap-changelog.md` — currently **rev 97**. Revisions 90–97 cover this tool's entire history with the reasoning behind each decision.
-- Private lab access details must stay out of this repository. Public fixtures should include only redacted captures.
-
-**When you change something a doc claims, update the doc in the same PR.** Several revisions in that changelog exist specifically because a doc was left contradicting the code.
-
-## 12. Public History Review
-
-Before changing repository visibility, read
-`docs/public-history-review-2026-08-03.md`. It records the full-history review
-and the deliberate decision not to rewrite history for accepted non-credential
-path and hostname exposure.
+- Private lab and environment details must stay out of this repository. Committed fixtures may contain only redacted captures.
+- **When you change something a doc in this repository claims, update that doc in the same PR.** Past revisions exist specifically because a doc was left contradicting the code.

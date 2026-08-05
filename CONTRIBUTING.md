@@ -1,4 +1,4 @@
-# OpenSourcesAI Command Center — Project Guide
+# Contributing to OpenSourcesAI Command Center
 
 ## What this is
 
@@ -17,12 +17,11 @@ it, and the two are joined only by versioned contracts. Same boundary
 and branch name is publishable. No keys, no private strategy notes, no
 machine-identifying details (IPs, SSH users, absolute home paths).
 
-## The governing document
+## Scope
 
-The scoping decisions live in the website repository at
-`docs/control-center-discovery-spec-2026-08-02.md`, with status recorded in its
-roadmap revisions. That document is canon for *what this is allowed to become*;
-this file is canon for *how to work in here*.
+The scoping decisions for this tool are recorded in an internal planning
+document that is not part of this repository. That document governs *what this
+is allowed to become*; this file governs *how to work in here*.
 
 These implementation decisions are already taken and bind current work:
 
@@ -145,8 +144,7 @@ must assert the set is non-empty first — a pass over zero files is not a pass.
 
 - Branch and open a PR (`feat/`, `fix/`, `docs/`, `chore/` + kebab slug). Do not
   push to `main` and do not force-push. Maintainers merge.
-- Do not add AI attribution or co-author trailers to commits.
 - Commit messages record *why*, not just *what*.
 - **Do not remove `private: true` from `package.json`.** Publishing is a
   deliberate maintainer action and is not yet decided; a test asserts the guard.
-- Do not publish to npm from a session.
+- Do not publish to npm.
