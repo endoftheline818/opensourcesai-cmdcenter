@@ -2,7 +2,7 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-03",
+    "generatedAt": "2026-08-05",
     "modules": [
       "src/data/checker-models.json"
     ]
@@ -128,7 +128,7 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 4.9,
+          "vramGb": 5.3,
           "qualityTier": "good"
         },
         "q4_k_s": {
@@ -136,7 +136,7 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 8.7,
+          "vramGb": 8.9,
           "qualityTier": "high"
         },
         "fp16": {
