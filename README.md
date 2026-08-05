@@ -41,6 +41,66 @@ This tool closes that gap by reading the machine directly.
 - **A shareable summary** — coarse bands only, safe to paste into a public issue.
 - **What it does not claim.** Every report ends with its own limitations.
 
+## Running it on a headless machine
+
+Ollama often runs on a box with no desktop — a home server, a spare tower, a
+rented GPU host. The dashboard binds to `127.0.0.1` and nothing else, so
+opening it from your laptop takes one extra step.
+
+**That bind address is not configurable, on purpose.** `BIND_ADDRESS` is a
+constant in `src/serve/server.js`, a test asserts it is loopback, and `--port`
+is the only flag `serve` accepts. There is no `--host`, no environment
+variable, and no config file — so this dashboard cannot be exposed to a network
+by accident, or by following bad advice. Reaching it remotely is therefore a
+deliberate act on your side, not a setting you can leave switched on.
+
+Use SSH port forwarding. It keeps every guarantee intact: the server still
+binds loopback, still requires its per-session token, and still enforces its
+Host and Origin checks.
+
+**On the server**, start it in the background:
+
+```bash
+cd opensourcesai-cmdcenter
+nohup node src/cli.js serve --port 7717 < /dev/null > /tmp/cmdcenter.log 2>&1 & disown
+```
+
+`< /dev/null` is required, not decoration. Without it the SSH channel stays
+open waiting on stdin even with `nohup` and `disown`, which looks exactly like
+a server that failed to start — while it is in fact running fine. Confirm with:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7717/
+```
+
+**On your laptop**, open the tunnel and leave it running:
+
+```bash
+ssh -N -L 7717:127.0.0.1:7717 your-server
+```
+
+Then visit `http://127.0.0.1:7717/`. There is no token to copy — the page is
+served with its own. `Ctrl+C` closes the tunnel; the server keeps running until
+you stop it.
+
+### When it does not work
+
+- **`channel N: open failed: connect failed: Connection refused`, repeating.**
+  The tunnel is fine. Nothing is listening on the far end — the server is not
+  running, or is on a different port.
+- **`Permission denied` binding the local port.** Usually not a permission
+  problem: something on *your* machine already holds `127.0.0.1:7717`. An
+  earlier tunnel or an earlier `serve` is the usual culprit.
+- **A host-key prompt for a host you are already on.** The `ssh -L` command was
+  run *inside* the session it was meant to create, so it is connecting to the
+  machine from itself. Run it in a fresh local terminal instead.
+- **"Ollama not detected" while Ollama is clearly running.** `OLLAMA_HOST` is
+  dual-purpose — a *bind address* to the server, a *connect target* to a
+  client — and headless setups often set it to `0.0.0.0` so other machines can
+  reach Ollama. Taken literally as a connect target that address is not
+  useful, so this tool falls back to loopback when it sees a wildcard. If
+  another Ollama client on the same box reports the same thing, this is why.
+
 ## Trust boundaries
 
 These are trust properties, enforced by tests in `test/package.test.js`, not
