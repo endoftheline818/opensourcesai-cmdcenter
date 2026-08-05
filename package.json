@@ -2,7 +2,7 @@
   "name": "@opensourcesai/cmdcenter",
   "version": "0.1.0",
   "private": true,
-  "description": "Read-only diagnostic for a local Ollama machine — real hardware detection, model inventory, and a shareable summary that carries no exact specs.",
+  "description": "Local dashboard for a machine running Ollama — real hardware detection, model fit, live system pressure, and load/unload for installed models.",
   "type": "module",
   "bin": {
     "osai-cmdcenter": "src/cli.js"
