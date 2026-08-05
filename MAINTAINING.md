@@ -17,10 +17,10 @@ node src/cli.js            # text diagnostic report
 node src/cli.js serve      # the dashboard at http://127.0.0.1:7717
 node src/cli.js --json     # full report as JSON
 node src/cli.js --capture  # raw capture (for bug reports)
-npm test                   # 143 tests
+npm test                   # runs the suite and prints its own test count
 ```
 
-**Status:** Phases 0, 1 and 2 are complete. `npm test` currently runs 143 tests locally, and CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
+**Status:** Phases 0, 1 and 2 are complete. `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
 
 ---
 
