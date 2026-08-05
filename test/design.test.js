@@ -173,6 +173,50 @@ test("the served JavaScript is syntactically valid", async () => {
   assert.ok(JS.length > 1000, "suspiciously small bundle — the template may have closed early");
 });
 
+// REGRESSION TEST FOR A PANEL THAT CONTRADICTED THE ONE BESIDE IT.
+//
+// The Overview's next-action panel was built once from the page-load snapshot
+// while the Loaded card next to it refreshed every two seconds. On screen the
+// card read "0 — No resident model" while the recommendation directly below it
+// said "1 model currently reported as resident". Caught from a screenshot, not
+// from the suite — the same way the stale READ-ONLY badge was.
+//
+// The wrong sentence was only the symptom. The whole decision was frozen —
+// title, button and behaviour — on a panel whose entire job is saying what to
+// do next.
+test("the next-action panel is rebuilt from live data, not left at page load", async () => {
+  const { JS } = await import("../src/serve/ui.js");
+
+  // The id is a CONTRACT between two places: the builder that stamps it and the
+  // live renderer that looks it up. Pinning both here is what stops a rename in
+  // one from silently disabling the refresh in the other — which would go stale
+  // again with every other test still passing.
+  assert.match(JS, /wrap\.id = "summary-action"/, "the builder must stamp the id the live renderer finds");
+  assert.match(JS, /getElementById\("summary-action"\)/, "the live renderer must look up that exact id");
+
+  // Wiring, not merely existence: a renderer nothing calls is dead code that
+  // looks like a fix.
+  assert.match(JS, /function renderNextActionLive/, "the live renderer must exist");
+  // Matched as a CALL STATEMENT — the trailing semicolon is what distinguishes
+  // it from `function renderNextActionLive(live) {`. Written first without it,
+  // this assertion passed while the call site was deleted, because the
+  // declaration satisfied the pattern. Sixth instance of this repo's
+  // matching-the-wrong-thing trap, and the first in a test rather than a guard.
+  assert.match(JS, /^\s*renderNextActionLive\(live\);/m, "renderSummaryLive must actually call it");
+
+  // It must read residency from the LIVE sample. Rebuilding from the page-load
+  // snapshot would repaint the same stale claim on every tick.
+  assert.match(
+    JS,
+    /live\.loaded\.reachable \? live\.loaded\.models : \[\]/,
+    "the rebuilt panel must take residency from the live sample",
+  );
+
+  // And an Ollama that stops mid-session must not be advised to warm a model.
+  // Replacing one stale claim with another is not a fix.
+  assert.match(JS, /reachable === false/, "offline must be handled before the page-load install flag");
+});
+
 test("the navigation shell is present for the browser bundle to populate", () => {
   const html = HTML("t".repeat(64));
   // The nav and live strip are filled in by script, so the markup only has to

@@ -1160,7 +1160,24 @@ function summaryTrustRail(d) {
   return rail;
 }
 
-function overviewNextAction(d, runnable, loaded) {
+/**
+ * @param {object} d          The page-load dashboard payload.
+ * @param {object[]} runnable Catalog models that fit.
+ * @param {object[]} loaded   Resident models — LIVE once a sample has arrived.
+ * @param {boolean} [reachable] Live Ollama reachability. Undefined before the
+ *   first sample, when only the page-load snapshot is available.
+ */
+function overviewNextAction(d, runnable, loaded, reachable) {
+  // Checked before the static install flag, because Ollama can stop while the
+  // page is open. Advising someone to warm a model when the service is gone
+  // would be the same class of stale claim this panel was fixed for.
+  if (reachable === false) {
+    return {
+      title: "Start Ollama locally",
+      detail: "Ollama stopped responding, so residency and actions are unavailable.",
+      button: null,
+    };
+  }
   if (!d.report.ollama.installed) {
     return {
       title: "Start Ollama locally",
@@ -1192,9 +1209,13 @@ function overviewNextAction(d, runnable, loaded) {
   };
 }
 
-function summaryActionPanel(d, runnable, loaded) {
-  const action = overviewNextAction(d, runnable, loaded);
+function summaryActionPanel(d, runnable, loaded, reachable) {
+  const action = overviewNextAction(d, runnable, loaded, reachable);
   const wrap = el("div", "summary-action");
+  // The id is the contract between this builder and renderNextActionLive(),
+  // which replaces the whole panel on every live sample. A test pins the two
+  // together so they cannot drift apart silently.
+  wrap.id = "summary-action";
   const copy = el("div", "summary-action-copy");
   copy.append(el("div", "summary-action-label", "Next action"), el("b", null, action.title), el("span", null, action.detail));
   wrap.append(copy);
@@ -2099,6 +2120,24 @@ function stampLiveMeta(live) {
   }
 }
 
+// THE NEXT-ACTION PANEL MUST FOLLOW THE MACHINE, NOT THE PAGE LOAD.
+//
+// It was built once from the page-load snapshot while the Loaded card beside it
+// refreshed every two seconds. They disagreed on screen: the card read "0 — No
+// resident model" while the recommendation below it said "1 model currently
+// reported as resident".
+//
+// The wrong sentence was the visible symptom; the real defect was that the
+// whole DECISION was frozen — title, button and behaviour — on a panel whose
+// only job is saying what to do next. Rebuilt from the live sample instead.
+function renderNextActionLive(live) {
+  const existing = document.getElementById("summary-action");
+  if (!existing || !dashboardData) return;
+  const runnable = dashboardData.models.filter((m) => m.fit !== "too_large");
+  const loaded = live.loaded.reachable ? live.loaded.models : [];
+  existing.replaceWith(summaryActionPanel(dashboardData, runnable, loaded, live.loaded.reachable));
+}
+
 function renderSummaryLive(live) {
   const loadedValue = document.getElementById("summary-loaded-value");
   const loadedDetail = document.getElementById("summary-loaded-detail");
@@ -2114,6 +2153,8 @@ function renderSummaryLive(live) {
         : live.loaded.models.map((m) => m.name).join(", ");
     }
   }
+
+  renderNextActionLive(live);
 
   const pressureValue = document.getElementById("summary-pressure-value");
   const pressureDetail = document.getElementById("summary-pressure-detail");
