@@ -2,7 +2,7 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-03",
+    "generatedAt": "2026-08-05",
     "modules": [
       "src/lib/hardwareTelemetry.js",
       "src/lib/appleMemory.js"
