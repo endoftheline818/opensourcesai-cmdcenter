@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectTools, mcpConfigPaths, parseMcpConfig, safeBasename, summariseServer, toolLocations } from "../src/collect/tools.js";
+import { collectTools, mcpConfigPaths, parseMcpConfig, probeOutcome, safeBasename, summariseServer, toolLocations } from "../src/collect/tools.js";
 import { buildToolsPayload, exportableTools } from "../src/derive/tools.js";
 
 // A config shaped like a real one, carrying sentinels no real secret would
@@ -250,10 +250,34 @@ test("the shareable block still carries counts only — verdicts stay on-screen"
   assert.ok(!JSON.stringify(exported).includes("command-not-found"), "a verdict names what someone runs; counts only may leave the machine");
 });
 
+// REGRESSION TEST FOR A REAL DISHONESTY THAT ONLY A COLD CI RUNNER CAUGHT.
+//
+// On windows-latest (run 31163686715, PR #43) the first `where node` outlived
+// its 4s budget. The kill came back as a generic error string, the old
+// mapping read any non-"not-found" error as the locator answering, and a
+// probe that never answered was published as "command-not-found" — for the
+// binary running the test. Unavailable ≠ a verdict, here as everywhere: only
+// a locator that RAN and EXITED gets to say false.
+test("a probe that never answered maps to null, never to a verdict", () => {
+  assert.equal(probeOutcome({ ok: true, stdout: "C:\\somewhere\\node.exe" }), true);
+  assert.equal(probeOutcome({ ok: false, error: "timed-out" }), null, "a timeout is not an answer");
+  assert.equal(probeOutcome({ ok: false, error: "not-found" }), null, "a missing locator cannot answer");
+  assert.equal(probeOutcome({ ok: false, error: "Command failed: where gone-tool" }), false,
+    "a completed non-zero exit IS the answer: not on PATH");
+});
+
 test("command resolution locates real binaries without executing anything", async () => {
   const { resolveCommands } = await import("../src/collect/tools.js");
   // `node` is running this test, so it must resolve; the sentinel must not.
-  const resolution = await resolveCommands(["node", "definitely-not-a-real-binary-xyz", "node", null, ""]);
+  const commands = ["node", "definitely-not-a-real-binary-xyz", "node", null, ""];
+  let resolution = await resolveCommands(commands);
+  // A null is the probe honestly saying it got no answer — seen once when a
+  // cold runner pushed the first `where` past its budget. One retry gives a
+  // warmed-up machine its answer; the strict asserts below still stand, so a
+  // machine that cannot resolve node at all still fails. false is never
+  // retried: a locator that ANSWERED "not on PATH" for the binary running
+  // this test is a bug, not weather.
+  if (Object.values(resolution).includes(null)) resolution = await resolveCommands(commands);
   assert.equal(resolution.node, true);
   assert.equal(resolution["definitely-not-a-real-binary-xyz"], false);
   assert.equal(Object.keys(resolution).length, 2, "distinct commands only, empties dropped");
