@@ -15,7 +15,11 @@
 // never a title, never an excerpt.
 //
 // Privacy rules, inherited from §4a and tested:
-//   - never read by any collector; never in --capture output; never exported.
+//   - never read by any collector; never in --capture output; never
+//     transmitted. (The claim here was "never exported" until 2026-08-10;
+//     export now exists as an EXPLICIT USER ACTION in the browser — the page
+//     downloads a markdown file to the user's own disk. No server-side
+//     export path exists, and this module gained no new reader for it.)
 //   - the LIST endpoint's shape carries no prose (ids, timestamps, model names,
 //     counts) — reading a conversation's words requires asking for exactly that
 //     conversation.

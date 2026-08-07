@@ -7,7 +7,7 @@ the bench protocol's own rules, inventories local MCP servers, and can load or
 unload already-installed models within a narrow action boundary. It talks only
 to AI runtimes on this machine — never to the internet.
 
-> **Status: Phases 0–3c complete.** Shipped: the diagnostic core, local
+> **Status: Phases 0–3d complete.** Shipped: the diagnostic core, local
 > dashboard, live telemetry, model catalog, MCP inventory with static config
 > verdicts, the load/unload action surface, the measurement layer (bench-result
 > inspection, a provenance-pinned bandwidth ceiling, vendor-verdict throttle
@@ -246,9 +246,18 @@ no sourced figure exists, both say "unavailable" rather than guessing.
   standing best under matching run conditions — the comparison this tool was
   founded on; and static MCP config verdicts, with the runtime tiers
   deliberately unbuilt until they can be honest.
-- **Next:** chat conveniences (parameters, system prompts, search) stay
-  deliberately behind measurement capability. Deliberately not planned, ever:
-  cloud endpoints, accounts, or anything that leaves the machine.
+- **Phase 3d (complete): the conveniences, measurement-first to the end.**
+  They waited until every measurement item shipped, then arrived carrying the
+  discipline: a `num_ctx` control whose value is **recorded into the reply's
+  measurement record** the moment it became settable (a reply run under a
+  non-default window says so in its own strip; the OpenAI-compatible runtime
+  refuses the request honestly, since its window is fixed at server launch);
+  per-conversation system prompts, set at start and fixed for life; plain-text
+  search over your own conversations; and export to markdown **with each
+  reply's measurements attached** — a file on your own disk, produced only by
+  your click.
+- **Next:** nothing is scheduled. Deliberately not planned, ever: cloud
+  endpoints, accounts, or anything that leaves the machine.
 
 ## What it remembers
 
@@ -270,9 +279,13 @@ platform data directory (`%LOCALAPPDATA%\osai-cmdcenter` on Windows,
   everywhere it is used so it can never pass as manufacturer-sourced, and
   removable with one click.
 
-Nothing in this directory is ever transmitted, exported, or read into a
-diagnostic capture — the same structural guards that keep this tool off the
-internet keep its memory out of everything that leaves the machine.
+Nothing in this directory is ever transmitted or read into a diagnostic
+capture — the same structural guards that keep this tool off the internet
+keep its memory out of everything that leaves the machine. A conversation
+leaves the directory exactly one way: the Chat view's Export button, which
+**you** click, producing a markdown file on your own disk with each reply's
+measurements attached. There is no server-side export path, and nothing
+exports itself.
 
 ## Requirements
 

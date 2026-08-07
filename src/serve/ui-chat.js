@@ -307,6 +307,84 @@ function chatStreamPaint(live) {
   if (pane) pane.scrollTop = pane.scrollHeight;
 }
 
+// The strip as text, for export — the same figures the strip renders, with
+// the same provenance labels ("manual ceiling" stays labelled on paper too).
+function chatStripText(strip) {
+  const parts = [];
+  const gen = stripFigure(strip.generation, " tok/s", 2);
+  if (gen) parts.push(gen);
+  if (strip.utilization && strip.utilization.available) {
+    parts.push((strip.utilization.value * 100).toFixed(1) + "% of " +
+      (strip.utilization.ceilingSource === "manual" ? "manual ceiling" : "ceiling"));
+  }
+  const ttft = stripFigure(strip.timeToFirstTokenMs, " ms", 0);
+  if (ttft) parts.push("first token " + ttft);
+  if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
+    parts.push("included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
+  }
+  if (strip.requestedNumCtx) parts.push("ctx " + strip.requestedNumCtx + " requested");
+  return parts.join(" · ");
+}
+
+// Export the open conversation as markdown, WITH its measurements — the
+// figures are the reason this chat surface exists, and an export without
+// them would be any other chat log. Entirely client-side: a file download
+// the user initiates, onto their own disk; no new server surface.
+function chatExport() {
+  if (!chatActiveId || !chatEvents.length) return;
+  const lines = [];
+  lines.push("# Conversation " + chatActiveId.slice(0, 12) + " — OpenSourcesAI Command Center");
+  lines.push("");
+  lines.push("Exported " + new Date().toLocaleString() +
+    ". Figures are in-situ measurements from this machine, not protocol-grade benchmarks.");
+  if (chatSystemPromptActive) {
+    lines.push("");
+    lines.push("**System prompt:** " + chatSystemPromptActive);
+  }
+  var stripIndex = 0;
+  chatEvents.forEach(function (event) {
+    lines.push("");
+    if (event.type === "user") {
+      lines.push("## User" + (event.at ? " (" + event.at + ")" : ""));
+      lines.push("");
+      lines.push(event.text);
+      return;
+    }
+    lines.push("## " + (event.model || "Assistant") + (event.at ? " (" + event.at + ")" : ""));
+    if (event.thinking) {
+      lines.push("");
+      lines.push("*(thinking)* " + event.thinking.split("\\n").join("\\n> "));
+    }
+    lines.push("");
+    lines.push(event.text);
+    if (event.stopped) { lines.push(""); lines.push("*stopped before completion*"); }
+    if (!event.failed && chatStrips[stripIndex]) {
+      const text = chatStripText(chatStrips[stripIndex]);
+      if (text) { lines.push(""); lines.push("> measured: " + text); }
+      const expectation = chatExpectations[stripIndex];
+      if (expectation && expectation.available && expectation.verdict === "disagrees") {
+        lines.push("> prediction broken: " + expectation.note);
+      }
+    }
+    if (!event.failed) stripIndex += 1;
+  });
+  if (chatPhysics && chatPhysics.available) {
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+    lines.push("Conversation trend: " + chatPhysics.note);
+  }
+  const blob = new Blob([lines.join("\\n") + "\\n"], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a");
+  a.href = url;
+  a.download = "osai-conversation-" + chatActiveId.slice(0, 12) + ".md";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function chatModelLabel(entry, loadedMap) {
   var label = entry.name;
   if (entry.grade && entry.grade.fit) label += " · " + entry.grade.fit.replace("_", " ");
@@ -522,6 +600,15 @@ function chatView(d) {
   const layout = el("div", "chat-layout");
   layout.append(chatSidebar());
   const main = el("div", "chat-main");
+  if (chatActiveId && chatEvents.length) {
+    const bar = el("div", "chat-actions");
+    const exportBtn = el("button", null, "Export (.md)");
+    exportBtn.type = "button";
+    exportBtn.title = "Download this conversation as markdown, measurements included - a file on your disk, initiated by you; nothing is transmitted anywhere.";
+    exportBtn.addEventListener("click", chatExport);
+    bar.append(exportBtn);
+    main.append(bar);
+  }
   if (chatSystemPromptActive) {
     const sys = el("div", "chat-system-line");
     sys.append(el("span", "chat-strip-muted", "system prompt: "), document.createTextNode(chatSystemPromptActive));
@@ -601,6 +688,7 @@ export const CHAT_CSS = `
 .chat-ctx { width: 7.5rem; }
 .chat-system { width: 100%; resize: vertical; margin-bottom: var(--space-2); }
 .chat-search { width: 100%; }
+.chat-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
 .chat-snippet {
   color: var(--color-text-muted); font-size: var(--fs-overline);
   margin: 0 0 var(--space-2) 0.55rem; overflow: hidden; text-overflow: ellipsis;
