@@ -203,15 +203,25 @@ export async function resolveCommands(commands, { platform = process.platform } 
   const locator = platform === "win32" ? "where" : "which";
   const distinct = [...new Set(commands.filter((c) => typeof c === "string" && c.length > 0))];
   const entries = await Promise.all(
-    distinct.map(async (command) => {
-      const res = await run(locator, [command], { timeout: 4000 });
-      if (res.ok) return [command, true];
-      // `where`/`which` exit non-zero for "not found" and for their own
-      // absence alike; the error string distinguishes the two.
-      return [command, res.error === "not-found" ? null : false];
-    }),
+    distinct.map(async (command) => [command, probeOutcome(await run(locator, [command], { timeout: 4000 }))]),
   );
   return Object.fromEntries(entries);
+}
+
+/**
+ * PURE — one probe result becomes one honest outcome.
+ *
+ * false is reserved for the locator actually ANSWERING: `where`/`which` ran
+ * and exited non-zero, saying "not on PATH". "not-found" is the locator
+ * itself being absent, and "timed-out" is the locator killed before it
+ * exited — in neither case did the probe answer, so neither may become a
+ * verdict. Not academic: a cold CI runner once pushed `where node` past its
+ * budget, and the pre-fix mapping reported node — the binary running the
+ * test — as not on PATH.
+ */
+export function probeOutcome(res) {
+  if (res.ok) return true;
+  return res.error === "not-found" || res.error === "timed-out" ? null : false;
 }
 
 export async function collectTools({ platform = process.platform, home = os.homedir(), env = process.env } = {}) {
