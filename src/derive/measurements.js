@@ -298,6 +298,96 @@ export function conversationPhysics(records) {
 }
 
 /**
+ * This machine's own best for one model — the comparison the founding example
+ * actually used. 8.76 tok/s was damning not against a theoretical ceiling but
+ * against the 112.93 the SAME model on the SAME rig had already demonstrated,
+ * and that comparison only becomes possible once history is retained.
+ *
+ * THE GATE IS THE ENVIRONMENT HASH. Records whose declared run conditions
+ * differ from the current declaration are excluded, not blended: hash equality
+ * is exactly bench's "comparable" verdict (property-tested in the environment
+ * suite), so a best set under different KV-cache or flash-attention settings
+ * never masquerades as this configuration's best. Excluded records are
+ * COUNTED — silence about what was set aside would overstate the baseline's
+ * authority.
+ *
+ * @param {Array} records        Stored measurement records (any models).
+ * @param {object} options
+ * @param {string} options.model            The model name to baseline.
+ * @param {string|null} options.environmentHash Current declaration hash;
+ *   records must match it exactly. Null matches only records that also carry
+ *   null — "unknown conditions" only ever compares with itself.
+ */
+export function machineBaseline(records, { model, environmentHash = null } = {}) {
+  let best = null;
+  let comparable = 0;
+  let excludedByEnvironment = 0;
+
+  for (const record of records ?? []) {
+    if (record?.model?.name !== model) continue;
+    if ((record.environmentHash ?? null) !== environmentHash) {
+      excludedByEnvironment += 1;
+      continue;
+    }
+    const generation = generationTokensPerSecond(record);
+    if (!generation.available) continue;
+    comparable += 1;
+    if (best === null || generation.value > best.tokensPerSecond) {
+      best = { tokensPerSecond: generation.value, recordedAt: record.recordedAt ?? null };
+    }
+  }
+
+  if (best === null) {
+    return {
+      available: false,
+      reason:
+        excludedByEnvironment > 0
+          ? `no comparable history — ${excludedByEnvironment} record(s) exist under different run conditions`
+          : "no measured history for this model yet",
+      comparableCount: 0,
+      excludedByEnvironment,
+    };
+  }
+  return { available: true, ...best, comparableCount: comparable, excludedByEnvironment };
+}
+
+/**
+ * One generation against this machine's own best. Three honest outcomes: a
+ * first measurement (nothing to compare), a new best, or a figure beside the
+ * standing best — stated as data, never as a percentage judgment.
+ */
+export function compareToBaseline(record, baseline) {
+  const generation = generationTokensPerSecond(record);
+  if (!generation.available) {
+    return { available: false, reason: generation.reason };
+  }
+  if (!baseline?.available) {
+    return {
+      available: true,
+      isFirst: true,
+      isNewBest: false,
+      note: "first measured reply for this model under these run conditions",
+    };
+  }
+  if (generation.value > baseline.tokensPerSecond) {
+    return {
+      available: true,
+      isFirst: false,
+      isNewBest: true,
+      previousBestTokensPerSecond: baseline.tokensPerSecond,
+      note: `new best on this machine (previously ${baseline.tokensPerSecond.toFixed(1)} tok/s over ${baseline.comparableCount} comparable repl${baseline.comparableCount === 1 ? "y" : "ies"})`,
+    };
+  }
+  return {
+    available: true,
+    isFirst: false,
+    isNewBest: false,
+    bestTokensPerSecond: baseline.tokensPerSecond,
+    note: `best on this machine: ${baseline.tokensPerSecond.toFixed(1)} tok/s over ${baseline.comparableCount} comparable repl${baseline.comparableCount === 1 ? "y" : "ies"}`,
+  };
+}
+
+/**
  * One record, display-ready: every figure with its availability and reason,
  * nothing invented. The measurement strip renders this shape directly; the
  * roofline inputs arrive from the caller because bandwidth provenance is the

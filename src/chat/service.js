@@ -30,9 +30,11 @@ import {
 } from "../storage/conversations.js";
 import { readMeasurements } from "../storage/measurements.js";
 import {
+  compareToBaseline,
   conversationPhysics,
   describeMeasurement,
   expectationVersusObservation,
+  machineBaseline,
 } from "../derive/measurements.js";
 import {
   buildGenerationRecord,
@@ -155,6 +157,13 @@ export function createChatService({
       stopped: result.stopped || result.failure !== null,
     });
 
+    // The standing best BEFORE this reply joins the history, so a new best is
+    // detected against what stood when the reply began — gated by environment
+    // hash, because a best set under different run conditions is not this
+    // configuration's best.
+    const priorAll = await readMeasurements(dataDir);
+    const priorBaseline = machineBaseline(priorAll.records, { model, environmentHash });
+
     const record = buildGenerationRecord({
       schemaVersion: MEASUREMENT_SCHEMA_VERSION,
       recordedAt: now(),
@@ -187,6 +196,7 @@ export function createChatService({
       // physics. Both computed here, in the same pure code the tests pin.
       expectation: expectationVersusObservation(gradeByModel.get(model) ?? null, record),
       physics: conversationPhysics(await conversationRecords(id)),
+      baseline: compareToBaseline(record, priorBaseline),
     });
   }
 

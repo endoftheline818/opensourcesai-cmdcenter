@@ -25,6 +25,10 @@ var chatActiveId = null;
 var chatEvents = [];
 var chatStrips = [];
 var chatExpectations = [];
+// Baselines are LIVE-SESSION data: each send's envelope carries the standing
+// best at the moment the reply began. History reloads leave gaps (undefined),
+// because a baseline-as-it-was is not reconstructed after the fact.
+var chatBaselines = [];
 var chatPhysics = null;
 var chatStreaming = false;
 var chatAbort = null;
@@ -47,7 +51,7 @@ function stripFigure(figure, unit, digits) {
 // One line of honest figures under a reply. Only available figures render;
 // what could not be measured is summarised at the end rather than padding the
 // line with reasons — the full reason is in the title attribute.
-function chatStripLine(strip) {
+function chatStripLine(strip, baseline) {
   const row = el("div", "chat-strip");
   const parts = [];
   const add = (label, text, title) => {
@@ -64,6 +68,13 @@ function chatStripLine(strip) {
   add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0));
   if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
     add("", "included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
+  }
+  // This machine's own best for this model, environment-gated server-side —
+  // the founding example's actual comparison. A new best is worth its accent.
+  if (baseline && baseline.available && !baseline.isFirst) {
+    const span = el("span", baseline.isNewBest ? null : "chat-strip-muted", baseline.note);
+    span.title = "Compared only against replies recorded under the same declared run conditions (matching environment hash).";
+    parts.push(span);
   }
   const unavailable = ["generation", "utilization", "timeToFirstTokenMs"]
     .filter(function (k) { return strip[k] && strip[k].available === false; });
@@ -125,6 +136,7 @@ async function chatOpen(id) {
     chatEvents = body.events;
     chatStrips = body.strips || [];
     chatExpectations = body.expectations || [];
+    chatBaselines = new Array((body.strips || []).length);
     chatPhysics = body.physics || null;
     chatNotice = null;
   } catch (err) {
@@ -138,6 +150,7 @@ function chatNew() {
   chatEvents = [];
   chatStrips = [];
   chatExpectations = [];
+  chatBaselines = [];
   chatPhysics = null;
   chatNotice = null;
   refreshChat();
@@ -209,6 +222,7 @@ async function chatSend(model, text) {
           }
           if (chunk.strip) chatStrips.push(chunk.strip);
           if (chunk.expectation) chatExpectations.push(chunk.expectation);
+          if (chunk.baseline) chatBaselines[chatStrips.length - 1] = chunk.baseline;
           if (chunk.physics) chatPhysics = chunk.physics;
         }
       }
@@ -288,7 +302,7 @@ function chatMessages() {
       bubble.append(text);
       if (event.stopped) bubble.append(el("div", "chat-strip-muted", "stopped before completion"));
       if (!event.streamingNow && !event.failed && chatStrips[stripIndex]) {
-        bubble.append(chatStripLine(chatStrips[stripIndex]));
+        bubble.append(chatStripLine(chatStrips[stripIndex], chatBaselines[stripIndex]));
         const expectation = chatExpectationLine(chatExpectations[stripIndex]);
         if (expectation) bubble.append(expectation);
       }

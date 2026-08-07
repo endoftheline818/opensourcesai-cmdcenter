@@ -436,3 +436,32 @@ test("history carries expectations and physics alongside the strips", async () =
     await new Promise((r) => server.close(r));
   }
 });
+
+test("the send envelope carries the environment-gated baseline verdict", async () => {
+  const { server, host } = await stubOllama();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      const chat = createChatService({
+        host, dataDir: dir, environmentHash: "ee".repeat(32),
+        now: () => `2026-08-09T10:00:0${tick++}Z`, newId: () => "deadbeef000b",
+      });
+      const sink = (lines) => ({ writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} });
+
+      const first = [];
+      await chat.send({ conversationId: null, model: "stub:1b", text: "one" }, sink(first));
+      assert.equal(first[first.length - 1].baseline.isFirst, true, "nothing to compare on the first reply");
+
+      const second = [];
+      await chat.send({ conversationId: "deadbeef000b", model: "stub:1b", text: "two" }, sink(second));
+      const verdict = second[second.length - 1].baseline;
+      assert.equal(verdict.isFirst, false);
+      // The stub's counters are identical every time (100 tok/s), so the
+      // second reply ties the standing best rather than beating it.
+      assert.equal(verdict.isNewBest, false);
+      assert.match(verdict.note, /best on this machine: 100\.0 tok\/s over 1 comparable reply/);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
