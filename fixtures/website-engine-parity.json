@@ -2,10 +2,17 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-05",
+    "generatedAt": "2026-08-07",
     "modules": [
       "lib/checker-engine.js"
     ]
+  },
+  "generatedCopy": {
+    "file": "src/derive/checker-engine.generated.js",
+    "sourceModule": "lib/checker-engine.js",
+    "algorithm": "sha256",
+    "sha256": "e31ca84c24124bc1ad2bc43afe749e9cd2ad490240f1816c77557657e0f545f0",
+    "note": "Digest of the upstream file, LF-normalized — i.e. of everything below the @generated:begin-verbatim marker in the copy. Recomputed by test/fit.test.js."
   },
   "RUNTIME_OVERHEAD_GB": 1.5,
   "COMFORTABLE_HEADROOM_GB": 2,
@@ -23,6 +30,23 @@
     "6|5.6|8": "tight",
     "24|17|64": "comfortable",
     "48|41|128": "comfortable"
+  },
+  "gradeModelFit": {
+    "10|9.5|32": "partial",
+    "10|8.5|32": "tight",
+    "12|10.5|32": "tight",
+    "12|9|32": "tight",
+    "8|6|0": "tight",
+    "6|5.6|8": "too_large",
+    "0|5.6|32": "partial",
+    "24|20|64": "comfortable"
+  },
+  "fitRequirementGb": {
+    "0": 0,
+    "5.6": 7.1,
+    "9.5": 11,
+    "-1": -1,
+    "null": null
   },
   "pickBestQuantization": {
     "12|32": "q8_0",

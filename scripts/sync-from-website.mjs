@@ -1,16 +1,29 @@
 #!/usr/bin/env node
 //
-// Regenerate the two artifacts this package copies from opensourcesai.com:
+// Regenerate everything this package copies from opensourcesai.com:
 //
-//   fixtures/website-engine-parity.json  — pins src/derive/fit.js to the real engine
-//   fixtures/website-bands-parity.json   — pins src/derive/bands.js to the real bands
-//   data/checker-models-snapshot.json    — the catalog the dashboard grades against
+//   src/derive/checker-engine.generated.js — the fit engine itself, copied verbatim
+//   fixtures/website-engine-parity.json    — pins that copy, and the façade over it
+//   fixtures/website-bands-parity.json     — pins src/derive/bands.js to the real bands
+//   data/checker-models-snapshot.json      — the catalog the dashboard grades against
+//   fixtures/website-design-tokens.json    — pins the site colours in src/serve/ui.js
+//   fixtures/website-social-palette.json   — pins the HUD palette in src/serve/ui.js
 //
-// Run it from a machine that has BOTH repositories checked out. It executes the
-// website's own modules rather than transcribing their values, which is the
-// whole point: a transcribed pin drifts silently, an executed one cannot.
+// Run it from a machine that has BOTH repositories checked out. It executes or
+// parses the website's own modules rather than transcribing their values, which
+// is the whole point: a transcribed pin drifts silently, an executed one cannot.
 //
 //   node scripts/sync-from-website.mjs ../opensourcesai.com
+//
+// WHY THE ENGINE IS COPIED HERE RATHER THAN PORTED BY HAND
+// Because the hand step is where it broke. Website #520 (2026-08-05) changed fit
+// grading to charge weights PLUS runtime overhead. Re-running this script that
+// morning would have regenerated the parity fixture — but a human still had to
+// carry the change into src/derive/fit.js themselves, and for six hours this
+// package graded against the pre-fix rule with a fully green suite. A fixture
+// proves a copy is IDENTICAL wherever it samples; it cannot prove that anyone
+// remembered to copy. So the engine is now written by this script, and the only
+// remaining human act is running it.
 //
 // WHY A SNAPSHOT AND NOT A FETCH
 // Discovery-spec §8 decision 3 — whether the website publishes a fetchable data
@@ -20,6 +33,7 @@
 // shows how old it is. Do not replace this with a network call without that
 // decision being recorded.
 
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -38,6 +52,97 @@ const stamp = (extra) => ({
     ...extra,
   },
 });
+
+/** The website module this package runs as its fit engine. */
+const ENGINE_MODULE = "lib/checker-engine.js";
+const ENGINE_TARGET = path.join("src", "derive", "checker-engine.generated.js");
+
+/**
+ * Separates this repo's provenance header from the upstream bytes. Everything
+ * after this line is the website's file and nothing else, which is what lets a
+ * digest mean something a reader can check by hand: strip the header, hash the
+ * rest, compare against the website file.
+ */
+const VERBATIM_MARKER = "// @generated:begin-verbatim";
+
+/**
+ * Line endings are normalized to LF before hashing, and the digest is only ever
+ * computed over normalized text.
+ *
+ * `.gitattributes` commits LF and checks out LF, so today both sides agree — but
+ * a digest is exactly the kind of check that fails by platform if it can, and
+ * this package's CI runs Windows, Linux and macOS. A clone predating
+ * `.gitattributes`, or one with a local `core.autocrlf`, would otherwise
+ * recompute a different hash from identical code and fail one CI leg only.
+ */
+const normalizeEol = (text) => text.replace(/\r\n/g, "\n");
+
+/**
+ * Copy the website's fit engine into this package, verbatim.
+ *
+ * Verbatim is load-bearing, not stylistic: it means the copy can be verified by
+ * `diff` against the source, so no reviewer has to judge whether a transcription
+ * was faithful. That is only possible because `lib/checker-engine.js` imports
+ * nothing — it is self-contained pure ESM by its own first line ("pure, no
+ * react/side-effects so it runs client or server"), so it crosses the repo
+ * boundary without dragging the website's module graph behind it. If that ever
+ * stops being true, this script must fail loudly rather than copy a file whose
+ * imports cannot resolve here.
+ */
+async function syncCheckerEngine() {
+  const source = normalizeEol(await readFile(path.join(websiteRoot, ENGINE_MODULE), "utf8"));
+
+  // Refuse rather than emit something whose header/body split is ambiguous.
+  if (source.includes(VERBATIM_MARKER)) {
+    throw new Error(`${ENGINE_MODULE} contains the verbatim marker; the split would be ambiguous`);
+  }
+  // The copy must stay standalone. An `import` upstream is not a thing to work
+  // around silently — it is a signal that the shared-engine arrangement itself
+  // needs revisiting (discovery-spec §8 decision 4).
+  const imports = source.match(/^\s*import\s.+$/gm);
+  if (imports) {
+    throw new Error(
+      `${ENGINE_MODULE} now imports (${imports.length}): a verbatim copy would not resolve here. ` +
+        "Revisit how the engine is shared before re-running this script.",
+    );
+  }
+
+  const sha256 = createHash("sha256").update(source).digest("hex");
+  const copiedAt = new Date().toISOString().slice(0, 10);
+
+  const header = `// GENERATED FILE — DO NOT EDIT. Re-run the sync script instead.
+//
+// A byte-exact copy of opensourcesai.com's ${ENGINE_MODULE}. This package keeps
+// a hard boundary with that repository and never imports across it; the engine
+// is copied instead, and this file is that copy.
+//
+// WHY GENERATED RATHER THAN HAND-PORTED
+// It was hand-ported until 2026-08-06, and the hand step is where it failed.
+// Website #520 fixed grading to charge weights PLUS runtime overhead; the parity
+// fixture beside this file was regenerated the same morning, but carrying the
+// change into src/derive/fit.js was a separate human act. For six hours this
+// package graded with the pre-fix rule and its whole suite stayed green. A
+// fixture proves a copy is IDENTICAL where it samples; it cannot prove someone
+// remembered to copy. Nothing here is written by hand any more.
+//
+//   source      opensourcesai.com ${ENGINE_MODULE}
+//   sha256      ${sha256}
+//   copied      ${copiedAt}
+//   regenerate  node scripts/sync-from-website.mjs ../opensourcesai.com
+//
+// The digest covers everything below the marker — the upstream bytes, LF-normalized —
+// and test/fit.test.js recomputes it, so an edit here fails the suite instead of
+// quietly forking the engine.
+//
+// NOT EVERYTHING BELOW IS USED. \`scoreModel\` and \`buildRationale\` arrive because
+// the file arrives whole, and src/derive/fit.js deliberately does not re-export
+// either. See the note there; test/package.test.js asserts they stay unreachable.
+${VERBATIM_MARKER}
+`;
+
+  await writeFile(path.join(here, ENGINE_TARGET), header + source);
+  return { module: ENGINE_MODULE, file: ENGINE_TARGET.replace(/\\/g, "/"), sha256, copiedAt };
+}
 
 async function syncBandsParity() {
   const telemetry = await importFromWebsite("src/lib/hardwareTelemetry.js");
@@ -72,8 +177,20 @@ async function syncBandsParity() {
   return "fixtures/website-bands-parity.json";
 }
 
-async function syncEngineParity() {
-  const engine = await importFromWebsite("lib/checker-engine.js");
+/**
+ * Pin the engine's behaviour by executing the website's own module.
+ *
+ * WHAT THIS FIXTURE IS FOR NOW THAT THE ENGINE IS COPIED VERBATIM. It no longer
+ * has to prove the copy matches the original — the digest does that, completely,
+ * rather than at sampled points. What it still proves is that the layer ABOVE the
+ * copy behaves: that src/derive/fit.js delegates to the engine instead of quietly
+ * reimplementing a piece of it, and that this package's own grading composes the
+ * engine's parts the way the engine intends. That is the seam a digest cannot see.
+ *
+ * @param {{module: string, file: string, sha256: string}} copy
+ */
+async function syncEngineParity(copy) {
+  const engine = await importFromWebsite(ENGINE_MODULE);
 
   // Cases chosen to straddle every grading boundary rather than to look tidy:
   // exactly-at-threshold, one below, and the RAM-offload fallback path.
@@ -81,6 +198,17 @@ async function syncEngineParity() {
     [12, 5.6, 32], [12, 10, 32], [12, 10.5, 32], [12, 12, 32],
     [10, 9.5, 32], [10, 20, 32], [0, 5.6, 32], [0, 5.6, 4],
     [8, 6, 0], [6, 5.6, 8], [24, 17, 64], [48, 41, 128],
+  ];
+
+  // gradeModelFit takes CATALOG weights, where gradeVramFit takes an already-built
+  // requirement. It is the engine's own answer to the defect #520 fixed, and
+  // src/derive/fit.js calls it rather than reassembling its four arguments — so it
+  // is sampled here directly. The cases sit in the band that #520 moved: VRAM
+  // between bare weights and weights + RUNTIME_OVERHEAD_GB, where the pre-fix rule
+  // said "tight" and the fixed rule says the model does not fit in VRAM at all.
+  const modelFitCases = [
+    [10, 9.5, 32], [10, 8.5, 32], [12, 10.5, 32], [12, 9, 32],
+    [8, 6, 0], [6, 5.6, 8], [0, 5.6, 32], [24, 20, 64],
   ];
 
   const model = {
@@ -94,12 +222,31 @@ async function syncEngineParity() {
   const noVariantTags = { ...model, ollamaTagQ8: undefined, ollamaTagFp16: undefined };
 
   const out = {
-    ...stamp({ modules: ["lib/checker-engine.js"] }),
+    ...stamp({ modules: [ENGINE_MODULE] }),
+    // Provenance for the verbatim copy. The digest is the real pin; everything
+    // below it in this file pins the façade over that copy.
+    generatedCopy: {
+      file: copy.file,
+      sourceModule: copy.module,
+      algorithm: "sha256",
+      sha256: copy.sha256,
+      note:
+        "Digest of the upstream file, LF-normalized — i.e. of everything below the " +
+        "@generated:begin-verbatim marker in the copy. Recomputed by test/fit.test.js.",
+    },
     RUNTIME_OVERHEAD_GB: engine.RUNTIME_OVERHEAD_GB,
     COMFORTABLE_HEADROOM_GB: engine.COMFORTABLE_HEADROOM_GB,
     RAM_OFFLOAD_MULTIPLIER: engine.RAM_OFFLOAD_MULTIPLIER,
     gradeVramFit: Object.fromEntries(
       fitCases.map(([v, r, ram]) => [`${v}|${r}|${ram}`, engine.gradeVramFit(v, r, ram)]),
+    ),
+    gradeModelFit: Object.fromEntries(
+      modelFitCases.map(([v, w, ram]) => [`${v}|${w}|${ram}`, engine.gradeModelFit(v, w, ram)]),
+    ),
+    fitRequirementGb: Object.fromEntries(
+      // Includes the non-numeric passthrough, which exists so a null requirement
+      // is not silently turned into 1.5 GB and made to look like a fit.
+      [5.6, 9.5, 0, -1, null].map((w) => [String(w), engine.fitRequirementGb(w)]),
     ),
     pickBestQuantization: Object.fromEntries(
       [[12, 32], [10, 32], [16, 32], [6, 32], [0, 32], [0, 4], [4, 0]].map(([v, ram]) => [
@@ -260,9 +407,14 @@ async function syncSocialPalette() {
   return "fixtures/website-social-palette.json";
 }
 
+// The engine copy runs FIRST and its provenance is threaded into the parity
+// fixture, so the two can never describe different revisions of the same file.
+const engineCopy = await syncCheckerEngine();
+
 const written = [
+  `${engineCopy.file} (verbatim ${engineCopy.module}, sha256 ${engineCopy.sha256.slice(0, 12)}…)`,
   await syncBandsParity(),
-  await syncEngineParity(),
+  await syncEngineParity(engineCopy),
   await syncCatalogSnapshot(),
   await syncDesignTokens(),
   await syncSocialPalette(),

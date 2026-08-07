@@ -211,6 +211,56 @@ test("destructive Ollama operations are unreachable from anywhere", async () => 
   }
 });
 
+// THE ENGINE COPY ARRIVES WHOLE, AND TWO OF ITS FUNCTIONS MUST STAY UNREACHABLE.
+//
+// src/derive/checker-engine.generated.js is a verbatim copy of the website's
+// engine — verbatim because that is what makes it checkable by `diff` rather
+// than by judgement. The cost of copying it whole is that `scoreModel` (a
+// composite 0–100 ranking whose weights are only defensible inside the website's
+// surrounding copy) and `buildRationale` (that surface's prose, not this one's)
+// come along. Neither may become reachable: this dashboard reports what fits and
+// what it costs, and does not rank models.
+//
+// Deliberately a CODE scan. src/derive/fit.js explains at length which functions
+// it refuses to re-export and why — a raw text match would flag the explanation
+// and train the next person to delete the guard. Sixth instance of this repo's
+// prose-versus-code trap.
+test("the website's ranking and rationale functions are copied but unreachable", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  const generated = path.join("derive", "checker-engine.generated.js");
+  let scanned = 0;
+
+  for (const file of files) {
+    if (file.endsWith(generated)) continue;
+    scanned += 1;
+    const code = codeOnly(await readFile(file, "utf8"));
+    const relative = path.relative(root, file);
+    assert.doesNotMatch(code, /\bscoreModel\b/, `composite ranking reached from ${relative}`);
+    assert.doesNotMatch(code, /\bbuildRationale\b/, `website rationale prose reached from ${relative}`);
+  }
+  assert.ok(scanned > 0, "no files scanned — this guard would be vacuous");
+
+  // POSITIVE CONTROL. If the copy stopped containing these, the loop above would
+  // pass while protecting against nothing at all — which is precisely how a
+  // guard rots into decoration.
+  const copy = await readFile(path.join(root, "src", generated), "utf8");
+  assert.match(copy, /export function scoreModel\b/, "the copy should still carry scoreModel");
+  assert.match(copy, /export function buildRationale\b/, "the copy should still carry buildRationale");
+});
+
+// A GENERATED FILE MUST SAY SO, EVERYWHERE IT COULD BE MISTAKEN FOR SOURCE.
+// The digest in test/fit.test.js catches an edit after the fact; this catches the
+// likelier failure, which is somebody opening the file and not realising.
+test("generated sources announce themselves and name their regeneration command", async () => {
+  const generated = [path.join(root, "src", "derive", "checker-engine.generated.js")];
+  for (const file of generated) {
+    const source = await readFile(file, "utf8");
+    const relative = path.relative(root, file);
+    assert.match(source, /DO NOT EDIT/, `${relative} must warn against hand edits`);
+    assert.match(source, /scripts\/sync-from-website\.mjs/, `${relative} must name how to regenerate it`);
+  }
+});
+
 // NO USER-FACING SURFACE MAY CLAIM READ-ONLY.
 //
 // Phase 2 made that claim false, but it was asserted in five places — a badge,
