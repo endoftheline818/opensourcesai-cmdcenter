@@ -95,7 +95,7 @@ export function createChatService({
     return all.records.filter((r) => r.conversationId === id);
   }
   async function send(
-    { conversationId = null, runtime = "ollama", model, text, numCtx = null },
+    { conversationId = null, runtime = "ollama", model, text, numCtx = null, systemPrompt = null },
     { writeLine, onUpstreamAbort },
   ) {
     // --- validation, before anything is written or requested -----------------
@@ -162,22 +162,37 @@ export function createChatService({
     }
 
     // --- conversation resolution, and the user's text persisted FIRST -------
+    // A system prompt is set when a conversation STARTS and never after: the
+    // replies already made were shaped by whatever prompt stood when they
+    // happened, and swapping it mid-conversation would silently reinterpret
+    // them. Continuations use the stored one.
     let id = conversationId;
     let priorEvents = [];
+    let activeSystemPrompt = null;
     if (id === null) {
+      if (systemPrompt !== null && (typeof systemPrompt !== "string" || systemPrompt.trim().length === 0 || systemPrompt.length > MAX_USER_TEXT)) {
+        writeLine({ done: true, refused: "the system prompt must be non-empty bounded text" });
+        return;
+      }
       id = newId();
-      const created = await createConversation(dataDir, { id, createdAt: now(), model });
+      const created = await createConversation(dataDir, { id, createdAt: now(), model, systemPrompt });
       if (!created.ok) {
         writeLine({ done: true, refused: `could not start a conversation: ${created.reason}` });
         return;
       }
+      activeSystemPrompt = systemPrompt;
     } else {
+      if (systemPrompt !== null) {
+        writeLine({ done: true, refused: "a system prompt is set when a conversation starts, not changed mid-way" });
+        return;
+      }
       const read = await readConversation(dataDir, id);
       if (!read.ok) {
         writeLine({ done: true, refused: read.reason });
         return;
       }
       priorEvents = read.events;
+      activeSystemPrompt = read.header.systemPrompt;
     }
     const userAppend = await appendEvent(dataDir, id, { type: "user", at: now(), text });
     if (!userAppend.ok) {
@@ -188,7 +203,12 @@ export function createChatService({
     // --- the generation, relayed and measured --------------------------------
     const controller = new AbortController();
     onUpstreamAbort(() => controller.abort());
-    const messages = [...messagesFromEvents(priorEvents), { role: "user", content: text }];
+    // The same message shape works for both runtimes' protocols.
+    const messages = [
+      ...(activeSystemPrompt === null ? [] : [{ role: "system", content: activeSystemPrompt }]),
+      ...messagesFromEvents(priorEvents),
+      { role: "user", content: text },
+    ];
 
     const result =
       runtime === "ollama"

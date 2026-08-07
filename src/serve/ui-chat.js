@@ -51,6 +51,12 @@ var chatModelIndex = new Map();
 // The requested context window (num_ctx), persisted across re-renders like
 // the model choice. Empty means default conditions — nothing is sent.
 var chatNumCtx = "";
+// System prompt: the DRAFT is composed before a conversation exists; the
+// ACTIVE one is whatever the open conversation was created with — set at
+// start, never changed mid-way, because the replies already made were shaped
+// by the prompt that stood when they happened.
+var chatSystemPromptDraft = "";
+var chatSystemPromptActive = null;
 
 function refreshChat() {
   if (activeView === "chat" && dashboardData) renderView("chat");
@@ -172,6 +178,7 @@ async function chatOpen(id) {
     chatExpectations = body.expectations || [];
     chatBaselines = new Array((body.strips || []).length);
     chatPhysics = body.physics || null;
+    chatSystemPromptActive = body.header ? body.header.systemPrompt : null;
     chatNotice = null;
   } catch (err) {
     chatNotice = String(err.message);
@@ -186,6 +193,8 @@ function chatNew() {
   chatExpectations = [];
   chatBaselines = [];
   chatPhysics = null;
+  chatSystemPromptActive = null;
+  chatSystemPromptDraft = "";
   chatNotice = null;
   refreshChat();
 }
@@ -210,7 +219,7 @@ async function chatDelete(id) {
   refreshChat();
 }
 
-async function chatSend(runtime, model, text, numCtx) {
+async function chatSend(runtime, model, text, numCtx, systemPrompt) {
   if (chatStreaming || !text.trim()) return;
   chatStreaming = true;
   chatNotice = null;
@@ -231,6 +240,7 @@ async function chatSend(runtime, model, text, numCtx) {
         model: model,
         text: text,
         numCtx: numCtx === undefined ? null : numCtx,
+        systemPrompt: systemPrompt === undefined ? null : systemPrompt,
       }),
       signal: controller.signal,
     });
@@ -253,6 +263,7 @@ async function chatSend(runtime, model, text, numCtx) {
           chatStreamPaint(live);
         }
         if (chunk.done === true && chunk.conversationId) {
+          if (chatActiveId === null && systemPrompt) chatSystemPromptActive = systemPrompt;
           chatActiveId = chunk.conversationId;
           live.stopped = chunk.stopped === true;
           if (chunk.failure) chatNotice = chunk.failure;
@@ -360,6 +371,17 @@ function chatMessages() {
 
 function chatComposer(d) {
   const wrap = el("div", "chat-composer");
+  // The system prompt is composable only BEFORE the conversation exists —
+  // set at start, shown read-only after (see chatView's header line).
+  if (chatActiveId === null) {
+    const sys = el("textarea", "chat-system");
+    sys.rows = 2;
+    sys.placeholder = "System prompt (optional) — set when the conversation starts, fixed afterwards";
+    sys.setAttribute("aria-label", "System prompt for the new conversation");
+    sys.value = chatSystemPromptDraft;
+    sys.addEventListener("input", function () { chatSystemPromptDraft = sys.value; });
+    wrap.append(sys);
+  }
   const select = el("select");
   select.id = "chat-model";
   select.setAttribute("aria-label", "Model");
@@ -417,7 +439,8 @@ function chatComposer(d) {
     chatNumCtx = ctx.value;
     const pick = chatModelIndex.get(select.value);
     const requested = ctx.value.trim() === "" ? null : Number(ctx.value);
-    if (pick) chatSend(pick.runtime, pick.model, text, requested);
+    const sys = chatActiveId === null && chatSystemPromptDraft.trim() !== "" ? chatSystemPromptDraft : null;
+    if (pick) chatSend(pick.runtime, pick.model, text, requested, sys);
   });
   const stop = el("button", null, "Stop");
   stop.type = "button";
@@ -443,6 +466,12 @@ function chatView(d) {
   const layout = el("div", "chat-layout");
   layout.append(chatSidebar());
   const main = el("div", "chat-main");
+  if (chatSystemPromptActive) {
+    const sys = el("div", "chat-system-line");
+    sys.append(el("span", "chat-strip-muted", "system prompt: "), document.createTextNode(chatSystemPromptActive));
+    sys.title = "Set when this conversation started; every reply in it was shaped by this prompt.";
+    main.append(sys);
+  }
   const physics = chatPhysicsLine();
   if (physics) main.append(physics);
   main.append(chatMessages(), chatComposer(d));
@@ -514,4 +543,10 @@ export const CHAT_CSS = `
 .chat-composer-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .chat-composer-row select { max-width: 100%; }
 .chat-ctx { width: 7.5rem; }
+.chat-system { width: 100%; resize: vertical; margin-bottom: var(--space-2); }
+.chat-system-line {
+  font-size: var(--fs-overline); color: var(--color-text);
+  border-left: 2px solid var(--color-border); padding-left: 0.6rem;
+  margin-bottom: var(--space-2); white-space: pre-wrap; word-break: break-word;
+}
 `;

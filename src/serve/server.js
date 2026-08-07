@@ -228,6 +228,7 @@ export function createServer({
               model: body?.model,
               text: body?.text,
               numCtx: body?.numCtx ?? null,
+              systemPrompt: body?.systemPrompt ?? null,
             },
             {
               writeLine: (line) => {

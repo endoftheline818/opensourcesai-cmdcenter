@@ -5,6 +5,7 @@ import path from "node:path";
 import fsp from "node:fs/promises";
 import {
   CONVERSATIONS_DIR,
+  CONVERSATION_SCHEMA_VERSION,
   appendEvent,
   createConversation,
   deleteConversation,
@@ -68,10 +69,49 @@ test("create, append, read: the whole life of a conversation round-trips", async
     const read = await readConversation(dir, ID);
     assert.equal(read.ok, true);
     assert.equal(read.header.model, "llama3.1:8b");
+    assert.equal(read.header.systemPrompt, null, "no prompt set reads as the honest null");
     assert.equal(read.events.length, 2);
     assert.equal(read.events[0].text, "hello");
     assert.equal(read.events[1].type, "assistant");
     assert.equal(read.tornTail, false);
+  });
+});
+
+test("a system prompt is set at creation, bounded, and read back verbatim", async () => {
+  await withTmpDir(async (dir) => {
+    const created = await createConversation(dir, {
+      id: ID, createdAt: AT, model: "llama3.1:8b", systemPrompt: "You are terse.",
+    });
+    assert.equal(created.ok, true);
+    const read = await readConversation(dir, ID);
+    assert.equal(read.header.conversationSchemaVersion, CONVERSATION_SCHEMA_VERSION);
+    assert.equal(read.header.systemPrompt, "You are terse.");
+
+    // Bounds: empty and unbounded prompts are refused at the gate.
+    for (const bad of ["", "x".repeat(262_145), 42]) {
+      const refused = await createConversation(dir, {
+        id: "feedbead0001", createdAt: AT, model: "m", systemPrompt: bad,
+      });
+      assert.equal(refused.ok, false, `must refuse systemPrompt=${String(bad).slice(0, 20)}`);
+    }
+  });
+});
+
+test("a v1 conversation (pre-systemPrompt) still reads, with the honest null", async () => {
+  await withTmpDir(async (dir) => {
+    // A file exactly as the v1 writer produced it.
+    const base = path.join(dir, CONVERSATIONS_DIR);
+    await fsp.mkdir(base, { recursive: true });
+    await fsp.writeFile(
+      path.join(base, `${ID}.jsonl`),
+      `${JSON.stringify({ conversationSchemaVersion: 1, id: ID, createdAt: AT, model: "llama3.1:8b" })}\n` +
+        `${JSON.stringify({ type: "user", at: AT, text: "old words" })}\n`,
+      "utf8",
+    );
+    const read = await readConversation(dir, ID);
+    assert.equal(read.ok, true, "a supported older version is readable, not refused");
+    assert.equal(read.header.systemPrompt, null);
+    assert.equal(read.events[0].text, "old words");
   });
 });
 
@@ -110,7 +150,9 @@ test("appending to a conversation that does not exist is refused, not created", 
 test("the conversation list contains ids and metadata, never message text", async () => {
   await withTmpDir(async (dir) => {
     const sentinel = "SENTINEL-the-users-words-must-not-appear-in-the-list";
-    await createConversation(dir, { id: ID, createdAt: AT, model: "llama3.1:8b" });
+    // The system prompt is prose too — it must not ride the list either.
+    const promptSentinel = "SENTINEL-system-prompt-is-prose-and-stays-out-of-the-list";
+    await createConversation(dir, { id: ID, createdAt: AT, model: "llama3.1:8b", systemPrompt: promptSentinel });
     await appendEvent(dir, ID, { type: "user", at: "2026-08-08T11:00:00Z", text: sentinel });
 
     const list = await listConversations(dir);
@@ -122,6 +164,10 @@ test("the conversation list contains ids and metadata, never message text", asyn
     assert.ok(
       !JSON.stringify(list).includes(sentinel),
       "the list surface is the privacy boundary — prose requires asking for the conversation itself",
+    );
+    assert.ok(
+      !JSON.stringify(list).includes("SENTINEL-system-prompt"),
+      "the system prompt is prose and must not appear in the list",
     );
   });
 });
@@ -192,14 +238,15 @@ test("measurement history outlives a deleted conversation, by design", async () 
 
 test("a conversation from a future schema version is refused, naming both versions", async () => {
   await withTmpDir(async (dir) => {
+    const future = CONVERSATION_SCHEMA_VERSION + 1;
     await fsp.mkdir(path.join(dir, CONVERSATIONS_DIR), { recursive: true });
     await fsp.writeFile(
       path.join(dir, CONVERSATIONS_DIR, `${ID}.jsonl`),
-      `${JSON.stringify({ conversationSchemaVersion: 2, id: ID, createdAt: AT, model: "m" })}\n`,
+      `${JSON.stringify({ conversationSchemaVersion: future, id: ID, createdAt: AT, model: "m" })}\n`,
     );
     const read = await readConversation(dir, ID);
     assert.equal(read.ok, false);
-    assert.match(read.reason, /v2/);
-    assert.match(read.reason, /v1/);
+    assert.match(read.reason, new RegExp(`v${future}`));
+    assert.match(read.reason, new RegExp(`v${CONVERSATION_SCHEMA_VERSION}\\b`));
   });
 });

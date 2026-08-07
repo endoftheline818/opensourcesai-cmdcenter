@@ -700,6 +700,62 @@ test("the OpenAI-compatible runtime refuses a per-request context window honestl
   }
 });
 
+test("a system prompt shapes every reply in its conversation, and never a measurement", async () => {
+  const { server, host } = await stubOllama();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      const chat = createChatService({
+        host, dataDir: dir,
+        now: () => `2026-08-10T11:00:0${tick++}Z`, newId: () => "deadbeef000f",
+      });
+      const sink = (lines) => ({ writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} });
+      const prompt = "SENTINEL-you-are-a-terse-assistant";
+
+      const first = [];
+      await chat.send(
+        { conversationId: null, model: "stub:1b", text: "hello", systemPrompt: prompt },
+        sink(first),
+      );
+      assert.deepEqual(
+        server.lastChatBody.messages[0],
+        { role: "system", content: prompt },
+        "the prompt leads the message array",
+      );
+
+      // The continuation re-sends the STORED prompt without being told it.
+      const more = [];
+      await chat.send({ conversationId: "deadbeef000f", model: "stub:1b", text: "again" }, sink(more));
+      assert.equal(server.lastChatBody.messages[0].role, "system");
+      assert.equal(server.lastChatBody.messages[0].content, prompt);
+      assert.deepEqual(
+        server.lastChatBody.messages.map((m) => m.role),
+        ["system", "user", "assistant", "user"],
+        "prompt first, then the replayed exchange",
+      );
+
+      // Changing it mid-conversation is refused, not silently applied.
+      const rejected = [];
+      await chat.send(
+        { conversationId: "deadbeef000f", model: "stub:1b", text: "hi", systemPrompt: "be verbose" },
+        sink(rejected),
+      );
+      assert.match(rejected[rejected.length - 1].refused, /when a conversation starts/);
+
+      // The history surface carries it for display...
+      const history = await chat.history("deadbeef000f");
+      assert.equal(history.header.systemPrompt, prompt);
+      // ...and the measurements log never does — prose stays out by schema,
+      // asserted here against the actual bytes.
+      const fsp2 = await import("node:fs/promises");
+      const raw = await fsp2.readFile(path.join(dir, "measurements.jsonl"), "utf8");
+      assert.ok(!raw.includes("SENTINEL"), "no prose may reach the measurements log");
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
 test("baselines never blend runtimes: same model name, different runtime, no comparison", async () => {
   const modelName = "stub:1b"; // deliberately identical to the Ollama stub's name
   const { server: ollama, host } = await stubOllama({ modelName });
