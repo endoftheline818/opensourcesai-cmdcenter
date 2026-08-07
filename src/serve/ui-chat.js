@@ -94,7 +94,19 @@ function chatStripLine(strip, baseline) {
         ? "observed generation rate against the bandwidth figure YOU entered in the Hardware view - not manufacturer-sourced"
         : "observed generation rate against this machine's manufacturer-sourced memory-bandwidth ceiling for this model");
   }
-  add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0));
+  add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0),
+    "time to the first STREAMED token - for a thinking model that is the first reasoning token, the bench protocol's raw TTFT");
+  // A thinking model's visible answer starts later than its stream. Both
+  // figures have been recorded since the schema's first version; when they
+  // differ at display precision, both are SHOWN - the same disambiguation
+  // the bench protocol made, so the two tools cannot report different
+  // "first token" numbers for the same reply on the same machine.
+  if (strip.timeToFirstVisibleTokenMs && strip.timeToFirstVisibleTokenMs.available &&
+      strip.timeToFirstTokenMs && strip.timeToFirstTokenMs.available &&
+      Math.round(strip.timeToFirstVisibleTokenMs.value) !== Math.round(strip.timeToFirstTokenMs.value)) {
+    add("first visible", stripFigure(strip.timeToFirstVisibleTokenMs, " ms", 0),
+      "time to the first token of the VISIBLE answer - the reasoning ran before this");
+  }
   if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
     add("", "included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
   }
@@ -301,7 +313,9 @@ function chatStreamPaint(live) {
   const thinking = document.getElementById("chat-live-thinking");
   if (thinking && live.thinking) {
     thinking.textContent = live.thinking;
-    thinking.hidden = false;
+    // The id sits on the body inside the <details>; the disclosure itself is
+    // what unhides (it was rendered hidden until a thinking token existed).
+    thinking.parentElement.hidden = false;
   }
   const pane = document.getElementById("chat-messages");
   if (pane) pane.scrollTop = pane.scrollHeight;
@@ -319,6 +333,11 @@ function chatStripText(strip) {
   }
   const ttft = stripFigure(strip.timeToFirstTokenMs, " ms", 0);
   if (ttft) parts.push("first token " + ttft);
+  if (strip.timeToFirstVisibleTokenMs && strip.timeToFirstVisibleTokenMs.available &&
+      strip.timeToFirstTokenMs && strip.timeToFirstTokenMs.available &&
+      Math.round(strip.timeToFirstVisibleTokenMs.value) !== Math.round(strip.timeToFirstTokenMs.value)) {
+    parts.push("first visible " + stripFigure(strip.timeToFirstVisibleTokenMs, " ms", 0));
+  }
   if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
     parts.push("included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
   }
@@ -478,9 +497,17 @@ function chatMessages() {
     const isLast = index === chatEvents.length - 1;
     const bubble = el("div", "chat-msg " + (event.type === "user" ? "from-user" : "from-model"));
     if (event.type === "assistant") {
-      const thinking = el("div", "chat-thinking", event.thinking || "");
+      // The thinking channel is scratch space, not the answer — rendered
+      // behind a disclosure so it never reads as the model talking to itself
+      // in public. Open while streaming (watching the tokens flow IS the
+      // first-token measurement, live), collapsed once the reply is done.
+      const thinking = el("details", "chat-thinking");
+      thinking.append(el("summary", null, "thinking"));
+      const thinkingBody = el("div", null, event.thinking || "");
+      if (isLast && event.streamingNow) thinkingBody.id = "chat-live-thinking";
+      thinking.append(thinkingBody);
       thinking.hidden = !event.thinking;
-      if (isLast && event.streamingNow) thinking.id = "chat-live-thinking";
+      thinking.open = isLast && event.streamingNow === true;
       bubble.append(thinking);
       const text = el("div", null, event.text.length ? event.text : (event.streamingNow ? "…" : ""));
       if (isLast && event.streamingNow) text.id = "chat-live-bubble";
@@ -658,6 +685,10 @@ export const CHAT_CSS = `
   color: var(--color-text-muted); font-size: var(--fs-overline);
   border-left: 2px solid var(--color-border); padding-left: 0.6rem; margin-bottom: 0.4rem;
   white-space: pre-wrap;
+}
+.chat-thinking summary {
+  cursor: pointer; user-select: none; white-space: normal;
+  letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85em;
 }
 .chat-strip {
   display: flex; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.5rem;
