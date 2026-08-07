@@ -1,6 +1,6 @@
 {
   "name": "@opensourcesai/cmdcenter",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local command center for a machine running Ollama — real hardware detection, model fit, live system pressure, honest measurement, and bench-result inspection. Talks only to AI runtimes on this machine, never to the internet.",
   "type": "module",
   "bin": {
