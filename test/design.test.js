@@ -138,25 +138,27 @@ test("the brand mark is served same-origin, never hotlinked or inlined", () => {
   assert.doesNotMatch(html, /data:image\/[a-z+]+;base64,[A-Za-z0-9+/]{200,}/, "a 57 KB inline data URI would bloat every page load");
 });
 
-// THIS TEST PREVIOUSLY ENFORCED A CLAIM THAT BECAME FALSE.
+// THIS TEST HAS NOW BEEN REWRITTEN AT TWO BOUNDARY CROSSINGS — that is its job.
 //
-// It asserted the interface says "Read-only". Phase 2 opened load and unload,
-// so the badge was still promising something the tool no longer honoured — a
-// stale trust claim, kept alive by a passing test. Caught from a screenshot,
-// not from the suite, which is the point: a test can only protect a property
-// someone remembered to restate when the property changed.
+// It first asserted "Read-only"; Phase 2 opened load and unload, and the badge
+// kept promising something the tool no longer honoured until a screenshot —
+// not the suite — caught it. It then asserted "Load / unload only"; the
+// 2026-08-07 decision (MAINTAINING §4b) authorized an inference surface, so
+// that phrasing was retired the same deliberate way, BEFORE the code that
+// makes it false exists. Both times the lesson is identical: a test can only
+// protect a property someone remembered to restate when the property changed,
+// and when a boundary moves, this test must move in the same commit.
 //
-// The guarantee that still holds, and the one a user actually cares about, is
-// that nothing is downloaded or destroyed. That is what the badge now says.
+// The guarantee that holds through this crossing, and the one a user actually
+// cares about: everything stays on this machine, and nothing is downloaded or
+// destroyed. That is what the badge now says.
 test("the interface states the CURRENT guarantee, not a stale one", () => {
   const html = HTML("t".repeat(64));
-  assert.match(html, /Load \/ unload only/, "the badge must state what the tool actually does");
-  assert.match(html, /never pulls, deletes or removes/, "the standing guarantee belongs in the interface");
-  assert.doesNotMatch(
-    html,
-    /">Read-only</,
-    "the read-only badge is no longer true — Phase 2 opened load and unload",
-  );
+  assert.match(html, /Local AI only/, "the badge must state what the tool actually is");
+  assert.match(html, /never to the internet/, "the load-bearing guarantee belongs in the interface");
+  assert.match(html, /never pulls, deletes or removes/, "the standing no-destruction guarantee stays stated");
+  assert.doesNotMatch(html, /">Read-only</, "retired at the Phase 2 crossing");
+  assert.doesNotMatch(html, /Load \/ unload only/, "retired at the Phase 3b crossing");
 });
 
 // THE BROWSER BUNDLE MUST ACTUALLY PARSE.
@@ -274,7 +276,7 @@ test("overview exposes trust state and safe next actions", () => {
   assert.match(js, /summaryNextSteps\(d, runnable\)/, "overview must render secondary next actions");
   assert.match(js, /function goToView\(id\)/, "overview cards should use the existing view system");
   assert.match(js, /function focusSwitcher\(\)/, "the primary action should focus the existing load console");
-  for (const text of ["Loopback only", "Load / unload only", "Open Catalog", "Review Hardware", "Open Report"]) {
+  for (const text of ["Loopback only", "Never touches the internet", "Open Catalog", "Review Hardware", "Open Report"]) {
     assert.match(js, new RegExp(text.replace(/[ /]/g, (m) => (m === " " ? "\\s+" : "\\/"))), `${text} should be visible in the Overview`);
   }
 });
