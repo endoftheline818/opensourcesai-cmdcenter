@@ -150,8 +150,13 @@ tier, and is why a mid-band card alone would never have surfaced it.
 A separate product with a separate lifecycle. It is never merged into the
 website repository and never imports from it — asserted by a test. The two are
 joined only by versioned contracts and committed generated fixtures. The band
-vocabulary, fit engine, catalog snapshot, design tokens, and HUD palette are
-copied from the website and pinned here by fixtures.
+vocabulary, catalog snapshot, design tokens, and HUD palette are copied from the
+website and pinned here by fixtures.
+
+The **fit engine** — which decides what runs on your machine — is copied
+verbatim by a script rather than by hand, and pinned by a digest of the file
+itself. So the grades shown here are produced by the same code as the website's
+compatibility checker, byte for byte, and the two cannot quietly disagree.
 
 ## Roadmap
 
