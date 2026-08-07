@@ -1,0 +1,18 @@
+{
+  "source": {
+    "repository": "opensourcesai-bench",
+    "generatedBy": "scripts/sync-from-bench.mjs",
+    "generatedAt": "2026-08-07",
+    "modules": [
+      "src/protocol.js"
+    ],
+    "benchClientVersion": "0.11.0",
+    "protocolVersion": "osai-bench/1.3"
+  },
+  "note": "Committed snapshot of bench's ROOFLINE_LIMITS. A roofline-utilization figure rendered without these caveats overclaims; any surface that shows one shows these.",
+  "limits": [
+    "Applies to generation only. Prefill is compute-bound at scale and has no bandwidth denominator.",
+    "The ceiling degrades with context length because KV-cache reads add per-token memory traffic; it is not valid across different context sizes.",
+    "100% is unreachable in practice. Utilization is meaningful only for the same hardware and model."
+  ]
+}

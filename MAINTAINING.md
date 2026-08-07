@@ -139,6 +139,9 @@ There is a **hard boundary** with both companion repos (`opensourcesai.com` and 
 |---|---|---|
 | `src/derive/checker-engine.generated.js` | website `lib/checker-engine.js` | its **sha256**, in `fixtures/website-engine-parity.json` |
 | `src/derive/bench-environment.generated.js` | bench `src/derivation/environment.js` | its **sha256**, in `fixtures/bench-environment-parity.json` |
+| `src/derive/bench-gpu-bandwidth.generated.js` | bench `src/derivation/gpu-bandwidth.js` | its **sha256**, in `fixtures/bench-gpu-bandwidth-parity.json` |
+| `data/gpu-memory-bandwidth-v1.js` | bench `data/gpu-memory-bandwidth-v1.js` | its **sha256**, same fixture — **the filename is load-bearing**: the matcher imports it by exactly this name, which is what lets the pair stay byte-exact with no import rewriting; a structural test asserts the resolution |
+| `data/bench-roofline-limits.json` | bench `src/protocol.js` `ROOFLINE_LIMITS` | (executed snapshot; any surface rendering a utilization figure renders these caveats) |
 | `src/derive/bands.js` | website `src/lib/hardwareTelemetry.js`, `src/lib/appleMemory.js` | `fixtures/website-bands-parity.json` |
 | `data/checker-models-snapshot.json` | website `src/data/checker-models.json` | (snapshot; shows its own age in the UI) |
 | site colours in `src/serve/ui.js` | website `src/index.css` | `fixtures/website-design-tokens.json` |
@@ -161,6 +164,8 @@ digest now proves the whole file, and the fixture's remaining job is the seam ab
 — that `fit.js` delegates to the engine instead of quietly reimplementing part of it.
 
 **The same mechanism covers bench's environment-declaration module, from day one rather than after its own incident.** `src/derive/environment.js` is the thin layer over `src/derive/bench-environment.generated.js` — the variable allowlist, value-versus-presence capture, and comparability verdicts that decide which measurements may ever sit side by side. The façade adds only what bench does not own: the declaration hash stored measurement records carry, built so that **hash equality is exactly bench's "comparable" verdict** (a property test asserts the equivalence in both directions).
+
+**And the bandwidth pair.** `src/derive/bandwidth.js` is the thin layer over the copied matcher+table: it joins bench's resolution rules to this package's capture shape (`selectPrimaryGpu` → raw VRAM bytes, because the tolerance windows are stated against what vendor tools actually report). The table's citation URLs are provenance data, never fetched — the table lives under `data/`, and the no-transmission guards police `src/`. A manual bandwidth figure wins over the table and is labelled `source: "manual"` by the copied resolver itself; where that figure persists, and the UI that collects it, arrive with the surface that consumes it.
 
 **Regenerate all of them with:**
 ```bash

@@ -2,14 +2,31 @@
 //
 // Regenerate everything this package copies from opensourcesai-bench:
 //
-//   src/derive/bench-environment.generated.js — the runtime-environment
+//   src/derive/bench-environment.generated.js   — the runtime-environment
 //     declaration module, copied verbatim
-//   fixtures/bench-environment-parity.json    — pins that copy by digest, and
-//     the façade over it by executed samples
+//   src/derive/bench-gpu-bandwidth.generated.js — the bandwidth matcher,
+//     copied verbatim (see THE PAIR below)
+//   data/gpu-memory-bandwidth-v1.js             — the manufacturer-sourced
+//     bandwidth table the matcher imports; the filename is LOAD-BEARING
+//   data/bench-roofline-limits.json             — the roofline's caveats,
+//     executed out of bench's protocol module
+//   fixtures/bench-environment-parity.json      — digest + executed samples
+//   fixtures/bench-gpu-bandwidth-parity.json    — digests + executed samples
 //
 // Run it from a machine that has BOTH repositories checked out:
 //
 //   node scripts/sync-from-bench.mjs ../opensourcesai-bench
+//
+// THE PAIR. Bench's matcher module imports its table by a fixed relative path —
+// `../../data/gpu-memory-bandwidth-v1.js` — so the two are copied TOGETHER,
+// preserving both the matcher's depth (src/derive/, two levels below the repo
+// root, same as bench's src/derivation/) and the table's exact filename under
+// data/. That is what lets the matcher stay byte-exact: its import resolves in
+// this repository BY CONSTRUCTION, with no rewriting — and a structural test
+// asserts the resolution rather than trusting this comment. The table carries
+// citation URLs (manufacturer spec pages, archive snapshots): provenance DATA,
+// never fetched. It lives under data/, and the no-transmission guards police
+// src/, where code that could fetch lives.
 //
 // WHY A VERBATIM GENERATED COPY (the sync-from-website.mjs mechanism, applied
 // to the second companion repo). The engine-drift episode proved that the
@@ -188,9 +205,205 @@ async function syncEnvironmentParity(copy) {
   return "fixtures/bench-environment-parity.json";
 }
 
+// --- the bandwidth pair + roofline limits ------------------------------------
+
+const MATCHER_MODULE = "src/derivation/gpu-bandwidth.js";
+const MATCHER_TARGET = path.join("src", "derive", "bench-gpu-bandwidth.generated.js");
+/** The matcher's own import specifier — the reason this filename cannot change. */
+const TABLE_IMPORT_SPECIFIER = "../../data/gpu-memory-bandwidth-v1.js";
+const TABLE_MODULE = "data/gpu-memory-bandwidth-v1.js";
+const TABLE_TARGET = path.join("data", "gpu-memory-bandwidth-v1.js");
+const PROTOCOL_MODULE = "src/protocol.js";
+
+/**
+ * Copy the matcher/table pair. Verbatim both, with the pair-specific guard:
+ * the matcher is allowed EXACTLY ONE import — the table, by the specifier that
+ * resolves here by construction. Any other import upstream means the sharing
+ * arrangement needs revisiting, not working around.
+ */
+async function syncBandwidthPair() {
+  const version = await benchVersion();
+  const copiedAt = new Date().toISOString().slice(0, 10);
+
+  const matcherSource = normalizeEol(await readFile(path.join(benchRoot, MATCHER_MODULE), "utf8"));
+  const tableSource = normalizeEol(await readFile(path.join(benchRoot, TABLE_MODULE), "utf8"));
+
+  for (const [name, source] of [[MATCHER_MODULE, matcherSource], [TABLE_MODULE, tableSource]]) {
+    if (source.includes(VERBATIM_MARKER)) {
+      throw new Error(`${name} contains the verbatim marker; the split would be ambiguous`);
+    }
+  }
+  const matcherImports = matcherSource.match(/^\s*import\s.+$/gm) ?? [];
+  const onlyTableImport =
+    matcherImports.length === 1 && matcherImports[0].includes(`"${TABLE_IMPORT_SPECIFIER}"`);
+  if (!onlyTableImport) {
+    throw new Error(
+      `${MATCHER_MODULE} no longer imports exactly ["${TABLE_IMPORT_SPECIFIER}"]: ` +
+        `found ${JSON.stringify(matcherImports)}. The pair copy resolves by construction only ` +
+        "for that one specifier — revisit how the matcher is shared before re-running.",
+    );
+  }
+  if (tableSource.match(/^\s*import\s.+$/gm)) {
+    throw new Error(`${TABLE_MODULE} now imports: a verbatim copy would not resolve here.`);
+  }
+
+  const matcherSha = createHash("sha256").update(matcherSource).digest("hex");
+  const tableSha = createHash("sha256").update(tableSource).digest("hex");
+
+  const matcherHeader = `// GENERATED FILE — DO NOT EDIT. Re-run the sync script instead.
+//
+// A byte-exact copy of opensourcesai-bench's ${MATCHER_MODULE}. Its one import
+// — "${TABLE_IMPORT_SPECIFIER}" — resolves in this repository by construction,
+// because the table is copied alongside it under the same filename at the same
+// relative depth. That is what lets this file stay verbatim: nothing is
+// rewritten, so it can be verified by \`diff\` against the source.
+//
+// WHAT THIS MODULE IS. The single definition of how a detected GPU resolves to
+// a manufacturer-sourced bandwidth figure: name normalization, VRAM-tolerance
+// matching, ambiguity-is-unavailable, and the provenance bar an entry must
+// clear before it may ever be used (manufacturer source + archive snapshot).
+// It also carries the manual-override path — a caller-supplied figure wins and
+// is recorded as source: "manual", never laundered into a table match. Bench
+// and Command Center resolving bandwidth differently would mean the same GPU
+// gets two different ceilings; sharing the module verbatim closes that.
+//
+//   source      opensourcesai-bench ${MATCHER_MODULE} (client ${version ?? "unknown"})
+//   sha256      ${matcherSha}
+//   copied      ${copiedAt}
+//   regenerate  node scripts/sync-from-bench.mjs ../opensourcesai-bench
+//
+// The digest covers everything below the marker — the upstream bytes,
+// LF-normalized — and test/bandwidth.test.js recomputes it.
+${VERBATIM_MARKER}
+`;
+
+  const tableHeader = `// GENERATED FILE — DO NOT EDIT. Re-run the sync script instead.
+// (Yes, even though this file is not named *.generated.js — the matcher module
+// imports it by exactly this name, so the name is load-bearing and stays.)
+//
+// A byte-exact copy of opensourcesai-bench's ${TABLE_MODULE}: the
+// manufacturer-sourced GPU memory-bandwidth table, provenance rules included.
+// Entries exist only where a manufacturer source with an archive snapshot
+// exists — an absent entry deliberately makes roofline utilization read
+// "unavailable" rather than inviting a guess, and figures from memory,
+// secondary databases, or bus-width arithmetic are refused upstream by policy.
+//
+// The citation URLs below are PROVENANCE DATA, never fetched. Nothing in this
+// package makes an outbound call — the no-transmission guards over src/ are
+// unaffected by data that merely records where a number came from.
+//
+//   source      opensourcesai-bench ${TABLE_MODULE} (client ${version ?? "unknown"})
+//   sha256      ${tableSha}
+//   copied      ${copiedAt}
+//   regenerate  node scripts/sync-from-bench.mjs ../opensourcesai-bench
+//
+// The digest covers everything below the marker — the upstream bytes,
+// LF-normalized — and test/bandwidth.test.js recomputes it.
+${VERBATIM_MARKER}
+`;
+
+  await writeFile(path.join(here, MATCHER_TARGET), matcherHeader + matcherSource);
+  await writeFile(path.join(here, TABLE_TARGET), tableHeader + tableSource);
+  return {
+    version,
+    copiedAt,
+    matcher: { module: MATCHER_MODULE, file: MATCHER_TARGET.replace(/\\/g, "/"), sha256: matcherSha },
+    table: { module: TABLE_MODULE, file: TABLE_TARGET.replace(/\\/g, "/"), sha256: tableSha },
+  };
+}
+
+/**
+ * The roofline's caveats, executed out of bench's protocol module and committed
+ * as a data snapshot (the checker-catalog arrangement: provenance-stamped,
+ * refreshed by rerunning this script). They are not optional decoration — a
+ * utilization figure shown without them overclaims, so the UI that renders one
+ * renders these.
+ */
+async function syncRooflineLimits(pair) {
+  const protocol = await importFromBench(PROTOCOL_MODULE);
+  const limits = protocol.ROOFLINE_LIMITS;
+  if (!Array.isArray(limits) || limits.length === 0 || !limits.every((l) => typeof l === "string")) {
+    throw new Error("bench ROOFLINE_LIMITS is not a non-empty array of strings; refusing to snapshot it");
+  }
+  const out = {
+    source: {
+      repository: "opensourcesai-bench",
+      generatedBy: "scripts/sync-from-bench.mjs",
+      generatedAt: new Date().toISOString().slice(0, 10),
+      modules: [PROTOCOL_MODULE],
+      benchClientVersion: pair.version,
+      protocolVersion: protocol.PROTOCOL_VERSION,
+    },
+    note:
+      "Committed snapshot of bench's ROOFLINE_LIMITS. A roofline-utilization figure " +
+      "rendered without these caveats overclaims; any surface that shows one shows these.",
+    limits,
+  };
+  await writeFile(path.join(here, "data", "bench-roofline-limits.json"), `${JSON.stringify(out, null, 2)}\n`);
+  return "data/bench-roofline-limits.json";
+}
+
+/**
+ * Pin the pair's behaviour by executing bench's own matcher — digests prove
+ * the copies are the files; these samples prove the façade delegates.
+ */
+async function syncBandwidthParity(pair, rooflineFile) {
+  const bandwidth = await importFromBench(MATCHER_MODULE);
+  const MIB = 1024 ** 2;
+
+  // Samples chosen to exercise every resolution rule: both owned rigs (one at
+  // nominal VRAM, one at the real under-reported figure inside tolerance), a
+  // VRAM mismatch that must refuse, name normalization, an unknown GPU, and
+  // the manual override beating a matchable table entry.
+  const CASES = {
+    "rtx-3080-nominal": { model: "NVIDIA GeForce RTX 3080", totalVramBytes: 10240 * MIB },
+    "rtx-4070-ti-real-vram": { model: "NVIDIA GeForce RTX 4070 Ti", totalVramBytes: 12282 * MIB },
+    "rtx-3080-wrong-vram": { model: "NVIDIA GeForce RTX 3080", totalVramBytes: 12288 * MIB },
+    "name-normalized": { model: "  nvidia   geforce rtx 3080 ", totalVramBytes: 10240 * MIB },
+    "unknown-gpu": { model: "Radeon RX 7900 XTX", totalVramBytes: 24576 * MIB },
+    "no-gpu": { model: null, totalVramBytes: null },
+    "manual-override-wins": { manualGBps: 999.5, model: "NVIDIA GeForce RTX 3080", totalVramBytes: 10240 * MIB },
+  };
+  const resolutions = Object.fromEntries(
+    Object.entries(CASES).map(([name, inputs]) => [name, bandwidth.resolveGpuMemoryBandwidth(inputs)]),
+  );
+
+  const out = {
+    source: {
+      repository: "opensourcesai-bench",
+      generatedBy: "scripts/sync-from-bench.mjs",
+      generatedAt: new Date().toISOString().slice(0, 10),
+      modules: [MATCHER_MODULE, TABLE_MODULE],
+      benchClientVersion: pair.version,
+    },
+    generatedCopies: {
+      matcher: { file: pair.matcher.file, sourceModule: pair.matcher.module, algorithm: "sha256", sha256: pair.matcher.sha256 },
+      table: { file: pair.table.file, sourceModule: pair.table.module, algorithm: "sha256", sha256: pair.table.sha256 },
+      note:
+        "Digests of the upstream files, LF-normalized — i.e. of everything below the " +
+        "@generated:begin-verbatim marker in each copy. Recomputed by test/bandwidth.test.js.",
+    },
+    tableSchemaVersion: bandwidth.GPU_MEMORY_BANDWIDTH_TABLE.schemaVersion,
+    entryIds: bandwidth.GPU_MEMORY_BANDWIDTH_TABLE.entries.map((e) => e.id),
+    rooflineLimitsFile: rooflineFile,
+    resolutions,
+  };
+  await writeFile(
+    path.join(here, "fixtures", "bench-gpu-bandwidth-parity.json"),
+    `${JSON.stringify(out, null, 2)}\n`,
+  );
+  return "fixtures/bench-gpu-bandwidth-parity.json";
+}
+
 const copy = await syncEnvironmentModule();
+const pair = await syncBandwidthPair();
+const rooflineFile = await syncRooflineLimits(pair);
 const written = [
   `${copy.file} (verbatim ${copy.module}, sha256 ${copy.sha256.slice(0, 12)}…)`,
   await syncEnvironmentParity(copy),
+  `${pair.matcher.file} (verbatim ${pair.matcher.module}, sha256 ${pair.matcher.sha256.slice(0, 12)}…)`,
+  `${pair.table.file} (verbatim ${pair.table.module}, sha256 ${pair.table.sha256.slice(0, 12)}…)`,
+  rooflineFile,
+  await syncBandwidthParity(pair, rooflineFile),
 ];
 for (const line of written) process.stdout.write(`wrote ${line}\n`);
