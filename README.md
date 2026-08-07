@@ -34,8 +34,13 @@ This tool closes that gap by reading the machine directly.
   which is materially lower than the sticker RAM.
 - **Ollama**: version, reachability, installed models, loaded models and how
   much of each is actually resident in VRAM rather than spilled to CPU.
-- **Live pressure**: CPU, system memory, GPU, VRAM, GPU temperature, power, and
-  model-disk gauges where the platform can measure them.
+- **Live pressure**: CPU, system memory, GPU, VRAM, GPU temperature, power,
+  GPU clock, and model-disk gauges where the platform can measure them. The
+  clock gauge carries the **vendor's own throttle verdicts** — thermal slowdown
+  escalates it, running at the power limit is named but never shouted about
+  (that is how GPU Boost is designed to run), and an idle card's low clocks
+  read as the health they are. When the throttle probe does not answer, the
+  gauge makes no claim in either direction.
 - **Local tools**: MCP server inventory with secret values and local paths
   removed during collection.
 - **A shareable summary** — coarse bands only, safe to paste into a public issue.

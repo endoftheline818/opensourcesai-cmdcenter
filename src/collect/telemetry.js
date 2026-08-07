@@ -54,19 +54,76 @@ function cpuUtilisation() {
 }
 
 /**
+ * Parse one CSV line of clocks_throttle_reasons fields.
+ *
+ * PURE and exported for tests. nvidia-smi reports these as the strings
+ * "Active" / "Not Active", with "[N/A]" where a board does not expose one.
+ * Anything unrecognised parses as null — UNKNOWN IS NOT "NOT THROTTLING", and
+ * collapsing the two would let a failed probe masquerade as a healthy card.
+ *
+ * These are the VENDOR'S OWN throttle verdicts, which is the whole reason this
+ * probe exists. The tempting alternative — inferring throttle from "clocks
+ * below max while hot" — misfires on every idle card: verified on this
+ * project's own RTX 4070 Ti sitting at 345/3135 MHz with the active-reasons
+ * bitmask reading 0x1 (GPU_IDLE). Downclocking at idle is health, not
+ * distress, and only the vendor can tell the difference from outside.
+ */
+export function parseThrottleReasons(line) {
+  const flag = (v) => {
+    const s = String(v ?? "").trim();
+    if (s === "Active") return true;
+    if (s === "Not Active") return false;
+    return null;
+  };
+  const f = String(line).split(",").map((s) => s.trim());
+  return {
+    index: Number.isFinite(Number(f[0])) ? Number(f[0]) : null,
+    swPowerCap: flag(f[1]),
+    hwThermalSlowdown: flag(f[2]),
+    swThermalSlowdown: flag(f[3]),
+    hwSlowdown: flag(f[4]),
+  };
+}
+
+/**
  * NVIDIA live counters. `nounits` strips the trailing " %", " MiB", " W" so the
  * fields parse as plain numbers rather than needing per-field suffix handling.
+ *
+ * TWO QUERIES, DELIBERATELY. The throttle-reason fields ride a separate
+ * nvidia-smi call: if a driver generation does not know one of them, nvidia-smi
+ * fails the WHOLE query — and a missing throttle probe must degrade to
+ * "throttle state unknown", never take the temperature and VRAM gauges down
+ * with it. The calls run concurrently, so the poll budget pays for the slower
+ * of the two, not the sum.
  */
 async function nvidiaTelemetry() {
-  const res = await run(
-    "nvidia-smi",
-    [
-      "--query-gpu=index,name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit,clocks.sm,clocks.max.sm,fan.speed",
-      "--format=csv,noheader,nounits",
-    ],
-    { timeout: 4000 },
-  );
+  const [res, throttleRes] = await Promise.all([
+    run(
+      "nvidia-smi",
+      [
+        "--query-gpu=index,name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit,clocks.sm,clocks.max.sm,fan.speed",
+        "--format=csv,noheader,nounits",
+      ],
+      { timeout: 4000 },
+    ),
+    run(
+      "nvidia-smi",
+      [
+        "--query-gpu=index,clocks_throttle_reasons.sw_power_cap,clocks_throttle_reasons.hw_thermal_slowdown,clocks_throttle_reasons.sw_thermal_slowdown,clocks_throttle_reasons.hw_slowdown",
+        "--format=csv,noheader,nounits",
+      ],
+      { timeout: 4000 },
+    ),
+  ]);
   if (!res.ok) return { available: false, reason: res.error };
+
+  const throttleByIndex = new Map();
+  if (throttleRes.ok) {
+    for (const line of throttleRes.stdout.split("\n").filter(Boolean)) {
+      const parsed = parseThrottleReasons(line);
+      if (parsed.index !== null) throttleByIndex.set(parsed.index, parsed);
+    }
+  }
 
   const num = (v) => {
     const n = Number(String(v).trim());
@@ -80,8 +137,10 @@ async function nvidiaTelemetry() {
     .filter(Boolean)
     .map((line) => {
       const f = line.split(",").map((s) => s.trim());
+      const index = num(f[0]);
+      const throttleRow = index === null ? undefined : throttleByIndex.get(index);
       return {
-        index: num(f[0]),
+        index,
         name: f[1],
         utilizationPercent: num(f[2]),
         memoryUtilizationPercent: num(f[3]),
@@ -93,6 +152,15 @@ async function nvidiaTelemetry() {
         clockMhz: num(f[9]),
         clockMaxMhz: num(f[10]),
         fanPercent: num(f[11]),
+        // Null when the throttle probe did not answer — unknown, not "fine".
+        throttle: throttleRow
+          ? {
+              swPowerCap: throttleRow.swPowerCap,
+              hwThermalSlowdown: throttleRow.hwThermalSlowdown,
+              swThermalSlowdown: throttleRow.swThermalSlowdown,
+              hwSlowdown: throttleRow.hwSlowdown,
+            }
+          : null,
       };
     });
   return { available: true, gpus };

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildGauges, buildLivePayload, buildLoaded, severityFor } from "../src/derive/telemetry.js";
-import { collectTelemetry, resetCpuBaseline } from "../src/collect/telemetry.js";
+import { collectTelemetry, parseThrottleReasons, resetCpuBaseline } from "../src/collect/telemetry.js";
 import { createRoutes, TELEMETRY_MIN_INTERVAL_MS } from "../src/serve/routes.js";
 
 const sample = (overrides = {}) => ({
@@ -141,6 +141,106 @@ test("gauges derive real percentages from real counters", () => {
   assert.equal(byId.power.percent, Math.round((27.75 / 304.95) * 100));
   assert.match(byId.ram.detail, /GB/);
   assert.match(byId.disk.detail, /free/);
+});
+
+// THE CLOCKS GAUGE AND THE VENDOR'S THROTTLE VERDICTS.
+//
+// The trap this design avoids, pinned with real numbers: the 4070 Ti idles at
+// 345/3135 MHz — 11% of max clock — while the vendor's active-reasons bitmask
+// reads GPU_IDLE. Any "clocks low while warm" heuristic flags that healthy
+// card as throttling. So severity comes only from nvidia-smi's own
+// clocks_throttle_reasons fields, and the gauge itself never escalates.
+
+const throttled = (throttle) =>
+  sample({
+    gpu: {
+      available: true,
+      gpus: [{
+        index: 0, name: "NVIDIA GeForce RTX 4070 Ti",
+        utilizationPercent: 99, memoryUtilizationPercent: 80,
+        memoryUsedMib: 11000, memoryTotalMib: 12282,
+        temperatureC: 86, powerDrawW: 280, powerLimitW: 304.95,
+        clockMhz: 1650, clockMaxMhz: 3135, fanPercent: 90,
+        throttle,
+      }],
+    },
+  });
+
+test("an idle card's low clocks read as normal, never as throttling", () => {
+  // The exact idle readings captured from this rig, throttle probe answering
+  // "nothing active" (the GPU_IDLE bit is not one of the slowdown reasons).
+  const gauges = buildGauges(sample({
+    gpu: {
+      available: true,
+      gpus: [{
+        index: 0, name: "NVIDIA GeForce RTX 4070 Ti",
+        utilizationPercent: 24, memoryUtilizationPercent: 3,
+        memoryUsedMib: 4220, memoryTotalMib: 12282,
+        temperatureC: 32, powerDrawW: 27.75, powerLimitW: 304.95,
+        clockMhz: 345, clockMaxMhz: 3135, fanPercent: 0,
+        throttle: { swPowerCap: false, hwThermalSlowdown: false, swThermalSlowdown: false, hwSlowdown: false },
+      }],
+    },
+  }));
+  const clocks = gauges.find((g) => g.id === "clocks");
+  assert.equal(clocks.percent, 11);
+  assert.equal(clocks.severity, "normal", "idle downclocking is health, not distress");
+  assert.equal(clocks.detail, "345 / 3135 MHz");
+});
+
+test("vendor-reported thermal slowdown escalates the clock gauge", () => {
+  const sw = buildGauges(throttled({ swPowerCap: false, hwThermalSlowdown: false, swThermalSlowdown: true, hwSlowdown: false }))
+    .find((g) => g.id === "clocks");
+  assert.equal(sw.severity, "warn");
+  assert.match(sw.detail, /thermal slowdown active \(vendor-reported\)/);
+
+  const hw = buildGauges(throttled({ swPowerCap: true, hwThermalSlowdown: true, swThermalSlowdown: true, hwSlowdown: true }))
+    .find((g) => g.id === "clocks");
+  assert.equal(hw.severity, "critical", "the hardware pulling its own brake is the drastic form");
+  assert.match(hw.detail, /hardware thermal slowdown/);
+});
+
+test("running at the power limit is named but never escalated", () => {
+  // GPU Boost is DESIGNED to sit at the power cap under load. Warning on
+  // normal operation trains people to ignore warnings.
+  const clocks = buildGauges(throttled({ swPowerCap: true, hwThermalSlowdown: false, swThermalSlowdown: false, hwSlowdown: false }))
+    .find((g) => g.id === "clocks");
+  assert.equal(clocks.severity, "normal");
+  assert.match(clocks.detail, /at power limit/);
+});
+
+test("an unanswered throttle probe makes no claim in either direction", () => {
+  const clocks = buildGauges(throttled(null)).find((g) => g.id === "clocks");
+  assert.equal(clocks.severity, "normal", "the gauge's own numbers never escalate");
+  assert.doesNotMatch(clocks.detail, /slowdown|power limit/, "unknown is not 'not throttling' — say nothing");
+});
+
+test("missing clock counters mean no clocks gauge, not a zero bar", () => {
+  const gauges = buildGauges(sample({
+    gpu: {
+      available: true,
+      gpus: [{
+        index: 0, name: "Laptop GPU", utilizationPercent: 10,
+        memoryUsedMib: 100, memoryTotalMib: 4096, temperatureC: 40,
+        powerDrawW: null, powerLimitW: null, clockMhz: null, clockMaxMhz: null,
+        fanPercent: null, throttle: null,
+      }],
+    },
+  }));
+  assert.equal(gauges.find((g) => g.id === "clocks"), undefined);
+});
+
+test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
+  const active = parseThrottleReasons("0, Active, Not Active, Active, [N/A]");
+  assert.equal(active.index, 0);
+  assert.equal(active.swPowerCap, true);
+  assert.equal(active.hwThermalSlowdown, false);
+  assert.equal(active.swThermalSlowdown, true);
+  assert.equal(active.hwSlowdown, null, "[N/A] must parse as unknown, never as false");
+
+  const garbage = parseThrottleReasons("not, a, real, line, at-all");
+  assert.equal(garbage.index, null);
+  assert.equal(garbage.swPowerCap, null);
 });
 
 test("severity thresholds are generous for load and tighter for capacity", () => {
