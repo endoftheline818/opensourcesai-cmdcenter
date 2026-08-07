@@ -42,6 +42,15 @@ export const STORAGE_SCHEMA_VERSION = 1;
  * every version in SUPPORTED_MEASUREMENT_VERSIONS, appends always stamp the
  * current version, and only versions ABOVE the newest supported are reported
  * as uninterpreted.
+ *
+ * v3 (2026-08-10): a `requested` block (numCtx) — the first parameter a user
+ * can set per send, recorded the moment it became settable, per the standing
+ * rule that every parameter affecting measurement is recorded. A third source
+ * class beside `reported` (the runtime's own numbers) and `observed` (this
+ * tool's clock): `requested` is what the USER asked for, which is a claim
+ * about intent, not a measurement. The validator requires the block at v3+
+ * and refuses it below v3 — an old record carrying new fields is not an old
+ * record.
  */
-export const MEASUREMENT_SCHEMA_VERSION = 2;
-export const SUPPORTED_MEASUREMENT_VERSIONS = [1, 2];
+export const MEASUREMENT_SCHEMA_VERSION = 3;
+export const SUPPORTED_MEASUREMENT_VERSIONS = [1, 2, 3];

@@ -94,7 +94,10 @@ export function createChatService({
     const all = await readMeasurements(dataDir);
     return all.records.filter((r) => r.conversationId === id);
   }
-  async function send({ conversationId = null, runtime = "ollama", model, text }, { writeLine, onUpstreamAbort }) {
+  async function send(
+    { conversationId = null, runtime = "ollama", model, text, numCtx = null },
+    { writeLine, onUpstreamAbort },
+  ) {
     // --- validation, before anything is written or requested -----------------
     if (typeof text !== "string" || text.trim().length === 0) {
       writeLine({ done: true, refused: "no message text given" });
@@ -102,6 +105,12 @@ export function createChatService({
     }
     if (text.length > MAX_USER_TEXT) {
       writeLine({ done: true, refused: "message is too long" });
+      return;
+    }
+    // The first settable parameter, bounded exactly as the schema stores it —
+    // a value that cannot be recorded must not reach a runtime either.
+    if (numCtx !== null && !(Number.isInteger(numCtx) && numCtx >= 128 && numCtx <= 1_048_576)) {
+      writeLine({ done: true, refused: "context size must be a whole number of tokens between 128 and 1048576" });
       return;
     }
     // The runtime is a closed choice, same as the measurement schema's enum:
@@ -112,6 +121,14 @@ export function createChatService({
     }
     if (runtime === "openai-compat" && openAiHost === null) {
       writeLine({ done: true, refused: "no OpenAI-compatible runtime is configured — start with --llamacpp-port" });
+      return;
+    }
+    // The OpenAI-compatible protocol has no per-request context control —
+    // llama.cpp sets its window at server launch (-c). Refusing is the honest
+    // answer; silently dropping the request would run under conditions the
+    // user did not ask for and record none of it.
+    if (runtime === "openai-compat" && numCtx !== null) {
+      writeLine({ done: true, refused: "this runtime sets its context window at server launch — per-request context size is an Ollama control" });
       return;
     }
 
@@ -179,6 +196,7 @@ export function createChatService({
             host,
             model,
             messages,
+            numCtx,
             signal: controller.signal,
             onChunk: (chunk) => writeLine(chunk),
           })
@@ -227,6 +245,7 @@ export function createChatService({
       elapsedMs: result.elapsedMs,
       timeToFirstTokenMs: result.timeToFirstTokenMs,
       timeToFirstVisibleTokenMs: result.timeToFirstVisibleTokenMs,
+      requestedNumCtx: numCtx,
       residency,
       environmentHash,
     });

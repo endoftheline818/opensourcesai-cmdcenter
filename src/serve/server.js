@@ -227,6 +227,7 @@ export function createServer({
               runtime: body?.runtime ?? "ollama",
               model: body?.model,
               text: body?.text,
+              numCtx: body?.numCtx ?? null,
             },
             {
               writeLine: (line) => {

@@ -262,6 +262,11 @@ test("refusals are honest and nothing is persisted for them", async () => {
       assert.match(await refusalOf({ model: "stub:1b", text: "   " }), /no message text/);
       assert.match(await refusalOf({ model: "not-installed:1b", text: "hi" }), /not installed/);
       assert.match(
+        await refusalOf({ model: "stub:1b", text: "hi", numCtx: 64.5 }),
+        /whole number of tokens/,
+        "a context size that cannot be recorded must not reach a runtime",
+      );
+      assert.match(
         await refusalOf({ conversationId: "nosuchconvo1", model: "stub:1b", text: "hi" }),
         /no such conversation/,
       );
@@ -627,6 +632,68 @@ test("openai-compat refusals: unknown runtime, unconfigured runtime, unserved mo
         "the model gate holds for the second runtime exactly as for Ollama",
       );
       assert.equal((await readMeasurements(dir)).exists, false, "refusals leave no trace");
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("a requested context window is applied AND recorded, and its strip line says so", async () => {
+  const { server, host } = await stubOllama();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      const chat = createChatService({
+        host, dataDir: dir,
+        now: () => `2026-08-10T10:00:0${tick++}Z`, newId: () => "deadbeef000e",
+      });
+      const lines = [];
+      await chat.send(
+        { conversationId: null, model: "stub:1b", text: "hello", numCtx: 4096 },
+        { writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} },
+      );
+      // Applied: the option reached Ollama's request body.
+      assert.equal(server.lastChatBody.options.num_ctx, 4096, "the requested window must reach the runtime");
+      // Recorded: the record carries it, and the strip names it.
+      const record = (await readMeasurements(dir)).records[0];
+      assert.equal(record.measurementSchemaVersion, MEASUREMENT_SCHEMA_VERSION);
+      assert.equal(record.requested.numCtx, 4096);
+      const final = lines[lines.length - 1];
+      assert.equal(final.strip.requestedNumCtx, 4096);
+
+      // A default-conditions send records the honest null, and sends NO
+      // options key at all — the request stays byte-identical to before.
+      const more = [];
+      await chat.send(
+        { conversationId: "deadbeef000e", model: "stub:1b", text: "again" },
+        { writeLine: (l) => more.push(l), onUpstreamAbort: () => {} },
+      );
+      assert.equal("options" in server.lastChatBody, false, "no request, no options key");
+      assert.equal(more[more.length - 1].strip.requestedNumCtx, null);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("the OpenAI-compatible runtime refuses a per-request context window honestly", async () => {
+  const { server, host } = await stubOpenAi();
+  try {
+    await withTmpDir(async (dir) => {
+      const chat = createChatService({
+        host: "http://127.0.0.1:1", openAiHost: host, dataDir: dir, now: () => AT,
+      });
+      const lines = [];
+      await chat.send(
+        { conversationId: null, runtime: "openai-compat", model: "stub-gguf", text: "hi", numCtx: 4096 },
+        { writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} },
+      );
+      assert.match(
+        lines[lines.length - 1].refused,
+        /server launch/,
+        "silently dropping the request would run under conditions the user did not ask for",
+      );
+      assert.equal((await readMeasurements(dir)).exists, false, "a refusal leaves no trace");
     });
   } finally {
     await new Promise((r) => server.close(r));

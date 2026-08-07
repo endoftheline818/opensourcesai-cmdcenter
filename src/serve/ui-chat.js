@@ -48,6 +48,9 @@ var chatOpenAiRuntime = null;
 // value alone cannot carry both fields without string-parsing model names,
 // which may themselves contain any separator we could pick.
 var chatModelIndex = new Map();
+// The requested context window (num_ctx), persisted across re-renders like
+// the model choice. Empty means default conditions — nothing is sent.
+var chatNumCtx = "";
 
 function refreshChat() {
   if (activeView === "chat" && dashboardData) renderView("chat");
@@ -84,6 +87,11 @@ function chatStripLine(strip, baseline) {
   add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0));
   if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
     add("", "included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
+  }
+  // A non-default context window is a run condition; the strip says so.
+  if (strip.requestedNumCtx) {
+    add("", "ctx " + strip.requestedNumCtx,
+      "this reply was requested with num_ctx=" + strip.requestedNumCtx + " - a non-default context window changes KV size and speed");
   }
   // This machine's own best for this model, environment-gated server-side —
   // the founding example's actual comparison. A new best is worth its accent.
@@ -202,7 +210,7 @@ async function chatDelete(id) {
   refreshChat();
 }
 
-async function chatSend(runtime, model, text) {
+async function chatSend(runtime, model, text, numCtx) {
   if (chatStreaming || !text.trim()) return;
   chatStreaming = true;
   chatNotice = null;
@@ -217,7 +225,13 @@ async function chatSend(runtime, model, text) {
     const res = await fetch("/api/chat/send", {
       method: "POST",
       headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
-      body: JSON.stringify({ conversationId: chatActiveId, runtime: runtime, model: model, text: text }),
+      body: JSON.stringify({
+        conversationId: chatActiveId,
+        runtime: runtime,
+        model: model,
+        text: text,
+        numCtx: numCtx === undefined ? null : numCtx,
+      }),
       signal: controller.signal,
     });
     const reader = res.body.getReader();
@@ -381,21 +395,36 @@ function chatComposer(d) {
   input.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go.click(); }
   });
+  // The first parameter control: a context window in tokens. Empty means
+  // default conditions; a value is sent, applied, AND recorded — the strip
+  // under the reply names it, because it changes KV size and speed.
+  const ctx = el("input", "chat-ctx");
+  ctx.type = "number";
+  ctx.min = "128";
+  ctx.max = "1048576";
+  ctx.step = "1";
+  ctx.placeholder = "ctx (default)";
+  ctx.title = "Requested context window (num_ctx), in tokens. Leave empty for the runtime default. Recorded with the reply's measurements. Ollama only - llama.cpp sets its window at server launch.";
+  ctx.setAttribute("aria-label", "Requested context window in tokens");
+  ctx.value = chatNumCtx;
+  ctx.addEventListener("change", function () { chatNumCtx = ctx.value; });
   const go = el("button", null, "Send");
   go.type = "button";
   go.addEventListener("click", function () {
     const text = input.value;
     input.value = "";
     chatSelectedModel = select.value;
+    chatNumCtx = ctx.value;
     const pick = chatModelIndex.get(select.value);
-    if (pick) chatSend(pick.runtime, pick.model, text);
+    const requested = ctx.value.trim() === "" ? null : Number(ctx.value);
+    if (pick) chatSend(pick.runtime, pick.model, text, requested);
   });
   const stop = el("button", null, "Stop");
   stop.type = "button";
   stop.addEventListener("click", function () { if (chatAbort) chatAbort.abort(); });
   const buttons = chatStreaming ? [stop] : [go];
   const row = el("div", "chat-composer-row");
-  row.append(select);
+  row.append(select, ctx);
   for (const b of buttons) row.append(b);
   wrap.append(input, row);
   // Configured-but-unreachable is a state worth a sentence, not silence: the
@@ -484,4 +513,5 @@ export const CHAT_CSS = `
 .chat-input { width: 100%; resize: vertical; }
 .chat-composer-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .chat-composer-row select { max-width: 100%; }
+.chat-ctx { width: 7.5rem; }
 `;

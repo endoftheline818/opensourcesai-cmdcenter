@@ -432,6 +432,9 @@ export function describeMeasurement(
       ...rooflineUtilization(record, { memoryBandwidthGBps, weightsBytes }),
       ceilingSource: bandwidthSource,
     },
+    // What the user asked for (v3 records; null before that). Displayed so a
+    // reply run under a non-default context window says so in its own strip.
+    requestedNumCtx: record?.requested?.numCtx ?? null,
     environmentHash: record?.environmentHash ?? null,
   };
 }

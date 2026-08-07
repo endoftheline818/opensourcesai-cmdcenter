@@ -203,39 +203,75 @@ test("fabricated shapes no real probe produces are refused", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The v1 → v2 migration (the first true schema bump)
+// Schema migrations (v1 → v2 → v3)
 // ---------------------------------------------------------------------------
 //
-// v2 widened runtime.name to ["ollama", "openai-compat"]. The contract this
-// suite pins: records written under v1 remain fully readable, while every NEW
-// append must stamp the current version — old shapes are read, never rewritten
-// and never newly written.
+// v2 widened runtime.name; v3 added the `requested` block. The contract this
+// suite pins: records written under every SUPPORTED version remain fully
+// readable, every NEW append must stamp the current version, and a version
+// may carry exactly its own shape — an old record with new fields is not an
+// old record.
 
-test("a v1 record still validates and reads under v2; appends must stamp v2", async () => {
-  const v1 = { ...valid(), measurementSchemaVersion: 1 };
-  assert.deepEqual(validateMeasurement(v1), { ok: true }, "v1 stays interpretable");
+// The pre-v3 shape: today's record without the block v3 introduced.
+const preV3 = (version) => {
+  const { requested, ...rest } = valid();
+  return { ...rest, measurementSchemaVersion: version };
+};
+
+test("v1 and v2 records still validate and read under v3; appends must stamp v3", async () => {
+  assert.deepEqual(validateMeasurement(preV3(1)), { ok: true }, "v1 stays interpretable");
+  assert.deepEqual(validateMeasurement(preV3(2)), { ok: true }, "v2 stays interpretable");
 
   await withTmpDir(async (dir) => {
-    // A v1 record already on disk — as if written before the bump.
-    await appendRecord(path.join(dir, MEASUREMENTS_FILE), v1);
+    // Old records already on disk — as if written before the bumps.
+    await appendRecord(path.join(dir, MEASUREMENTS_FILE), preV3(1));
+    await appendRecord(path.join(dir, MEASUREMENTS_FILE), preV3(2));
     assert.deepEqual(await appendMeasurement(dir, valid()), { ok: true });
 
     const read = await readMeasurements(dir);
-    assert.equal(read.records.length, 2, "v1 and v2 records read side by side");
+    assert.equal(read.records.length, 3, "v1, v2 and v3 records read side by side");
     assert.equal(read.newerSchema, 0, "a SUPPORTED older version is not 'newer schema'");
 
-    const stale = await appendMeasurement(dir, v1);
+    const stale = await appendMeasurement(dir, preV3(2));
     assert.equal(stale.ok, false);
-    assert.match(stale.reason, /schema v2/, "the refusal names the version appends must carry");
+    assert.match(stale.reason, /schema v3/, "the refusal names the version appends must carry");
   });
 });
 
-test("v2 admits the second runtime by exact name and nothing else", () => {
+test("each version carries exactly its own shape", () => {
+  // A pre-v3 record smuggling the v3 block is refused — its version claims a
+  // shape it does not have.
+  const smuggled = { ...preV3(2), requested: { numCtx: 4096 } };
+  assert.equal(validateMeasurement(smuggled).ok, false, "v2 must not carry v3 fields");
+
+  // A v3 record missing the block is equally refused.
+  const { requested, ...missing } = valid();
+  assert.equal(validateMeasurement(missing).ok, false, "v3 requires the requested block");
+});
+
+test("the second runtime is admitted by exact name and nothing else", () => {
   const openai = { ...valid(), runtime: { name: "openai-compat", version: null } };
   assert.deepEqual(validateMeasurement(openai), { ok: true });
 
   const unknown = { ...valid(), runtime: { name: "vllm", version: null } };
   assert.equal(validateMeasurement(unknown).ok, false, "the runtime enum is closed — an unknown name is an unknown meaning");
+});
+
+test("requested.numCtx takes a bounded whole number of tokens or null, nothing else", () => {
+  assert.deepEqual(validateMeasurement({ ...valid(), requested: { numCtx: 4096 } }), { ok: true });
+  assert.deepEqual(validateMeasurement({ ...valid(), requested: { numCtx: null } }), { ok: true });
+  for (const bad of [0, 64, -4096, 4096.5, "4096", 2_000_000, Infinity]) {
+    assert.equal(
+      validateMeasurement({ ...valid(), requested: { numCtx: bad } }).ok,
+      false,
+      `must refuse numCtx=${String(bad)}`,
+    );
+  }
+  assert.equal(
+    validateMeasurement({ ...valid(), requested: { numCtx: 4096, temperature: 1 } }).ok,
+    false,
+    "the requested block is closed — an unrecorded parameter cannot ride along",
+  );
 });
 
 // ---------------------------------------------------------------------------
