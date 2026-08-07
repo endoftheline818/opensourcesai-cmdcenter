@@ -2017,10 +2017,34 @@ function toolsPanel(d) {
     return p;
   }
 
-  const out = dataTable(["Server", "Client", "Transport", "Package", "Needs"], "responsive-table tools-table");
+  const out = dataTable(["Server", "Verdict", "Client", "Transport", "Package", "Needs"], "responsive-table tools-table");
   for (const s of t.servers) {
     const row = el("tr");
     row.append(dataCell("Server", null, s.name));
+    // Tier 1 static verdicts. Colouring follows what a user should act on:
+    // a missing command is the actionable finding; "declared" is the
+    // never-probed-by-design state and must not read as a failure.
+    const verdictCell = dataCell("Verdict");
+    const verdictClass =
+      s.verdict === "command-not-found" || s.verdict === "config-broken"
+        ? "status-chip warn"
+        : s.verdict === "config-ok"
+          ? "status-chip ok"
+          : "status-chip";
+    const verdictTitle =
+      s.verdict === "declared"
+        ? "Remote servers are declared, not probed — probing them would be an outbound network call, and this tool does not make those."
+        : s.verdict === "config-ok"
+          ? "The command resolves on PATH. It was located, never executed — a found command can still fail at runtime."
+          : s.verdict === "command-not-found"
+            ? "The configured command is not on PATH — this server cannot start as configured."
+            : s.verdict === "unchecked"
+              ? "The resolution probe did not answer; unknown is not a verdict in either direction."
+              : "The entry declares neither a command nor a url.";
+    const chip = el("span", verdictClass, s.verdict || "?");
+    chip.title = verdictTitle;
+    verdictCell.append(chip);
+    row.append(verdictCell);
     row.append(dataCell("Client", "muted", s.client));
     row.append(dataCell("Transport", "mono", s.transport));
     row.append(dataCell("Package", "mono", s.packageHint || (s.command ? s.command : "—")));
@@ -2037,6 +2061,7 @@ function toolsPanel(d) {
     out.body.append(row);
   }
   p.append(out.table);
+  if (t.verdictNote) p.append(el("p", "bench-note", t.verdictNote));
   return p;
 }
 

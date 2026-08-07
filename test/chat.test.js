@@ -12,6 +12,12 @@ import {
   chunkHasVisibleToken,
   messagesFromEvents,
 } from "../src/chat/ollama.js";
+import {
+  countersFromTimings,
+  deltaHasToken,
+  deltaHasVisibleToken,
+  parseSseData,
+} from "../src/chat/openai.js";
 import { createChatService } from "../src/chat/service.js";
 import { readConversation } from "../src/storage/conversations.js";
 import { readMeasurements, validateMeasurement } from "../src/storage/measurements.js";
@@ -435,4 +441,253 @@ test("history carries expectations and physics alongside the strips", async () =
   } finally {
     await new Promise((r) => server.close(r));
   }
+});
+
+test("the send envelope carries the environment-gated baseline verdict", async () => {
+  const { server, host } = await stubOllama();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      const chat = createChatService({
+        host, dataDir: dir, environmentHash: "ee".repeat(32),
+        now: () => `2026-08-09T10:00:0${tick++}Z`, newId: () => "deadbeef000b",
+      });
+      const sink = (lines) => ({ writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} });
+
+      const first = [];
+      await chat.send({ conversationId: null, model: "stub:1b", text: "one" }, sink(first));
+      assert.equal(first[first.length - 1].baseline.isFirst, true, "nothing to compare on the first reply");
+
+      const second = [];
+      await chat.send({ conversationId: "deadbeef000b", model: "stub:1b", text: "two" }, sink(second));
+      const verdict = second[second.length - 1].baseline;
+      assert.equal(verdict.isFirst, false);
+      // The stub's counters are identical every time (100 tok/s), so the
+      // second reply ties the standing best rather than beating it.
+      assert.equal(verdict.isNewBest, false);
+      assert.match(verdict.note, /best on this machine: 100\.0 tok\/s over 1 comparable reply/);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The second runtime: OpenAI-compatible protocol (llama.cpp server)
+// ---------------------------------------------------------------------------
+
+test("SSE parsing: data frames, [DONE], and garbage each land in their own bucket", () => {
+  assert.equal(parseSseData('data: {"choices":[]}').kind, "chunk");
+  assert.equal(parseSseData("data: [DONE]").kind, "done");
+  assert.equal(parseSseData("data: {broken").kind, "invalid");
+  assert.equal(parseSseData(": keep-alive comment").kind, "not-data");
+  assert.equal(parseSseData("").kind, "not-data");
+});
+
+test("reasoning_content counts as a streamed token, content as a visible one", () => {
+  // The same two-channel finding as Ollama's thinking field, under this
+  // protocol's name for it.
+  const reasoningOnly = { reasoning_content: "hmm" };
+  assert.equal(deltaHasToken(reasoningOnly), true);
+  assert.equal(deltaHasVisibleToken(reasoningOnly), false);
+  const visible = { content: "Hi" };
+  assert.equal(deltaHasToken(visible), true);
+  assert.equal(deltaHasVisibleToken(visible), true);
+});
+
+test("timings map to the shared counters; load and total stay null — this protocol does not report them", () => {
+  const counters = countersFromTimings({ prompt_n: 26, prompt_ms: 120, predicted_n: 4, predicted_ms: 40 });
+  assert.equal(counters.prompt_eval_count, 26);
+  assert.equal(counters.prompt_eval_duration, 120_000_000, "milliseconds become the schema's nanoseconds");
+  assert.equal(counters.eval_count, 4);
+  assert.equal(counters.eval_duration, 40_000_000);
+  assert.equal(counters.load_duration, null, "not reported by this protocol — null, never estimated");
+  assert.equal(counters.total_duration, null);
+
+  const partial = countersFromTimings({ predicted_n: 4 });
+  assert.equal(partial.eval_count, 4);
+  assert.equal(partial.prompt_eval_count, null, "absent fields stay null field by field");
+  assert.equal(countersFromTimings(undefined).eval_count, null);
+});
+
+// Streams a fixed SSE generation the way llama.cpp's server does: delta
+// chunks, a final chunk carrying `timings`, then [DONE].
+function stubOpenAi({ modelName = "stub-gguf" } = {}) {
+  const server = http.createServer((req, res) => {
+    if (req.method === "GET" && req.url === "/v1/models") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ object: "list", data: [{ id: modelName, object: "model" }] }));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/v1/chat/completions") {
+      let body = "";
+      req.on("data", (c) => { body += c; });
+      req.on("end", () => {
+        server.lastChatBody = JSON.parse(body);
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        const frame = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
+        frame({ choices: [{ delta: { reasoning_content: "let me think" } }] });
+        frame({ choices: [{ delta: { content: "Hello " } }] });
+        frame({
+          choices: [{ delta: { content: "there." }, finish_reason: "stop" }],
+          timings: { prompt_n: 26, prompt_ms: 120, predicted_n: 4, predicted_ms: 40 },
+        });
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+      return;
+    }
+    res.writeHead(404); res.end();
+  });
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve({ server, host: `http://127.0.0.1:${server.address().port}` }));
+  });
+}
+
+test("an openai-compat send records v2 counters with honest nulls where the protocol is silent", async () => {
+  const { server, host } = await stubOpenAi();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      const chat = createChatService({
+        host: "http://127.0.0.1:1", // Ollama deliberately unreachable: it must not be consulted
+        openAiHost: host,
+        dataDir: dir,
+        runtimeVersion: "0.32.6", // Ollama's version — must NOT leak onto this runtime's records
+        environmentHash: "ee".repeat(32),
+        now: () => `2026-08-09T11:00:0${tick++}Z`, newId: () => "deadbeef000c",
+      });
+
+      const lines = [];
+      await chat.send(
+        { conversationId: null, runtime: "openai-compat", model: "stub-gguf", text: "say hello" },
+        { writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} },
+      );
+
+      const final = lines[lines.length - 1];
+      assert.equal(final.done, true);
+      assert.equal(final.failure, null);
+      assert.equal(final.measurementRecorded, true);
+      assert.equal(final.strip.generation.available, true);
+      assert.equal(final.strip.generation.value, 100, "4 tokens in 40ms of timings is 100 tok/s");
+
+      // Chunks were relayed in the Ollama shape the browser renders, with the
+      // reasoning channel mapped to thinking.
+      assert.ok(lines.some((l) => l.message?.thinking === "let me think"));
+      assert.ok(lines.some((l) => l.message?.content === "Hello "));
+
+      const read = await readConversation(dir, "deadbeef000c");
+      assert.equal(read.events[1].text, "Hello there.");
+      assert.equal(read.events[1].thinking, "let me think");
+
+      const record = (await readMeasurements(dir)).records[0];
+      assert.equal(record.measurementSchemaVersion, MEASUREMENT_SCHEMA_VERSION);
+      assert.equal(record.runtime.name, "openai-compat");
+      assert.equal(record.runtime.version, null, "Ollama's version must not be borrowed");
+      assert.equal(record.model.digest, null, "this protocol reports no digest");
+      assert.equal(record.reported.evalCount, 4);
+      assert.equal(record.reported.loadDurationNs, null, "unreported stays null, never zero");
+      assert.equal(record.reported.totalDurationNs, null);
+      assert.equal(record.residencyAfter, null, "no /api/ps exists on this protocol");
+
+      // No residency probe means the fit prediction cannot be checked — and
+      // with no grade for a non-Ollama artifact the panel says nothing at all.
+      assert.equal(final.expectation.available, false);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("openai-compat refusals: unknown runtime, unconfigured runtime, unserved model", async () => {
+  const { server, host } = await stubOpenAi();
+  try {
+    await withTmpDir(async (dir) => {
+      const refusalOf = async (chat, payload) => {
+        const lines = [];
+        await chat.send(payload, { writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} });
+        return lines[lines.length - 1].refused;
+      };
+
+      const without = createChatService({ host: "http://127.0.0.1:1", dataDir: dir, now: () => AT });
+      assert.match(await refusalOf(without, { runtime: "vllm", model: "m", text: "hi" }), /unknown runtime/);
+      assert.match(
+        await refusalOf(without, { runtime: "openai-compat", model: "stub-gguf", text: "hi" }),
+        /--llamacpp-port/,
+        "the refusal tells the user how to configure what is missing",
+      );
+
+      const withRuntime = createChatService({
+        host: "http://127.0.0.1:1", openAiHost: host, dataDir: dir, now: () => AT,
+      });
+      assert.match(
+        await refusalOf(withRuntime, { runtime: "openai-compat", model: "not-served", text: "hi" }),
+        /not served/,
+        "the model gate holds for the second runtime exactly as for Ollama",
+      );
+      assert.equal((await readMeasurements(dir)).exists, false, "refusals leave no trace");
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("baselines never blend runtimes: same model name, different runtime, no comparison", async () => {
+  const modelName = "stub:1b"; // deliberately identical to the Ollama stub's name
+  const { server: ollama, host } = await stubOllama({ modelName });
+  const { server: openai, host: openAiHost } = await stubOpenAi({ modelName });
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      let idTick = 0;
+      const chat = createChatService({
+        host, openAiHost, dataDir: dir, environmentHash: "ee".repeat(32),
+        // Two sends, two conversations — a repeated id would be refused by the
+        // store's exclusive create.
+        now: () => `2026-08-09T12:00:0${tick++}Z`, newId: () => `deadbeef000d${idTick++}`,
+      });
+      const sink = (lines) => ({ writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} });
+
+      const viaOllama = [];
+      await chat.send({ conversationId: null, runtime: "ollama", model: modelName, text: "one" }, sink(viaOllama));
+      assert.equal(viaOllama[viaOllama.length - 1].baseline.isFirst, true);
+
+      // Same name via the other runtime: a different artifact, so it gets its
+      // own first-measurement verdict rather than a comparison to Ollama's.
+      const viaOpenAi = [];
+      await chat.send({ conversationId: null, runtime: "openai-compat", model: modelName, text: "one" }, sink(viaOpenAi));
+      assert.equal(viaOpenAi[viaOpenAi.length - 1].baseline.isFirst, true, "runtimes never share a baseline");
+    });
+  } finally {
+    await new Promise((r) => ollama.close(r));
+    await new Promise((r) => openai.close(r));
+  }
+});
+
+test("GET /api/chat/models reports the second runtime's three honest states", async () => {
+  // Not configured: the route says so rather than pretending an empty list.
+  await withChatServer(async (base) => {
+    const body = await (await fetch(`${base}/api/chat/models`, { headers: { [TOKEN_HEADER]: TOKEN } })).json();
+    assert.equal(body.openaiCompat.configured, false);
+  });
+
+  // Configured and reachable: the served list, exactly as reported.
+  const { server: openai, host: openAiHost } = await stubOpenAi();
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "osai-chat-models-"));
+  const chat = createChatService({ host: "http://127.0.0.1:1", openAiHost, dataDir: dir, now: () => AT });
+  try {
+    const served = await chat.models();
+    assert.deepEqual(served.openaiCompat.models, ["stub-gguf"]);
+    assert.equal(served.openaiCompat.available, true);
+  } finally {
+    await new Promise((r) => openai.close(r));
+    await fsp.rm(dir, { recursive: true, force: true });
+  }
+
+  // Configured but unreachable: available false, with the reason carried.
+  const gone = createChatService({ host: "http://127.0.0.1:1", openAiHost: "http://127.0.0.1:1", dataDir: ".", now: () => AT });
+  const unreachable = await gone.models();
+  assert.equal(unreachable.openaiCompat.configured, true);
+  assert.equal(unreachable.openaiCompat.available, false);
+  assert.ok(unreachable.openaiCompat.reason, "the absence carries its reason");
 });

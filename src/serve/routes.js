@@ -162,6 +162,13 @@ export function createRoutes({ collect, catalog, now, telemetry = null, monotoni
         ? json(await chat.list())
         : json({ ok: false, reason: chat === null ? "chat is not configured" : "chat unavailable" }),
 
+    // The second runtime's served-model list (or its honest absence). GET like
+    // the conversation list: names only, no prose, nothing actionable.
+    "/api/chat/models": async () =>
+      chat
+        ? json(await chat.models())
+        : json({ ok: false, reason: chat === null ? "chat is not configured" : "chat unavailable" }),
+
     "/api/live": async () => {
       if (!telemetry) return json({ available: false, reason: "telemetry collector not configured" });
 

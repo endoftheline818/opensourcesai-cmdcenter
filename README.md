@@ -7,12 +7,14 @@ the bench protocol's own rules, inventories local MCP servers, and can load or
 unload already-installed models within a narrow action boundary. It talks only
 to AI runtimes on this machine — never to the internet.
 
-> **Status: Phases 0–2 complete; Phase 3 in progress.** Shipped: the diagnostic
-> core, local dashboard, live telemetry, model catalog, MCP inventory, the
-> load/unload action surface, and the measurement layer (bench-result
+> **Status: Phases 0–3c complete.** Shipped: the diagnostic core, local
+> dashboard, live telemetry, model catalog, MCP inventory with static config
+> verdicts, the load/unload action surface, the measurement layer (bench-result
 > inspection, a provenance-pinned bandwidth ceiling, vendor-verdict throttle
-> reporting). It remains unpublished (`private: true` in `package.json`) and
-> installed by clone, not by `npx`. See [Roadmap](#roadmap).
+> reporting), and the measured chat surface against two local runtimes with
+> machine baselines from retained history. It remains unpublished
+> (`private: true` in `package.json`) and installed by clone, not by `npx`.
+> See [Roadmap](#roadmap).
 
 ```bash
 node src/cli.js            # human-readable report
@@ -46,14 +48,21 @@ This tool closes that gap by reading the machine directly.
   read as the health they are. When the throttle probe does not answer, the
   gauge makes no claim in either direction.
 - **Local tools**: MCP server inventory with secret values and local paths
-  removed during collection.
+  removed during collection, plus a static verdict per server — the command
+  located (never executed) and the config judged well-formed or broken, with
+  "unchecked" stated outright where no check ran.
 - **A shareable summary** — coarse bands only, safe to paste into a public issue.
 - **Chat with every reply measured.** A minimal chat surface against this
-  machine's Ollama, where each response arrives with its own figures: tokens
-  per second against this machine's sourced bandwidth ceiling, first-token
-  time (thinking-aware), cold loads annotated rather than averaged away, and
-  residency at generation time. The model picker shows each model's fit grade
-  and live residency before you commit to it.
+  machine's AI runtimes — Ollama, and optionally an OpenAI-compatible server
+  such as llama.cpp via `--llamacpp-port` — where each response arrives with
+  its own figures: tokens per second against this machine's sourced bandwidth
+  ceiling, first-token time (thinking-aware), cold loads annotated rather than
+  averaged away, residency at generation time, and this machine's own standing
+  best for the model, compared only across replies made under the same declared
+  run conditions. The model picker shows each model's fit grade and live
+  residency before you commit to it. What a runtime does not report stays
+  unavailable with its reason — llama.cpp's protocol has no residency probe,
+  so its replies say so instead of borrowing Ollama's.
 - **osai-bench results, inspected honestly.** Drop a result file from
   [`@opensourcesai/bench`](https://github.com/endoftheline818/opensourcesai-bench)
   onto the Bench view: medians with their variation and sample counts, the
@@ -131,8 +140,11 @@ preferences:
 
 1. **It talks only to AI runtimes on this machine — never to the internet.**
    Every network call in the package targets loopback (today: Ollama on
-   `127.0.0.1`); a structural test asserts every absolute URL in the source is
-   loopback, so an outbound call cannot appear without failing the build.
+   `127.0.0.1`, and optionally an OpenAI-compatible server on a loopback port
+   you name with `--llamacpp-port` — a port, never a host, so it cannot point
+   off this machine); a structural test asserts every absolute URL in the
+   source is loopback, so an outbound call cannot appear without failing the
+   build.
    **Cloud endpoints are permanently out of scope** — an API-key field for a
    hosted model would end this guarantee, and it is this tool's identity, not
    a missing feature.
@@ -206,11 +218,11 @@ no sourced figure exists, both say "unavailable" rather than guessing.
 - **Phase 1:** local dashboard over the same core, with live telemetry, model
   catalog, and public-safe report views.
 - **Phase 2:** narrow load/unload actions for already-installed Ollama models.
-- **Phase 3 (in progress):** the measurement layer — bench-result inspection
+- **Phase 3 (complete):** the measurement layer — bench-result inspection
   under the bench protocol's own comparability rules, a provenance-pinned
   memory-bandwidth ceiling, vendor-verdict throttle reporting, and a versioned
   local store built for measurement history (no-prose schema, tested from day
-  one, not yet wired to any command).
+  one, now written only by the chat surface).
 - **Phase 3b (complete): the chat surface, built measurement-first.** Every
   generation this machine performs is a measurement opportunity, and the
   instrument came before the conveniences: each reply carries its own honest
@@ -222,8 +234,14 @@ no sourced figure exists, both say "unavailable" rather than guessing.
   when residency stayed put; if residency fell, it says spill instead.
   Inference lives in its own module, never in the action layer, and only ever
   against AI runtimes on this machine.
-- **Next:** a second local runtime, and machine baselines from retained
-  history. Chat conveniences (parameters, system prompts, search) stay
+- **Phase 3c (complete): the instrument widened.** A second local runtime
+  (any OpenAI-compatible server, llama.cpp first) under the same measurement
+  rules and the same loopback-by-construction boundary; machine baselines from
+  retained history, so each reply is compared against this machine's own
+  standing best under matching run conditions — the comparison this tool was
+  founded on; and static MCP config verdicts, with the runtime tiers
+  deliberately unbuilt until they can be honest.
+- **Next:** chat conveniences (parameters, system prompts, search) stay
   deliberately behind measurement capability. Deliberately not planned, ever:
   cloud endpoints, accounts, or anything that leaves the machine.
 

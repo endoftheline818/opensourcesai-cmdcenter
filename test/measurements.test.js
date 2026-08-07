@@ -10,6 +10,8 @@ import {
   expectationVersusObservation,
   generationTokensPerSecond,
   prefillTokensPerSecond,
+  machineBaseline,
+  compareToBaseline,
   residencyPercent,
   rooflineUtilization,
   theoreticalMaxTokensPerSecond,
@@ -269,4 +271,71 @@ test("residencyPercent distinguishes unknown from zero", () => {
   assert.equal(residencyPercent(withResidency(null)), null);
   assert.equal(residencyPercent(withResidency(0)), 0, "0% resident is a real observation, not an absence");
   assert.equal(residencyPercent(withResidency(0.62)), 62);
+});
+
+// ---------------------------------------------------------------------------
+// Machine baselines — this machine's own best, environment-gated
+// ---------------------------------------------------------------------------
+
+const rated = (name, tokPerSec, envHash) => {
+  const r = record({ reported: { evalCount: 100, evalDurationNs: Math.round((100 / tokPerSec) * 1e9) } });
+  r.model = { name, digest: null };
+  r.environmentHash = envHash;
+  return r;
+};
+
+test("the baseline is the best under MATCHING run conditions, exclusions counted", () => {
+  const hash = "aa".repeat(32);
+  const otherHash = "bb".repeat(32);
+  const records = [
+    rated("llama3.1:8b", 95, hash),
+    rated("llama3.1:8b", 112.93, hash),
+    rated("llama3.1:8b", 140, otherHash), // faster, but under different conditions
+    rated("qwen3:4b", 200, hash),         // different model entirely
+  ];
+
+  const baseline = machineBaseline(records, { model: "llama3.1:8b", environmentHash: hash });
+  assert.equal(baseline.available, true);
+  assert.ok(Math.abs(baseline.tokensPerSecond - 112.93) < 0.01, "the 140 under other conditions must not win");
+  assert.equal(baseline.comparableCount, 2);
+  assert.equal(baseline.excludedByEnvironment, 1, "what was set aside is counted, not silenced");
+});
+
+test("unknown conditions only ever compare with themselves", () => {
+  const records = [rated("m:1b", 100, null), rated("m:1b", 90, "cc".repeat(32))];
+  const baseline = machineBaseline(records, { model: "m:1b", environmentHash: null });
+  assert.equal(baseline.comparableCount, 1);
+  assert.equal(baseline.tokensPerSecond, 100);
+});
+
+test("no comparable history says why, naming the excluded records", () => {
+  const none = machineBaseline([], { model: "m:1b", environmentHash: null });
+  assert.equal(none.available, false);
+  assert.match(none.reason, /no measured history/);
+
+  const excluded = machineBaseline([rated("m:1b", 100, "dd".repeat(32))], { model: "m:1b", environmentHash: null });
+  assert.equal(excluded.available, false);
+  assert.match(excluded.reason, /1 record\(s\) exist under different run conditions/);
+});
+
+test("compareToBaseline has exactly three honest outcomes", () => {
+  const fast = rated("m:1b", 120, null);
+  const slow = rated("m:1b", 80, null);
+  const standing = { available: true, tokensPerSecond: 100, comparableCount: 3 };
+
+  const first = compareToBaseline(fast, { available: false });
+  assert.equal(first.isFirst, true);
+  assert.match(first.note, /first measured reply/);
+
+  const newBest = compareToBaseline(fast, standing);
+  assert.equal(newBest.isNewBest, true);
+  assert.match(newBest.note, /new best on this machine \(previously 100\.0 tok\/s over 3 comparable replies\)/);
+
+  const beside = compareToBaseline(slow, standing);
+  assert.equal(beside.isNewBest, false);
+  assert.match(beside.note, /best on this machine: 100\.0 tok\/s/);
+  assert.doesNotMatch(beside.note, /%/, "stated as data, never as a percentage judgment");
+
+  const unmeasured = compareToBaseline(record(), standing);
+  assert.equal(unmeasured.available, false, "no rate, no comparison — never a guess");
 });

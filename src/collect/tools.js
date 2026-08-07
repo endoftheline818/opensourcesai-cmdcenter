@@ -19,6 +19,7 @@ import os from "node:os";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { run } from "./exec.js";
 
 /** Config locations, per platform. Absent files are an ordinary result. */
 export function mcpConfigPaths(platform = process.platform, home = os.homedir(), env = process.env) {
@@ -185,15 +186,49 @@ async function detectTools(locations) {
   return found;
 }
 
+/**
+ * Resolve which of the configured stdio COMMANDS exist on PATH — the Tier 1
+ * static probe, and the whole extent of what this module will ever probe.
+ *
+ * `where`/`which` LOCATES a binary; it executes nothing. That line is the
+ * design: actually spawning a configured server would run arbitrary
+ * user-configured code on inspect (and most servers need their env values to
+ * start, which this module never reads) — deferred deliberately, and remote
+ * servers are never probed at all because that would be an outbound call.
+ *
+ * Results are true / false / null: resolvable, not found, or the probe itself
+ * did not answer — and null is reported as unchecked, never as either verdict.
+ */
+export async function resolveCommands(commands, { platform = process.platform } = {}) {
+  const locator = platform === "win32" ? "where" : "which";
+  const distinct = [...new Set(commands.filter((c) => typeof c === "string" && c.length > 0))];
+  const entries = await Promise.all(
+    distinct.map(async (command) => {
+      const res = await run(locator, [command], { timeout: 4000 });
+      if (res.ok) return [command, true];
+      // `where`/`which` exit non-zero for "not found" and for their own
+      // absence alike; the error string distinguishes the two.
+      return [command, res.error === "not-found" ? null : false];
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
 export async function collectTools({ platform = process.platform, home = os.homedir(), env = process.env } = {}) {
   const [clients, tools] = await Promise.all([
     readMcpConfigs(mcpConfigPaths(platform, home, env)),
     detectTools(toolLocations(platform, home, env)),
   ]);
 
+  const commandResolution = await resolveCommands(
+    clients.flatMap((c) => c.servers.map((s) => s.command)),
+    { platform },
+  );
+
   return {
     mcpClients: clients,
     tools,
+    commandResolution,
     note: "Detection covers well-known install locations only. A tool installed elsewhere will not appear here.",
   };
 }

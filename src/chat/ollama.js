@@ -73,6 +73,7 @@ export function buildGenerationRecord({
   conversationId,
   modelName,
   modelDigest = null,
+  runtimeName = "ollama",
   runtimeVersion = null,
   finalChunk = null,
   elapsedMs = null,
@@ -91,7 +92,7 @@ export function buildGenerationRecord({
     source: "chat-generation",
     conversationId,
     model: { name: modelName, digest: modelDigest },
-    runtime: { name: "ollama", version: runtimeVersion },
+    runtime: { name: runtimeName, version: runtimeVersion },
     reported: {
       promptEvalCount: reported("prompt_eval_count"),
       promptEvalDurationNs: reported("prompt_eval_duration"),

@@ -20,7 +20,7 @@ node src/cli.js --capture  # raw capture (for bug reports)
 npm test                   # runs the suite and prints its own test count
 ```
 
-**Status:** Phases 0–2 are complete; Phase 3's measurement layer has landed and its inference surface is authorized but not yet built (§4b). `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
+**Status:** Phases 0–2 are complete; Phase 3's measurement layer and inference surface (§4b) have landed — the chat relay measures every generation, against two local runtimes: Ollama, and optionally an OpenAI-compatible server (llama.cpp) via `--llamacpp-port`. `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
 
 ---
 
@@ -33,7 +33,7 @@ npm test                   # runs the suite and prints its own test count
 | `src/actions/**` | The **only** Ollama mutation surface. Two actions, nothing else (§4). |
 | `src/serve/**` | HTTP server, security, and the browser bundle. |
 | `src/storage/**` | The **only** code that writes or deletes files, confined to the tool's own data directory. Versioned (`STORAGE_SCHEMA_VERSION`), clock-free like derive, and reachable **only from the chat surface and the CLI wiring seam** — guard-asserted with a positive control (§4a). |
-| `src/chat/**` | The inference surface (§4b): the streaming relay to loopback Ollama, and the only consumer of storage. Prompts carry text HERE and nowhere else. |
+| `src/chat/**` | The inference surface (§4b): the streaming relays to the loopback runtimes (Ollama; optionally an OpenAI-compatible server via `--llamacpp-port`), and the only consumer of storage. Prompts carry text HERE and nowhere else. |
 
 This split is not stylistic. It is why `fixtures/*.json` — **real captures from real machines** (RTX 4070 Ti/Windows, RTX 3080/Linux, M1 MacBook Air) — let CI validate all three platforms' reporting on runners with no GPU and no Ollama.
 
@@ -121,7 +121,14 @@ The claims chosen were true both before and after that code landed, which is
 what let the amendment precede it. **The code landed 2026-08-08**: `src/chat/`
 (streaming relay + service), the `CHAT_PATHS` allowlist under the same mirror
 discipline as actions and inspection, the storage wiring of §4a, and the chat
-view — every rule below held by construction.
+view — every rule below held by construction. **2026-08-09: a second local
+runtime** (any OpenAI-compatible server — llama.cpp first) joined under the
+same rules, and its endpoint is loopback *by construction*: the CLI accepts
+`--llamacpp-port` and no host flag, so there is no address input that could
+name another machine. Fields that protocol does not report (load/total
+durations, residency, a version string) stay null on its records — never
+borrowed from Ollama's, never estimated. The measurement schema bumped to v2
+for the widened runtime enum; v1 records stay readable, appends stamp v2.
 
 The rules that govern the work when it arrives:
 

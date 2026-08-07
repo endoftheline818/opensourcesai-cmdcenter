@@ -192,7 +192,43 @@ test("fabricated shapes no real probe produces are refused", () => {
   assert.equal(validateMeasurement(badTimestamp).ok, false);
 
   const wrongVersion = { ...valid(), measurementSchemaVersion: MEASUREMENT_SCHEMA_VERSION + 1 };
-  assert.equal(validateMeasurement(wrongVersion).ok, false, "appends carry the current version only");
+  assert.equal(validateMeasurement(wrongVersion).ok, false, "a version above the newest supported is refused");
+});
+
+// ---------------------------------------------------------------------------
+// The v1 → v2 migration (the first true schema bump)
+// ---------------------------------------------------------------------------
+//
+// v2 widened runtime.name to ["ollama", "openai-compat"]. The contract this
+// suite pins: records written under v1 remain fully readable, while every NEW
+// append must stamp the current version — old shapes are read, never rewritten
+// and never newly written.
+
+test("a v1 record still validates and reads under v2; appends must stamp v2", async () => {
+  const v1 = { ...valid(), measurementSchemaVersion: 1 };
+  assert.deepEqual(validateMeasurement(v1), { ok: true }, "v1 stays interpretable");
+
+  await withTmpDir(async (dir) => {
+    // A v1 record already on disk — as if written before the bump.
+    await appendRecord(path.join(dir, MEASUREMENTS_FILE), v1);
+    assert.deepEqual(await appendMeasurement(dir, valid()), { ok: true });
+
+    const read = await readMeasurements(dir);
+    assert.equal(read.records.length, 2, "v1 and v2 records read side by side");
+    assert.equal(read.newerSchema, 0, "a SUPPORTED older version is not 'newer schema'");
+
+    const stale = await appendMeasurement(dir, v1);
+    assert.equal(stale.ok, false);
+    assert.match(stale.reason, /schema v2/, "the refusal names the version appends must carry");
+  });
+});
+
+test("v2 admits the second runtime by exact name and nothing else", () => {
+  const openai = { ...valid(), runtime: { name: "openai-compat", version: null } };
+  assert.deepEqual(validateMeasurement(openai), { ok: true });
+
+  const unknown = { ...valid(), runtime: { name: "vllm", version: null } };
+  assert.equal(validateMeasurement(unknown).ok, false, "the runtime enum is closed — an unknown name is an unknown meaning");
 });
 
 // ---------------------------------------------------------------------------

@@ -5,9 +5,38 @@
 // importantly, deciding what may appear in the SHAREABLE block, which is a
 // stricter question than what may appear on screen.
 
+/**
+ * The Tier 1 verdict for one server — STATIC checks only, and the vocabulary
+ * says exactly how far each claim reaches:
+ *
+ *   config-ok         — well-formed, and its command resolves on PATH. A found
+ *                       command can still fail at runtime; nothing was executed.
+ *   command-not-found — well-formed, but the command is not on PATH. The most
+ *                       common real failure (a moved binary, an npx-era server
+ *                       after a Node switch), caught without running anything.
+ *   config-broken     — the entry declares neither a command nor a url.
+ *   unchecked         — the resolution probe itself did not answer. Unknown is
+ *                       not a verdict in either direction.
+ *   declared          — a remote server. Never probed, BY DESIGN: probing a
+ *                       configured URL is an outbound network call, and this
+ *                       tool does not make those. The trust property, presented
+ *                       as information.
+ */
+export function serverVerdict(server, commandResolution = {}) {
+  if (server.transport === "remote") return "declared";
+  if (server.transport === "unknown" || !server.command) return "config-broken";
+  const resolved = commandResolution[server.command];
+  if (resolved === true) return "config-ok";
+  if (resolved === false) return "command-not-found";
+  return "unchecked";
+}
+
 export function buildToolsPayload(inventory) {
   const clients = (inventory?.mcpClients ?? []).filter((c) => c.present);
-  const allServers = clients.flatMap((c) => c.servers.map((s) => ({ ...s, client: c.client })));
+  const commandResolution = inventory?.commandResolution ?? {};
+  const allServers = clients.flatMap((c) =>
+    c.servers.map((s) => ({ ...s, client: c.client, verdict: serverVerdict(s, commandResolution) })),
+  );
 
   // A server name is user-chosen and can repeat across clients (the same
   // server configured in both Claude Desktop and Cursor), so distinctness is
@@ -35,7 +64,12 @@ export function buildToolsPayload(inventory) {
       // machine or a screen. The tool never reads the values themselves.
       serversHoldingCredentials: withSecrets.length,
       toolsInstalled: installed.length,
+      commandsNotFound: allServers.filter((s) => s.verdict === "command-not-found").length,
     },
+    // The honesty label the panel renders beside the verdicts, verbatim.
+    verdictNote:
+      "Static checks only: commands were located, never executed. A found command can still fail at runtime, " +
+      "and remote servers are declared, not probed — probing them would be an outbound network call.",
     note: inventory?.note ?? null,
   };
 }
