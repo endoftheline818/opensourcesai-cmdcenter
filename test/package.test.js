@@ -427,10 +427,18 @@ test("nothing imports from the website repository", async () => {
   // "opensourcesai.com" would flag the provenance comment in derive/bands.js,
   // which documents where the fixture-verified copy came from — the guard has
   // to test the coupling itself, not any mention of it.
+  //
+  // Comments stripped before extraction (added 2026-08-07, the SEVENTH
+  // instance of the prose-versus-code trap): the specifier pattern spans
+  // lazily from any `export` keyword to the next `from "..."`, and a comment
+  // containing the words `from "anything quoted"` — which is how a sentence
+  // discussing an inference "from \"clocks below max\"" reads — was captured
+  // as an import specifier. The guard was flagging prose about throttling as
+  // a cross-repo import.
   const specifierPattern = /(?:^|\s)(?:import|export)[\s\S]*?from\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']/g;
 
   for (const file of files) {
-    const source = await readFile(file, "utf8");
+    const source = withoutComments(await readFile(file, "utf8"));
     const relative = path.relative(root, file);
     for (const match of source.matchAll(specifierPattern)) {
       const specifier = match[1] ?? match[2];

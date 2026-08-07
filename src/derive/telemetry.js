@@ -148,6 +148,47 @@ function gpuGauges(telemetry) {
     );
   }
 
+  if (Number.isFinite(g.clockMhz) && Number.isFinite(g.clockMaxMhz) && g.clockMaxMhz > 0) {
+    // The clock gauge NEVER escalates on its own numbers: a card at 11% of max
+    // clock is usually a healthy card idling (measured on the 4070 Ti at
+    // 345/3135 MHz with the vendor's active-reasons bitmask reading GPU_IDLE),
+    // and a heuristic like "low clocks while warm" would cry wolf on every
+    // desktop. Severity comes ONLY from the vendor's own throttle verdicts —
+    // and when the throttle probe did not answer, no claim is made in either
+    // direction, because unknown is not "not throttling".
+    const throttle = g.throttle ?? null;
+    let detail = `${Math.round(g.clockMhz)} / ${Math.round(g.clockMaxMhz)} MHz`;
+    let severity = null;
+    if (throttle) {
+      if (throttle.hwThermalSlowdown === true) {
+        // The hardware pulling the brake itself is the drastic form — clocks
+        // halve or worse, and the card is protecting itself from damage.
+        severity = "critical";
+        detail += " — hardware thermal slowdown active (vendor-reported)";
+      } else if (throttle.swThermalSlowdown === true) {
+        severity = "warn";
+        detail += " — thermal slowdown active (vendor-reported)";
+      } else if (throttle.hwSlowdown === true) {
+        severity = "warn";
+        detail += " — hardware slowdown active (vendor-reported)";
+      } else if (throttle.swPowerCap === true) {
+        // At the power limit is how GPU Boost is DESIGNED to run under load.
+        // Named because it explains a clock figure below max; never escalated,
+        // because warning on normal operation trains people to ignore warnings.
+        detail += " — at power limit";
+      }
+    }
+    out.push(
+      gauge({
+        id: "clocks",
+        label: "GPU clock",
+        percent: (g.clockMhz / g.clockMaxMhz) * 100,
+        detail,
+        severity,
+      }),
+    );
+  }
+
   return out;
 }
 
