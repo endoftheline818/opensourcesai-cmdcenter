@@ -28,10 +28,11 @@ npm test                   # runs the suite and prints its own test count
 
 | Layer | Rule |
 |---|---|
-| `src/collect/**` | The **only** code that performs I/O. Captures raw per-source responses **unmodified** — including sources known to be wrong. It never reconciles. |
+| `src/collect/**` | The **only** code that performs probe I/O. Captures raw per-source responses **unmodified** — including sources known to be wrong. It never reconciles. |
 | `src/derive/**` | **Pure** functions over a capture. No I/O, no clock, no randomness. |
-| `src/actions/**` | The **only** mutation surface. Two actions, nothing else (§4). |
+| `src/actions/**` | The **only** Ollama mutation surface. Two actions, nothing else (§4). |
 | `src/serve/**` | HTTP server, security, and the browser bundle. |
+| `src/storage/**` | The **only** code that writes or deletes files, confined to the tool's own data directory. Versioned (`STORAGE_SCHEMA_VERSION`), clock-free like derive, and **not yet reachable from any entry point** — three structural tests assert all of it (§4a). |
 
 This split is not stylistic. It is why `fixtures/*.json` — **real captures from real machines** (RTX 4070 Ti/Windows, RTX 3080/Linux, M1 MacBook Air) — let CI validate all three platforms' reporting on runners with no GPU and no Ollama.
 
@@ -63,6 +64,44 @@ Opened deliberately as a product decision. **Widening it is a maintainer decisio
   - The model name must match Ollama's own installed list **before any request** — so an unknown name cannot provoke a pull.
   - `POST` is allowed only for an exact-match `ACTION_PATHS` allowlist, always requires the session token, and keeps Host/Origin checks.
   - `PUT`/`PATCH`/`DELETE` refused everywhere.
+
+---
+
+## 4a. The storage layer — what this tool may remember, and the rules that bind it
+
+Added 2026-08-07. `src/storage/**` is a versioned local store (platform data
+dir: `%LOCALAPPDATA%\osai-cmdcenter`, `~/Library/Application Support/…`,
+`$XDG_DATA_HOME/…`) holding append-only JSONL. **Nothing invokes it yet** — a
+test asserts that, and wiring it up is a deliberate act that must arrive
+together with the UI that shows the history, the control that deletes it, and
+rewritten user-facing claims. Do not wire it quietly; rewrite that guard to the
+narrower property that replaces it.
+
+Rules, each enforced by a test:
+
+1. **File writes and deletions exist only in `src/storage`** — a structural
+   guard with a positive control. Before this layer, the package wrote nothing
+   to disk; the property narrowed, it did not vanish.
+2. **The measurement log's schema is a closed allowlist with no prose-capable
+   field.** Unknown keys are refused at every nesting level, every permitted
+   string is shape- or length-capped, and refusal happens at append — a value
+   never written cannot leak (the same ordering §8 uses for MCP secrets).
+   Sentinel-tested against message-shaped field names from day one.
+3. **Deletion is contained by construction.** `clearMeasurements` takes no
+   path, no id, no pattern — the one deletable thing is the one file the module
+   itself writes. It cannot name a model, a config, or anything this tool did
+   not create.
+4. **Version discipline from day one.** `meta.json` carries
+   `STORAGE_SCHEMA_VERSION`; opening a store written by a newer version refuses
+   rather than guesses, corrupt meta is preserved as evidence and never
+   overwritten, and records from a future `MEASUREMENT_SCHEMA_VERSION` are
+   counted as uninterpreted rather than silently dropped.
+5. **No clock, no randomness** — same discipline as derive, same test.
+   Timestamps are caller-supplied so what lands on disk is traceable to the
+   code path that produced it.
+6. **Crash honesty.** A torn tail from an interrupted append is recovered and
+   *reported* (`tornTail: true`), never silently dropped — and corruption
+   mid-file is counted separately, because a crash cannot produce it.
 
 ---
 

@@ -111,7 +111,10 @@ preferences:
    fails the build if one appears.
 2. **It has exactly two actions: load and unload.** No model pulls, no
    deletions, no starting or stopping services. Both actions only target models
-   Ollama already reports as installed.
+   Ollama already reports as installed. (The package contains a storage layer
+   that can delete only its own data files — never models, never configs, never
+   anything it did not create — and no command reaches it yet; tests assert
+   both the containment and the unreachability.)
 3. **It never runs a shell.** Every subprocess goes through one `execFile`
    wrapper with an explicit argument array, so there is no command-injection
    surface to reason about — it is absent by construction.
@@ -122,8 +125,9 @@ preferences:
 |---|---|
 | `src/collect/**` | The only code that performs I/O. Captures raw responses and returns them unmodified — including ones known to be wrong. |
 | `src/derive/**` | Pure functions over a capture. No I/O, no clock, no randomness. |
-| `src/actions/**` | The only mutation surface: load and unload installed Ollama models. |
+| `src/actions/**` | The only Ollama mutation surface: load and unload installed models. |
 | `src/serve/**` | Local HTTP server, security checks, and the browser dashboard bundle. |
+| `src/storage/**` | The only code that writes or deletes files, confined to this tool's own data directory. Not yet invoked by any command; tests assert both. |
 
 That split is what lets the entire reporting layer be tested against committed
 captures from real machines, on a CI runner with no GPU and no Ollama installed.
