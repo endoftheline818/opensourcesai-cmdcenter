@@ -96,8 +96,9 @@ there are none, so it is a deliberate act.
 |---|---|
 | `src/collect/**` | The only code that performs I/O. Captures raw per-source responses and returns them **unmodified** — including sources known to be wrong. Never reconciles. |
 | `src/derive/**` | Pure functions over a capture. Reconciliation, banding, rendering. Data in, data out. |
-| `src/actions/**` | The only mutation surface. It may load or unload installed Ollama models, and nothing else. |
+| `src/actions/**` | The only Ollama mutation surface. It may load or unload installed models, and nothing else. |
 | `src/serve/**` | Local HTTP server, security checks, and browser dashboard bundle. |
+| `src/storage/**` | The only code that writes or deletes files, confined to the tool's own data directory. Versioned, clock-free, and not yet reachable from any entry point — structural tests assert all three, and MAINTAINING.md §4a carries the rules. |
 
 **Raw captures are authoritative; every derived figure is recomputable from
 them.** So a change to how VRAM is interpreted re-derives history from the

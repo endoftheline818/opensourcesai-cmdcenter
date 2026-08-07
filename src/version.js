@@ -1,5 +1,5 @@
-// Version constants. Three of them, deliberately separate, because they answer
-// different questions and move at different rates.
+// Version constants. Deliberately separate, because they answer different
+// questions and move at different rates.
 
 /** The package version. Must equal package.json's version (asserted in tests). */
 export const CLIENT_VERSION = "0.1.0";
@@ -19,3 +19,20 @@ export const CAPTURE_SCHEMA_VERSION = 1;
  * the rules that produced it.
  */
 export const REPORT_CONTRACT_VERSION = 1;
+
+/**
+ * Layout and meaning of the on-disk data directory (src/storage). Bump when the
+ * directory's file layout or meta.json shape changes. A v1 store opened by a
+ * client that finds a HIGHER version on disk must refuse rather than guess —
+ * user data written by a newer version is not this version's to reinterpret.
+ */
+export const STORAGE_SCHEMA_VERSION = 1;
+
+/**
+ * Shape of one retained measurement record (src/storage/measurements.js). Bump
+ * on ANY field addition, removal, or meaning change — the record allowlist is
+ * closed, so even an additive field is a new shape. Records carry their version;
+ * a reader reports records from a newer version as uninterpreted rather than
+ * dropping them silently or guessing at their fields.
+ */
+export const MEASUREMENT_SCHEMA_VERSION = 1;

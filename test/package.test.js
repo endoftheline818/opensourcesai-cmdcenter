@@ -321,14 +321,76 @@ test("child processes never run through a shell", async () => {
 // DETERMINISM — the derive layer must be snapshot-testable and comparable
 // across runs, which it cannot be if anything in it reads a clock or a random
 // source. Timestamps are caller-supplied from the CLI's top level only.
-test("the derive layer never reads a clock or a random source", async () => {
-  const files = await sourceFiles(path.join(root, "src", "derive"));
+//
+// src/storage holds the same line for a different reason: what lands on disk
+// must be exactly what the caller handed over, so a stored record can be
+// traced to the code path that produced its every field. A storage layer that
+// stamps its own times is a storage layer whose tests need a clock.
+test("the derive and storage layers never read a clock or a random source", async () => {
+  const files = [
+    ...(await sourceFiles(path.join(root, "src", "derive"))),
+    ...(await sourceFiles(path.join(root, "src", "storage"))),
+  ];
   assert.ok(files.length > 0);
   for (const file of files) {
     const source = await readFile(file, "utf8");
     const relative = path.relative(root, file);
     assert.doesNotMatch(source, /Date\.now\(\)|new Date\(\)/, `clock read in ${relative}`);
     assert.doesNotMatch(source, /Math\.random/, `randomness in ${relative}`);
+  }
+});
+
+// FILE MUTATION EXISTS ONLY IN THE STORAGE LAYER.
+//
+// Until 2026-08-07 this package wrote nothing to disk at all, which was itself
+// a trust property. Adding retained history narrows that property rather than
+// abandoning it: every write and every deletion now lives in src/storage,
+// confined to the tool's own data directory — and this guard is what keeps
+// "the storage layer is where files change" from decaying into "files change
+// wherever it was convenient". Comments stripped, strings kept: prose about
+// writing must not trip a guard about writing, but a call that ships must.
+test("file writes and deletions exist only in src/storage", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  const MUTATION = /\b(writeFile|appendFile|mkdir|rmdir|unlink|rename|copyFile|truncate|createWriteStream|rm|writev)(Sync)?\s*\(/;
+  let storageMutations = 0;
+
+  for (const file of files) {
+    const source = withoutComments(await readFile(file, "utf8"));
+    const relative = path.relative(root, file);
+    if (relative.includes(path.join("src", "storage"))) {
+      if (MUTATION.test(source)) storageMutations += 1;
+      continue;
+    }
+    assert.doesNotMatch(source, MUTATION, `file mutation outside the storage layer in ${relative}`);
+  }
+
+  // Positive control: if the storage layer stopped mutating files, this guard
+  // would pass while guarding nothing.
+  assert.ok(storageMutations > 0, "expected the storage layer itself to write — otherwise this guard is vacuous");
+});
+
+// THE STORAGE LAYER IS NOT YET REACHABLE FROM ANY ENTRY POINT.
+//
+// Deliberate, and temporary by design: retained history changes what a user
+// should expect this tool to keep, so the surface that first writes it must
+// arrive together with the UI that shows it, the control that deletes it, and
+// rewritten user-facing claims — the phase-2 lesson, applied in advance this
+// time. Until that deliberate act, the CLI help and dashboard badge stay
+// literally true: nothing the tool currently does persists anything. When
+// wiring lands, REWRITE this guard to assert the narrower property that
+// replaces it (only the serve layer may reach storage, or whatever the wiring
+// decides) — do not delete it.
+test("nothing outside src/storage imports the storage layer yet", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  for (const file of files) {
+    const relative = path.relative(root, file);
+    if (relative.includes(path.join("src", "storage"))) continue;
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(
+      source,
+      /from\s+["'][^"']*\/storage\//,
+      `${relative} reaches the storage layer — wiring it is a deliberate act with its own boundary rewrite`,
+    );
   }
 });
 
