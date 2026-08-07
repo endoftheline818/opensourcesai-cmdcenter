@@ -74,14 +74,24 @@ test("macos: capacity is banded from usable memory, not the sticker total", asyn
 });
 
 test("every fixture produces a contract-valid, privacy-safe report", async () => {
-  const names = (await readdir(path.join(root, "fixtures")))
-    .filter((n) => n.endsWith(".json") && !n.startsWith("website-"))
+  // Selected by SHAPE, not by filename prefix: a capture declares its own
+  // captureSchemaVersion, parity pins (website-*, bench-*) declare a source
+  // block instead. A prefix list here would be the third copy of that
+  // convention, and the second copy already drifted once — this test failed
+  // the day a bench parity fixture appeared, because its inline filter only
+  // knew about the website prefix.
+  const all = (await readdir(path.join(root, "fixtures")))
+    .filter((n) => n.endsWith(".json"))
     .map((n) => n.replace(/\.json$/, ""));
+  const captures = [];
+  for (const name of all) {
+    const parsed = await fixture(name);
+    if ("captureSchemaVersion" in parsed) captures.push([name, parsed]);
+  }
 
-  assert.ok(names.length >= 3, "all three validated platforms must be represented");
+  assert.ok(captures.length >= 3, "all three validated platforms must be represented");
 
-  for (const name of names) {
-    const capture = await fixture(name);
+  for (const [name, capture] of captures) {
     assert.equal(capture.captureSchemaVersion, CAPTURE_SCHEMA_VERSION, `${name} schema drifted`);
 
     const report = buildReport(capture);

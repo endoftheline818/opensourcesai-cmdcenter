@@ -162,6 +162,12 @@ verbatim by a script rather than by hand, and pinned by a digest of the file
 itself. So the grades shown here are produced by the same code as the website's
 compatibility checker, byte for byte, and the two cannot quietly disagree.
 
+The same arrangement joins this tool to `opensourcesai-bench`: the module
+defining which Ollama settings change what a measurement means — and whether two
+measurements may honestly be compared at all — is copied verbatim from bench and
+digest-pinned, so the two tools can never disagree about which comparisons are
+valid.
+
 ## Roadmap
 
 - **Phase 0:** diagnostic core, validated on Windows, Linux, and macOS captures.

@@ -249,15 +249,34 @@ test("the website's ranking and rationale functions are copied but unreachable",
 });
 
 // A GENERATED FILE MUST SAY SO, EVERYWHERE IT COULD BE MISTAKEN FOR SOURCE.
-// The digest in test/fit.test.js catches an edit after the fact; this catches the
-// likelier failure, which is somebody opening the file and not realising.
+// The digest tests catch an edit after the fact; this catches the likelier
+// failure, which is somebody opening the file and not realising.
+//
+// The list below is the complete set of generated sources, each paired with
+// the sync script that writes it. Naming the RIGHT script matters as much as
+// naming one: regenerating a bench copy with the website script would fail
+// confusingly rather than helpfully.
 test("generated sources announce themselves and name their regeneration command", async () => {
-  const generated = [path.join(root, "src", "derive", "checker-engine.generated.js")];
-  for (const file of generated) {
+  const generated = [
+    [path.join(root, "src", "derive", "checker-engine.generated.js"), /scripts\/sync-from-website\.mjs/],
+    [path.join(root, "src", "derive", "bench-environment.generated.js"), /scripts\/sync-from-bench\.mjs/],
+  ];
+  for (const [file, regenerate] of generated) {
     const source = await readFile(file, "utf8");
     const relative = path.relative(root, file);
     assert.match(source, /DO NOT EDIT/, `${relative} must warn against hand edits`);
-    assert.match(source, /scripts\/sync-from-website\.mjs/, `${relative} must name how to regenerate it`);
+    assert.match(source, regenerate, `${relative} must name how to regenerate it`);
+  }
+
+  // Nothing may LOOK generated without being on the list above — a stray
+  // *.generated.js with no digest pinning it would be exactly the unverified
+  // copy this whole arrangement exists to prevent.
+  const files = await sourceFiles(path.join(root, "src"));
+  const listed = new Set(generated.map(([file]) => path.resolve(file)));
+  for (const file of files) {
+    if (file.endsWith(".generated.js")) {
+      assert.ok(listed.has(path.resolve(file)), `${path.relative(root, file)} is generated-named but unlisted/unpinned`);
+    }
   }
 });
 

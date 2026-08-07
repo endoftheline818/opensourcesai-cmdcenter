@@ -1,0 +1,255 @@
+{
+  "source": {
+    "repository": "opensourcesai-bench",
+    "generatedBy": "scripts/sync-from-bench.mjs",
+    "generatedAt": "2026-08-07",
+    "modules": [
+      "src/derivation/environment.js"
+    ],
+    "benchClientVersion": "0.11.0"
+  },
+  "generatedCopy": {
+    "file": "src/derive/bench-environment.generated.js",
+    "sourceModule": "src/derivation/environment.js",
+    "algorithm": "sha256",
+    "sha256": "29a7970739d41e9f2111ab507de699c0be86b4517b2452a10fd7281f26b7b25c",
+    "note": "Digest of the upstream file, LF-normalized — i.e. of everything below the @generated:begin-verbatim marker in the copy. Recomputed by test/environment.test.js."
+  },
+  "ENVIRONMENT_DECLARATION_SOURCE": "client-process-env",
+  "variableCount": 14,
+  "variableNames": [
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_GPU_OVERHEAD",
+    "OLLAMA_SCHED_SPREAD",
+    "OLLAMA_LLM_LIBRARY",
+    "LLAMA_ARG_FIT",
+    "LLAMA_ARG_FIT_TARGET",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_KEEP_ALIVE",
+    "OLLAMA_DEBUG",
+    "OLLAMA_MODELS",
+    "OLLAMA_HOST"
+  ],
+  "presenceOnlyVariables": [
+    "OLLAMA_MODELS",
+    "OLLAMA_HOST"
+  ],
+  "blockingVariables": [
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_GPU_OVERHEAD",
+    "OLLAMA_SCHED_SPREAD",
+    "OLLAMA_LLM_LIBRARY",
+    "LLAMA_ARG_FIT",
+    "LLAMA_ARG_FIT_TARGET"
+  ],
+  "declarations": {
+    "empty": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": null,
+        "OLLAMA_FLASH_ATTENTION": null,
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": []
+    },
+    "kv-q8": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": "q8_0",
+        "OLLAMA_FLASH_ATTENTION": null,
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": [
+        "OLLAMA_KV_CACHE_TYPE"
+      ]
+    },
+    "kv-f16-flash": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": "f16",
+        "OLLAMA_FLASH_ATTENTION": "true",
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": [
+        "OLLAMA_KV_CACHE_TYPE",
+        "OLLAMA_FLASH_ATTENTION"
+      ]
+    },
+    "models-path-set": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": null,
+        "OLLAMA_FLASH_ATTENTION": null,
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": true,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": [
+        "OLLAMA_MODELS"
+      ]
+    },
+    "models-path-other": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": null,
+        "OLLAMA_FLASH_ATTENTION": null,
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": true,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": [
+        "OLLAMA_MODELS"
+      ]
+    },
+    "empty-string-unsets": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": null,
+        "OLLAMA_FLASH_ATTENTION": null,
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": []
+    },
+    "advisory-only": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": null,
+        "OLLAMA_FLASH_ATTENTION": null,
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": "24h",
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": false
+      },
+      "declaredNonDefault": [
+        "OLLAMA_KEEP_ALIVE"
+      ]
+    }
+  },
+  "verdicts": {
+    "empty|empty": {
+      "verdict": "comparable",
+      "comparable": true,
+      "differences": 0
+    },
+    "empty|kv-q8": {
+      "verdict": "incomparable",
+      "comparable": false,
+      "differences": 1
+    },
+    "kv-q8|kv-f16-flash": {
+      "verdict": "incomparable",
+      "comparable": false,
+      "differences": 2
+    },
+    "models-path-set|models-path-other": {
+      "verdict": "comparable",
+      "comparable": true,
+      "differences": 0
+    },
+    "empty|advisory-only": {
+      "verdict": "advisory",
+      "comparable": true,
+      "differences": 1
+    },
+    "empty|empty-string-unsets": {
+      "verdict": "comparable",
+      "comparable": true,
+      "differences": 0
+    },
+    "null|empty": {
+      "verdict": "unknown",
+      "comparable": false,
+      "differences": 0
+    }
+  }
+}
