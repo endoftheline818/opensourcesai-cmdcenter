@@ -1,0 +1,934 @@
+{
+  "protocolVersion": "osai-bench/1.3",
+  "clientVersion": "0.11.0",
+  "scoringVersion": "osai-bench-derive/1.4",
+  "createdAt": "2026-08-07T02:43:51.548Z",
+  "qualityOverride": true,
+  "cohortEligible": false,
+  "qualityConditions": [
+    {
+      "code": "gpu-utilization",
+      "detected": true
+    },
+    {
+      "code": "different-model-loaded",
+      "detected": true
+    }
+  ],
+  "runtime": {
+    "name": "ollama",
+    "version": "0.32.6",
+    "endpoint": "loopback",
+    "layerAssignment": null,
+    "offloadPlacement": {
+      "source": "ollama.ps.size_vram",
+      "granularity": "bytes",
+      "residentBytes": 5020141485,
+      "vramResidentBytes": 5020141485,
+      "hostResidentBytes": 0,
+      "vramResidentFraction": 1
+    },
+    "kvCacheMetadata": {
+      "source": "ollama.show.model_info",
+      "architecture": "llama",
+      "blockCount": 32,
+      "kvHeadCount": 8,
+      "attentionHeadCount": 32,
+      "embeddingLength": 4096,
+      "headDimension": 128,
+      "resolvedElementType": null,
+      "projectedBytes": null,
+      "calculationAvailable": false,
+      "missingInputs": [
+        "resolvedKvCacheElementType"
+      ]
+    },
+    "environment": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": "q8_0",
+        "OLLAMA_FLASH_ATTENTION": "true",
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": true
+      },
+      "declaredNonDefault": [
+        "OLLAMA_KV_CACHE_TYPE",
+        "OLLAMA_FLASH_ATTENTION",
+        "OLLAMA_HOST"
+      ]
+    }
+  },
+  "model": {
+    "identifier": "llama3.1:8b",
+    "digest": "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+    "family": "llama",
+    "parameterSize": "8.0B",
+    "quantization": "Q4_K_M",
+    "weightsBytes": 4920753328,
+    "weightsSource": "ollama.tags.size"
+  },
+  "system": {
+    "cpu": {
+      "model": "Intel(R) Core(TM) i7-14700K"
+    },
+    "gpu": {
+      "present": true,
+      "model": "NVIDIA GeForce RTX 4070 Ti",
+      "totalVramBytes": 12878610432,
+      "freeVramBytesAtCheck": 8010072064,
+      "freeVramBytesAtLoad": 2954887168,
+      "utilizationPercentAtCheck": 37,
+      "driverVersion": "610.88",
+      "provider": "nvidia-smi"
+    },
+    "memory": {
+      "totalBytes": 34039717888
+    },
+    "os": {
+      "platform": "win32",
+      "version": "10.0.26200",
+      "architecture": "x64"
+    },
+    "power": {
+      "present": false,
+      "onBattery": false
+    }
+  },
+  "configuration": {
+    "memoryBandwidthGBps": 504,
+    "memoryBandwidthSource": "manufacturer-table",
+    "memoryBandwidthTableVersion": "osai-gpu-memory-bandwidth/2",
+    "memoryBandwidthEntryId": "nvidia-geforce-rtx-4070-ti-12gb",
+    "fixedOptions": {
+      "temperature": 0,
+      "seed": 42,
+      "stream": true
+    },
+    "workloads": {
+      "w1": {
+        "numPredict": 1,
+        "numCtx": 512,
+        "keepAlive": "5m",
+        "promptTokenRange": null,
+        "warmups": 0,
+        "repetitions": 1,
+        "varyPromptPerCall": false
+      },
+      "w2": {
+        "numPredict": 128,
+        "numCtx": 4096,
+        "keepAlive": "5m",
+        "promptTokenRange": {
+          "min": 20,
+          "max": 64
+        },
+        "warmups": 1,
+        "repetitions": 5,
+        "varyPromptPerCall": false
+      },
+      "w3": {
+        "numPredict": 1,
+        "numCtx": 4096,
+        "keepAlive": "5m",
+        "promptTokenRange": {
+          "min": 2000,
+          "max": 4095
+        },
+        "warmups": 1,
+        "repetitions": 5,
+        "varyPromptPerCall": true
+      },
+      "w4": {
+        "numPredict": 512,
+        "numCtx": 4096,
+        "keepAlive": "5m",
+        "promptTokenRange": {
+          "min": 20,
+          "max": 64
+        },
+        "warmups": 1,
+        "repetitions": 5,
+        "varyPromptPerCall": false
+      }
+    },
+    "resolved": {
+      "fixedOptions": {
+        "temperature": 0,
+        "seed": 42,
+        "stream": true
+      },
+      "workloads": {
+        "w1": {
+          "numPredict": 1,
+          "numCtx": 512,
+          "keepAlive": "5m"
+        },
+        "w2": {
+          "numPredict": 128,
+          "numCtx": 4096,
+          "keepAlive": "5m"
+        },
+        "w3": {
+          "numPredict": 1,
+          "numCtx": 4096,
+          "keepAlive": "5m"
+        },
+        "w4": {
+          "numPredict": 512,
+          "numCtx": 4096,
+          "keepAlive": "5m"
+        }
+      },
+      "runtimeModelParameters": "stop                           \"<|start_header_id|>\"\nstop                           \"<|end_header_id|>\"\nstop                           \"<|eot_id|>\"",
+      "unresolvedRuntimeDefaults": true
+    }
+  },
+  "rawMeasurements": {
+    "workloads": {
+      "w1": {
+        "warmup": null,
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2416845500,
+                  "load_duration": 2341132100,
+                  "prompt_eval_count": 15,
+                  "prompt_eval_duration": 72812000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 2417.1237999999994,
+                  "timeToFirstVisibleTokenMs": 2417.1237999999994
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2416845500,
+              "load_duration": 2341132100,
+              "prompt_eval_count": 15,
+              "prompt_eval_duration": 72812000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 2417.1237999999994,
+              "timeToFirstVisibleTokenMs": 2417.1237999999994
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          }
+        ],
+        "failed": false
+      },
+      "w2": {
+        "warmup": {
+          "total_duration": 5828777100,
+          "load_duration": 4110244000,
+          "prompt_eval_count": 45,
+          "prompt_eval_duration": 72944000,
+          "eval_count": 128,
+          "eval_duration": 1643427000,
+          "timeToFirstTokenMs": 4186.1687999999995,
+          "timeToFirstVisibleTokenMs": 4186.1687999999995
+        },
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 1886796900,
+                  "load_duration": 239132700,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 14276000,
+                  "eval_count": 128,
+                  "eval_duration": 1627014000,
+                  "timeToFirstTokenMs": 259.9843000000001,
+                  "timeToFirstVisibleTokenMs": 259.9843000000001
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 1886796900,
+              "load_duration": 239132700,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 14276000,
+              "eval_count": 128,
+              "eval_duration": 1627014000,
+              "timeToFirstTokenMs": 259.9843000000001,
+              "timeToFirstVisibleTokenMs": 259.9843000000001
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 2,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 1876809300,
+                  "load_duration": 241556300,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 14042000,
+                  "eval_count": 128,
+                  "eval_duration": 1613952000,
+                  "timeToFirstTokenMs": 262.8609000000015,
+                  "timeToFirstVisibleTokenMs": 262.8609000000015
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 1876809300,
+              "load_duration": 241556300,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 14042000,
+              "eval_count": 128,
+              "eval_duration": 1613952000,
+              "timeToFirstTokenMs": 262.8609000000015,
+              "timeToFirstVisibleTokenMs": 262.8609000000015
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 3,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 1881412100,
+                  "load_duration": 242278500,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 12905000,
+                  "eval_count": 128,
+                  "eval_duration": 1623965000,
+                  "timeToFirstTokenMs": 257.88280000000304,
+                  "timeToFirstVisibleTokenMs": 257.88280000000304
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 1881412100,
+              "load_duration": 242278500,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 12905000,
+              "eval_count": 128,
+              "eval_duration": 1623965000,
+              "timeToFirstTokenMs": 257.88280000000304,
+              "timeToFirstVisibleTokenMs": 257.88280000000304
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 4,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 1870071300,
+                  "load_duration": 240131400,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 13091000,
+                  "eval_count": 128,
+                  "eval_duration": 1614986000,
+                  "timeToFirstTokenMs": 255.15009999999893,
+                  "timeToFirstVisibleTokenMs": 255.15009999999893
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 1870071300,
+              "load_duration": 240131400,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 13091000,
+              "eval_count": 128,
+              "eval_duration": 1614986000,
+              "timeToFirstTokenMs": 255.15009999999893,
+              "timeToFirstVisibleTokenMs": 255.15009999999893
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 5,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2006003200,
+                  "load_duration": 240709900,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 13763000,
+                  "eval_count": 128,
+                  "eval_duration": 1748886000,
+                  "timeToFirstTokenMs": 257.5105000000003,
+                  "timeToFirstVisibleTokenMs": 257.5105000000003
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2006003200,
+              "load_duration": 240709900,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 13763000,
+              "eval_count": 128,
+              "eval_duration": 1748886000,
+              "timeToFirstTokenMs": 257.5105000000003,
+              "timeToFirstVisibleTokenMs": 257.5105000000003
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          }
+        ],
+        "failed": false
+      },
+      "w3": {
+        "warmup": {
+          "total_duration": 750060500,
+          "load_duration": 238510000,
+          "prompt_eval_count": 2664,
+          "prompt_eval_duration": 502735000,
+          "eval_count": 1,
+          "eval_duration": 1000,
+          "timeToFirstTokenMs": 750.5626999999986,
+          "timeToFirstVisibleTokenMs": 750.5626999999986
+        },
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 817215900,
+                  "load_duration": 240389900,
+                  "prompt_eval_count": 2664,
+                  "prompt_eval_duration": 516643000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 817.4686000000002,
+                  "timeToFirstVisibleTokenMs": 817.4686000000002
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 817215900,
+              "load_duration": 240389900,
+              "prompt_eval_count": 2664,
+              "prompt_eval_duration": 516643000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 817.4686000000002,
+              "timeToFirstVisibleTokenMs": 817.4686000000002
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 2,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 832220800,
+                  "load_duration": 243341700,
+                  "prompt_eval_count": 2664,
+                  "prompt_eval_duration": 505194000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 832.6563999999998,
+                  "timeToFirstVisibleTokenMs": 832.6563999999998
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 832220800,
+              "load_duration": 243341700,
+              "prompt_eval_count": 2664,
+              "prompt_eval_duration": 505194000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 832.6563999999998,
+              "timeToFirstVisibleTokenMs": 832.6563999999998
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 3,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 872131000,
+                  "load_duration": 243656900,
+                  "prompt_eval_count": 2664,
+                  "prompt_eval_duration": 534191000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 872.3424999999988,
+                  "timeToFirstVisibleTokenMs": 872.3424999999988
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 872131000,
+              "load_duration": 243656900,
+              "prompt_eval_count": 2664,
+              "prompt_eval_duration": 534191000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 872.3424999999988,
+              "timeToFirstVisibleTokenMs": 872.3424999999988
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 4,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 826452600,
+                  "load_duration": 243725200,
+                  "prompt_eval_count": 2664,
+                  "prompt_eval_duration": 497851000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 826.6683999999987,
+                  "timeToFirstVisibleTokenMs": 826.6683999999987
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 826452600,
+              "load_duration": 243725200,
+              "prompt_eval_count": 2664,
+              "prompt_eval_duration": 497851000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 826.6683999999987,
+              "timeToFirstVisibleTokenMs": 826.6683999999987
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 5,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 862181900,
+                  "load_duration": 239064000,
+                  "prompt_eval_count": 2664,
+                  "prompt_eval_duration": 537729000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 862.6157999999996,
+                  "timeToFirstVisibleTokenMs": 862.6157999999996
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 862181900,
+              "load_duration": 239064000,
+              "prompt_eval_count": 2664,
+              "prompt_eval_duration": 537729000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 862.6157999999996,
+              "timeToFirstVisibleTokenMs": 862.6157999999996
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          }
+        ],
+        "failed": false
+      },
+      "w4": {
+        "warmup": {
+          "total_duration": 7268797500,
+          "load_duration": 243983700,
+          "prompt_eval_count": 45,
+          "prompt_eval_duration": 16021000,
+          "eval_count": 512,
+          "eval_duration": 6938494000,
+          "timeToFirstTokenMs": 330.7531000000017,
+          "timeToFirstVisibleTokenMs": 330.7531000000017
+        },
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 7047211600,
+                  "load_duration": 247818800,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 16015000,
+                  "eval_count": 512,
+                  "eval_duration": 6766997000,
+                  "timeToFirstTokenMs": 280.45990000000165,
+                  "timeToFirstVisibleTokenMs": 280.45990000000165
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 7047211600,
+              "load_duration": 247818800,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 16015000,
+              "eval_count": 512,
+              "eval_duration": 6766997000,
+              "timeToFirstTokenMs": 280.45990000000165,
+              "timeToFirstVisibleTokenMs": 280.45990000000165
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 2,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 6950010800,
+                  "load_duration": 239122700,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 15820000,
+                  "eval_count": 512,
+                  "eval_duration": 6693069000,
+                  "timeToFirstTokenMs": 257.1244000000006,
+                  "timeToFirstVisibleTokenMs": 257.1244000000006
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 6950010800,
+              "load_duration": 239122700,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 15820000,
+              "eval_count": 512,
+              "eval_duration": 6693069000,
+              "timeToFirstTokenMs": 257.1244000000006,
+              "timeToFirstVisibleTokenMs": 257.1244000000006
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 3,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 6970678200,
+                  "load_duration": 242377000,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 15606000,
+                  "eval_count": 512,
+                  "eval_duration": 6710914000,
+                  "timeToFirstTokenMs": 259.909900000006,
+                  "timeToFirstVisibleTokenMs": 259.909900000006
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 6970678200,
+              "load_duration": 242377000,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 15606000,
+              "eval_count": 512,
+              "eval_duration": 6710914000,
+              "timeToFirstTokenMs": 259.909900000006,
+              "timeToFirstVisibleTokenMs": 259.909900000006
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 4,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 6980644500,
+                  "load_duration": 237641200,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 16465000,
+                  "eval_count": 512,
+                  "eval_duration": 6724505000,
+                  "timeToFirstTokenMs": 256.3281000000061,
+                  "timeToFirstVisibleTokenMs": 256.3281000000061
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 6980644500,
+              "load_duration": 237641200,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 16465000,
+              "eval_count": 512,
+              "eval_duration": 6724505000,
+              "timeToFirstTokenMs": 256.3281000000061,
+              "timeToFirstVisibleTokenMs": 256.3281000000061
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 5,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 6988128700,
+                  "load_duration": 238776100,
+                  "prompt_eval_count": 45,
+                  "prompt_eval_duration": 16265000,
+                  "eval_count": 512,
+                  "eval_duration": 6730699000,
+                  "timeToFirstTokenMs": 257.67119999999704,
+                  "timeToFirstVisibleTokenMs": 257.67119999999704
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 6988128700,
+              "load_duration": 238776100,
+              "prompt_eval_count": 45,
+              "prompt_eval_duration": 16265000,
+              "eval_count": 512,
+              "eval_duration": 6730699000,
+              "timeToFirstTokenMs": 257.67119999999704,
+              "timeToFirstVisibleTokenMs": 257.67119999999704
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          }
+        ],
+        "failed": false
+      }
+    }
+  },
+  "derived": {
+    "generationTokensPerSecond": {
+      "median": 76.1394333114482,
+      "coefficientOfVariation": 0.004074461446220497,
+      "samples": 5
+    },
+    "prefillTokensPerSecond": {
+      "median": 5156.365227052336,
+      "coefficientOfVariation": 0.03372371057447188,
+      "samples": 5
+    },
+    "timeToFirstTokenMs": {
+      "median": 257.88280000000304,
+      "coefficientOfVariation": 0.011211619186003352,
+      "samples": 5,
+      "reasoningWithheldPasses": 0
+    },
+    "timeToFirstVisibleTokenMs": {
+      "median": 257.67119999999704,
+      "coefficientOfVariation": 0.03903668546152403,
+      "samples": 5
+    },
+    "coldLoad": {
+      "seconds": 2.3411321,
+      "samples": 1
+    },
+    "passFailureRate": {
+      "failedMeasuredPasses": 0,
+      "totalMeasuredPasses": 16,
+      "percent": 0
+    },
+    "attemptFailureRate": {
+      "failedAttempts": 0,
+      "totalAttempts": 16,
+      "percent": 0
+    },
+    "roofline": {
+      "modelWeightsGB": 4.920753328,
+      "memoryBandwidthGBps": 504,
+      "theoreticalMaxTokensPerSecond": 102.42334179446598,
+      "utilization": 0.7433797021018707
+    },
+    "diagnostics": [
+      {
+        "id": "partial-cpu-offload",
+        "status": "not-detected",
+        "message": "The whole resident footprint is on one side; no split between VRAM and host memory",
+        "evidence": {
+          "source": "ollama.ps.size_vram",
+          "granularity": "bytes",
+          "residentBytes": 5020141485,
+          "vramResidentBytes": 5020141485,
+          "hostResidentBytes": 0,
+          "vramResidentFraction": 1
+        }
+      },
+      {
+        "id": "context-vram-headroom",
+        "status": "unavailable",
+        "message": "Ollama /api/show does not expose the resolved KV-cache element type actually in use, so v1.1 does not calculate or threshold projected KV-cache VRAM",
+        "evidence": {
+          "configuredContext": 4096,
+          "availableArchitectureMetadata": {
+            "source": "ollama.show.model_info",
+            "architecture": "llama",
+            "blockCount": 32,
+            "kvHeadCount": 8,
+            "attentionHeadCount": 32,
+            "embeddingLength": 4096,
+            "headDimension": 128,
+            "resolvedElementType": null,
+            "projectedBytes": null,
+            "calculationAvailable": false,
+            "missingInputs": [
+              "resolvedKvCacheElementType"
+            ]
+          },
+          "missingInput": "resolvedKvCacheElementType"
+        }
+      },
+      {
+        "id": "cpu-only-with-gpu",
+        "status": "not-detected",
+        "message": "100% of the model's resident bytes are in VRAM",
+        "evidence": {
+          "source": "ollama.ps.size_vram",
+          "granularity": "bytes",
+          "residentBytes": 5020141485,
+          "vramResidentBytes": 5020141485,
+          "hostResidentBytes": 0,
+          "vramResidentFraction": 1,
+          "gpuModel": "NVIDIA GeForce RTX 4070 Ti"
+        }
+      },
+      {
+        "id": "weights-exceed-vram",
+        "status": "not-detected",
+        "message": "Quantized on-disk model weight size does not exceed total VRAM",
+        "evidence": {
+          "weightsBytes": 4920753328,
+          "totalVramBytes": 12878610432
+        }
+      }
+    ]
+  }
+}

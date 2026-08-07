@@ -1,0 +1,1570 @@
+{
+  "protocolVersion": "osai-bench/1.3",
+  "clientVersion": "0.11.0",
+  "scoringVersion": "osai-bench-derive/1.4",
+  "createdAt": "2026-08-07T02:41:47.321Z",
+  "qualityOverride": true,
+  "cohortEligible": false,
+  "qualityConditions": [
+    {
+      "code": "gpu-utilization",
+      "detected": true
+    }
+  ],
+  "runtime": {
+    "name": "ollama",
+    "version": "0.32.6",
+    "endpoint": "loopback",
+    "layerAssignment": null,
+    "offloadPlacement": {
+      "source": "ollama.ps.size_vram",
+      "granularity": "bytes",
+      "residentBytes": 1111291329,
+      "vramResidentBytes": 1111291329,
+      "hostResidentBytes": 0,
+      "vramResidentFraction": 1
+    },
+    "kvCacheMetadata": {
+      "source": "ollama.show.model_info",
+      "architecture": "qwen2",
+      "blockCount": 28,
+      "kvHeadCount": 2,
+      "attentionHeadCount": 12,
+      "embeddingLength": 1536,
+      "headDimension": 128,
+      "resolvedElementType": null,
+      "projectedBytes": null,
+      "calculationAvailable": false,
+      "missingInputs": [
+        "resolvedKvCacheElementType"
+      ]
+    },
+    "environment": {
+      "source": "client-process-env",
+      "authoritative": false,
+      "note": "Read from the benchmark client's own process environment. The Ollama server may have been started with a different environment; Ollama exposes no endpoint reporting its resolved configuration.",
+      "declared": {
+        "OLLAMA_KV_CACHE_TYPE": "q8_0",
+        "OLLAMA_FLASH_ATTENTION": "true",
+        "OLLAMA_CONTEXT_LENGTH": null,
+        "OLLAMA_NUM_PARALLEL": null,
+        "OLLAMA_GPU_OVERHEAD": null,
+        "OLLAMA_SCHED_SPREAD": null,
+        "OLLAMA_LLM_LIBRARY": null,
+        "LLAMA_ARG_FIT": null,
+        "LLAMA_ARG_FIT_TARGET": null,
+        "OLLAMA_MAX_LOADED_MODELS": null,
+        "OLLAMA_KEEP_ALIVE": null,
+        "OLLAMA_DEBUG": null,
+        "OLLAMA_MODELS": false,
+        "OLLAMA_HOST": true
+      },
+      "declaredNonDefault": [
+        "OLLAMA_KV_CACHE_TYPE",
+        "OLLAMA_FLASH_ATTENTION",
+        "OLLAMA_HOST"
+      ]
+    }
+  },
+  "model": {
+    "identifier": "qwen2.5-coder:1.5b",
+    "digest": "d7372fd828518a4d38b1eb196c673c31a85f2ed302b3d1e406c4c2d1b64a0668",
+    "family": "qwen2",
+    "parameterSize": "1.5B",
+    "quantization": "Q4_K_M",
+    "weightsBytes": 986062089,
+    "weightsSource": "ollama.tags.size"
+  },
+  "system": {
+    "cpu": {
+      "model": "Intel(R) Core(TM) i7-14700K"
+    },
+    "gpu": {
+      "present": true,
+      "model": "NVIDIA GeForce RTX 4070 Ti",
+      "totalVramBytes": 12878610432,
+      "freeVramBytesAtCheck": 9610199040,
+      "freeVramBytesAtLoad": 8331984896,
+      "utilizationPercentAtCheck": 37,
+      "driverVersion": "610.88",
+      "provider": "nvidia-smi"
+    },
+    "memory": {
+      "totalBytes": 34039717888
+    },
+    "os": {
+      "platform": "win32",
+      "version": "10.0.26200",
+      "architecture": "x64"
+    },
+    "power": {
+      "present": false,
+      "onBattery": false
+    }
+  },
+  "configuration": {
+    "memoryBandwidthGBps": 504,
+    "memoryBandwidthSource": "manufacturer-table",
+    "memoryBandwidthTableVersion": "osai-gpu-memory-bandwidth/2",
+    "memoryBandwidthEntryId": "nvidia-geforce-rtx-4070-ti-12gb",
+    "fixedOptions": {
+      "temperature": 0,
+      "seed": 42,
+      "stream": true
+    },
+    "workloads": {
+      "w1": {
+        "numPredict": 1,
+        "numCtx": 512,
+        "keepAlive": "5m",
+        "promptTokenRange": null,
+        "warmups": 0,
+        "repetitions": 1,
+        "varyPromptPerCall": false
+      },
+      "w2": {
+        "numPredict": 128,
+        "numCtx": 4096,
+        "keepAlive": "5m",
+        "promptTokenRange": {
+          "min": 20,
+          "max": 64
+        },
+        "warmups": 1,
+        "repetitions": 5,
+        "varyPromptPerCall": false
+      },
+      "w3": {
+        "numPredict": 1,
+        "numCtx": 4096,
+        "keepAlive": "5m",
+        "promptTokenRange": {
+          "min": 2000,
+          "max": 4095
+        },
+        "warmups": 1,
+        "repetitions": 5,
+        "varyPromptPerCall": true
+      },
+      "w4": {
+        "numPredict": 512,
+        "numCtx": 4096,
+        "keepAlive": "5m",
+        "promptTokenRange": {
+          "min": 20,
+          "max": 64
+        },
+        "warmups": 1,
+        "repetitions": 5,
+        "varyPromptPerCall": false
+      }
+    },
+    "resolved": {
+      "fixedOptions": {
+        "temperature": 0,
+        "seed": 42,
+        "stream": true
+      },
+      "workloads": {
+        "w1": {
+          "numPredict": 1,
+          "numCtx": 512,
+          "keepAlive": "5m"
+        },
+        "w2": {
+          "numPredict": 128,
+          "numCtx": 4096,
+          "keepAlive": "5m"
+        },
+        "w3": {
+          "numPredict": 1,
+          "numCtx": 4096,
+          "keepAlive": "5m"
+        },
+        "w4": {
+          "numPredict": 512,
+          "numCtx": 4096,
+          "keepAlive": "5m"
+        }
+      },
+      "runtimeModelParameters": null,
+      "unresolvedRuntimeDefaults": true
+    }
+  },
+  "rawMeasurements": {
+    "workloads": {
+      "w1": {
+        "warmup": null,
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2392568200,
+                  "load_duration": 2324692600,
+                  "prompt_eval_count": 34,
+                  "prompt_eval_duration": 64831000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 2392.8579000000027,
+                  "timeToFirstVisibleTokenMs": 2392.8579000000027
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2392568200,
+              "load_duration": 2324692600,
+              "prompt_eval_count": 34,
+              "prompt_eval_duration": 64831000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 2392.8579000000027,
+              "timeToFirstVisibleTokenMs": 2392.8579000000027
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          }
+        ],
+        "failed": false
+      },
+      "w2": {
+        "warmup": {
+          "total_duration": 3898141300,
+          "load_duration": 3272512400,
+          "prompt_eval_count": 68,
+          "prompt_eval_duration": 67465000,
+          "eval_count": 128,
+          "eval_duration": 555505000,
+          "timeToFirstTokenMs": 3343.3715999999986,
+          "timeToFirstVisibleTokenMs": 3343.3715999999986
+        },
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 737595800,
+                  "load_duration": 195303700,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4657000,
+                  "eval_count": 128,
+                  "eval_duration": 533340000,
+                  "timeToFirstTokenMs": 204.77850000000035,
+                  "timeToFirstVisibleTokenMs": 204.77850000000035
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 732763100,
+                  "load_duration": 194373300,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4714000,
+                  "eval_count": 128,
+                  "eval_duration": 530124000,
+                  "timeToFirstTokenMs": 203.31299999999464,
+                  "timeToFirstVisibleTokenMs": 203.31299999999464
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 743860700,
+                  "load_duration": 194304100,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4797000,
+                  "eval_count": 128,
+                  "eval_duration": 542710000,
+                  "timeToFirstTokenMs": 201.4412999999986,
+                  "timeToFirstVisibleTokenMs": 201.4412999999986
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 743860700,
+              "load_duration": 194304100,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 4797000,
+              "eval_count": 128,
+              "eval_duration": 542710000,
+              "timeToFirstTokenMs": 201.4412999999986,
+              "timeToFirstVisibleTokenMs": 201.4412999999986
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 2,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 739808400,
+                  "load_duration": 194303200,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 5061000,
+                  "eval_count": 128,
+                  "eval_duration": 537602000,
+                  "timeToFirstTokenMs": 202.75569999999425,
+                  "timeToFirstVisibleTokenMs": 202.75569999999425
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 732520000,
+                  "load_duration": 196451000,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4822000,
+                  "eval_count": 128,
+                  "eval_duration": 529145000,
+                  "timeToFirstTokenMs": 203.73619999999937,
+                  "timeToFirstVisibleTokenMs": 203.73619999999937
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 733987500,
+                  "load_duration": 194561800,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4944000,
+                  "eval_count": 128,
+                  "eval_duration": 531527000,
+                  "timeToFirstTokenMs": 202.68159999999625,
+                  "timeToFirstVisibleTokenMs": 202.68159999999625
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 733987500,
+              "load_duration": 194561800,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 4944000,
+              "eval_count": 128,
+              "eval_duration": 531527000,
+              "timeToFirstTokenMs": 202.68159999999625,
+              "timeToFirstVisibleTokenMs": 202.68159999999625
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 3,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 739511800,
+                  "load_duration": 197842000,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 5304000,
+                  "eval_count": 128,
+                  "eval_duration": 533837999,
+                  "timeToFirstTokenMs": 205.95870000000286,
+                  "timeToFirstVisibleTokenMs": 205.95870000000286
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 734331800,
+                  "load_duration": 193113500,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4710000,
+                  "eval_count": 128,
+                  "eval_duration": 534009000,
+                  "timeToFirstTokenMs": 200.71779999999853,
+                  "timeToFirstVisibleTokenMs": 200.71779999999853
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 748040800,
+                  "load_duration": 195028800,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4936000,
+                  "eval_count": 128,
+                  "eval_duration": 545343000,
+                  "timeToFirstTokenMs": 202.95620000000054,
+                  "timeToFirstVisibleTokenMs": 202.95620000000054
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 748040800,
+              "load_duration": 195028800,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 4936000,
+              "eval_count": 128,
+              "eval_duration": 545343000,
+              "timeToFirstTokenMs": 202.95620000000054,
+              "timeToFirstVisibleTokenMs": 202.95620000000054
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 4,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 740774000,
+                  "load_duration": 196776700,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4335000,
+                  "eval_count": 128,
+                  "eval_duration": 537091000,
+                  "timeToFirstTokenMs": 203.9207000000024,
+                  "timeToFirstVisibleTokenMs": 203.9207000000024
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 748856900,
+                  "load_duration": 193894600,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4800000,
+                  "eval_count": 128,
+                  "eval_duration": 547605000,
+                  "timeToFirstTokenMs": 201.58060000000114,
+                  "timeToFirstVisibleTokenMs": 201.58060000000114
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 743100200,
+                  "load_duration": 195488800,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4858000,
+                  "eval_count": 128,
+                  "eval_duration": 540136000,
+                  "timeToFirstTokenMs": 203.61620000000403,
+                  "timeToFirstVisibleTokenMs": 203.61620000000403
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 743100200,
+              "load_duration": 195488800,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 4858000,
+              "eval_count": 128,
+              "eval_duration": 540136000,
+              "timeToFirstTokenMs": 203.61620000000403,
+              "timeToFirstVisibleTokenMs": 203.61620000000403
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 5,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 736171000,
+                  "load_duration": 198374900,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4723000,
+                  "eval_count": 128,
+                  "eval_duration": 531780000,
+                  "timeToFirstTokenMs": 205.17029999999795,
+                  "timeToFirstVisibleTokenMs": 205.17029999999795
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 747016200,
+                  "load_duration": 194094500,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4762000,
+                  "eval_count": 128,
+                  "eval_duration": 546383000,
+                  "timeToFirstTokenMs": 200.9285000000018,
+                  "timeToFirstVisibleTokenMs": 200.9285000000018
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 748167700,
+                  "load_duration": 194944500,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 4931000,
+                  "eval_count": 128,
+                  "eval_duration": 545656000,
+                  "timeToFirstTokenMs": 202.6432999999961,
+                  "timeToFirstVisibleTokenMs": 202.6432999999961
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 748167700,
+              "load_duration": 194944500,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 4931000,
+              "eval_count": 128,
+              "eval_duration": 545656000,
+              "timeToFirstTokenMs": 202.6432999999961,
+              "timeToFirstVisibleTokenMs": 202.6432999999961
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          }
+        ],
+        "failed": true
+      },
+      "w3": {
+        "warmup": {
+          "total_duration": 366301700,
+          "load_duration": 194178300,
+          "prompt_eval_count": 2815,
+          "prompt_eval_duration": 155208000,
+          "eval_count": 1,
+          "eval_duration": 1000,
+          "timeToFirstTokenMs": 366.37280000000464,
+          "timeToFirstVisibleTokenMs": 366.37280000000464
+        },
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 375947000,
+                  "load_duration": 195525000,
+                  "prompt_eval_count": 2815,
+                  "prompt_eval_duration": 151674000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 376.2381999999998,
+                  "timeToFirstVisibleTokenMs": 376.2381999999998
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 375947000,
+              "load_duration": 195525000,
+              "prompt_eval_count": 2815,
+              "prompt_eval_duration": 151674000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 376.2381999999998,
+              "timeToFirstVisibleTokenMs": 376.2381999999998
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 2,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 395244500,
+                  "load_duration": 196108400,
+                  "prompt_eval_count": 2815,
+                  "prompt_eval_duration": 168721000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 395.64600000000064,
+                  "timeToFirstVisibleTokenMs": 395.64600000000064
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 395244500,
+              "load_duration": 196108400,
+              "prompt_eval_count": 2815,
+              "prompt_eval_duration": 168721000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 395.64600000000064,
+              "timeToFirstVisibleTokenMs": 395.64600000000064
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 3,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 378679500,
+                  "load_duration": 196100500,
+                  "prompt_eval_count": 2815,
+                  "prompt_eval_duration": 154405000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 378.61739999999554,
+                  "timeToFirstVisibleTokenMs": 378.61739999999554
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 378679500,
+              "load_duration": 196100500,
+              "prompt_eval_count": 2815,
+              "prompt_eval_duration": 154405000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 378.61739999999554,
+              "timeToFirstVisibleTokenMs": 378.61739999999554
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 4,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 393930000,
+                  "load_duration": 195479300,
+                  "prompt_eval_count": 2815,
+                  "prompt_eval_duration": 170284000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 394.1405999999988,
+                  "timeToFirstVisibleTokenMs": 394.1405999999988
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 393930000,
+              "load_duration": 195479300,
+              "prompt_eval_count": 2815,
+              "prompt_eval_duration": 170284000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 394.1405999999988,
+              "timeToFirstVisibleTokenMs": 394.1405999999988
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          },
+          {
+            "index": 5,
+            "valid": true,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 374042200,
+                  "load_duration": 194800500,
+                  "prompt_eval_count": 2815,
+                  "prompt_eval_duration": 151225000,
+                  "eval_count": 1,
+                  "eval_duration": 1000,
+                  "timeToFirstTokenMs": 374.37660000000324,
+                  "timeToFirstVisibleTokenMs": 374.37660000000324
+                },
+                "validity": {
+                  "valid": true,
+                  "reasons": []
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 374042200,
+              "load_duration": 194800500,
+              "prompt_eval_count": 2815,
+              "prompt_eval_duration": 151225000,
+              "eval_count": 1,
+              "eval_duration": 1000,
+              "timeToFirstTokenMs": 374.37660000000324,
+              "timeToFirstVisibleTokenMs": 374.37660000000324
+            },
+            "validity": {
+              "valid": true,
+              "reasons": []
+            }
+          }
+        ],
+        "failed": false
+      },
+      "w4": {
+        "warmup": {
+          "total_duration": 2387536500,
+          "load_duration": 197267400,
+          "prompt_eval_count": 68,
+          "prompt_eval_duration": 7221000,
+          "eval_count": 512,
+          "eval_duration": 2166887000,
+          "timeToFirstTokenMs": 220.66359999999986,
+          "timeToFirstVisibleTokenMs": 220.66359999999986
+        },
+        "measuredPasses": [
+          {
+            "index": 1,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2399553600,
+                  "load_duration": 199504300,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7078000,
+                  "eval_count": 512,
+                  "eval_duration": 2187214000,
+                  "timeToFirstTokenMs": 212.63610000000335,
+                  "timeToFirstVisibleTokenMs": 212.63610000000335
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2389300900,
+                  "load_duration": 197954100,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7435000,
+                  "eval_count": 512,
+                  "eval_duration": 2181280000,
+                  "timeToFirstTokenMs": 208.63999999999942,
+                  "timeToFirstVisibleTokenMs": 208.63999999999942
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2369658100,
+                  "load_duration": 194640900,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7427000,
+                  "eval_count": 512,
+                  "eval_duration": 2164941000,
+                  "timeToFirstTokenMs": 204.7491000000009,
+                  "timeToFirstVisibleTokenMs": 204.7491000000009
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2369658100,
+              "load_duration": 194640900,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 7427000,
+              "eval_count": 512,
+              "eval_duration": 2164941000,
+              "timeToFirstTokenMs": 204.7491000000009,
+              "timeToFirstVisibleTokenMs": 204.7491000000009
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 2,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2393871500,
+                  "load_duration": 197713400,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 8255000,
+                  "eval_count": 512,
+                  "eval_duration": 2185555000,
+                  "timeToFirstTokenMs": 208.41619999999966,
+                  "timeToFirstVisibleTokenMs": 208.41619999999966
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2356216800,
+                  "load_duration": 198480500,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7609000,
+                  "eval_count": 512,
+                  "eval_duration": 2147995000,
+                  "timeToFirstTokenMs": 208.7118000000046,
+                  "timeToFirstVisibleTokenMs": 208.7118000000046
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2351952100,
+                  "load_duration": 194031700,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7853000,
+                  "eval_count": 512,
+                  "eval_duration": 2147268999,
+                  "timeToFirstTokenMs": 205.21250000000873,
+                  "timeToFirstVisibleTokenMs": 205.21250000000873
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2351952100,
+              "load_duration": 194031700,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 7853000,
+              "eval_count": 512,
+              "eval_duration": 2147268999,
+              "timeToFirstTokenMs": 205.21250000000873,
+              "timeToFirstVisibleTokenMs": 205.21250000000873
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 3,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2360791000,
+                  "load_duration": 194352200,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7690000,
+                  "eval_count": 512,
+                  "eval_duration": 2156406000,
+                  "timeToFirstTokenMs": 204.51429999999527,
+                  "timeToFirstVisibleTokenMs": 204.51429999999527
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2360979400,
+                  "load_duration": 196972900,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7229000,
+                  "eval_count": 512,
+                  "eval_duration": 2154475000,
+                  "timeToFirstTokenMs": 206.52680000000692,
+                  "timeToFirstVisibleTokenMs": 206.52680000000692
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2369721700,
+                  "load_duration": 196400100,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7284000,
+                  "eval_count": 512,
+                  "eval_duration": 2163817000,
+                  "timeToFirstTokenMs": 205.9825000000128,
+                  "timeToFirstVisibleTokenMs": 205.9825000000128
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2369721700,
+              "load_duration": 196400100,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 7284000,
+              "eval_count": 512,
+              "eval_duration": 2163817000,
+              "timeToFirstTokenMs": 205.9825000000128,
+              "timeToFirstVisibleTokenMs": 205.9825000000128
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 4,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2377811000,
+                  "load_duration": 206635000,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 8936000,
+                  "eval_count": 512,
+                  "eval_duration": 2160322000,
+                  "timeToFirstTokenMs": 218.07140000000072,
+                  "timeToFirstVisibleTokenMs": 218.07140000000072
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2359241600,
+                  "load_duration": 198319100,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7539000,
+                  "eval_count": 512,
+                  "eval_duration": 2151076000,
+                  "timeToFirstTokenMs": 208.50879999999597,
+                  "timeToFirstVisibleTokenMs": 208.50879999999597
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2456054900,
+                  "load_duration": 202779500,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7581000,
+                  "eval_count": 512,
+                  "eval_duration": 2242903000,
+                  "timeToFirstTokenMs": 213.59949999999662,
+                  "timeToFirstVisibleTokenMs": 213.59949999999662
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2456054900,
+              "load_duration": 202779500,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 7581000,
+              "eval_count": 512,
+              "eval_duration": 2242903000,
+              "timeToFirstTokenMs": 213.59949999999662,
+              "timeToFirstVisibleTokenMs": 213.59949999999662
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          },
+          {
+            "index": 5,
+            "valid": false,
+            "attempts": [
+              {
+                "measurement": {
+                  "total_duration": 2381758000,
+                  "load_duration": 194820300,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7330000,
+                  "eval_count": 512,
+                  "eval_duration": 2176621000,
+                  "timeToFirstTokenMs": 205.24169999999867,
+                  "timeToFirstVisibleTokenMs": 205.24169999999867
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2373309900,
+                  "load_duration": 196783400,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7289000,
+                  "eval_count": 512,
+                  "eval_duration": 2166879000,
+                  "timeToFirstTokenMs": 206.53919999999925,
+                  "timeToFirstVisibleTokenMs": 206.53919999999925
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              },
+              {
+                "measurement": {
+                  "total_duration": 2376782200,
+                  "load_duration": 197476900,
+                  "prompt_eval_count": 68,
+                  "prompt_eval_duration": 7418000,
+                  "eval_count": 512,
+                  "eval_duration": 2169720000,
+                  "timeToFirstTokenMs": 207.5500999999931,
+                  "timeToFirstVisibleTokenMs": 207.5500999999931
+                },
+                "validity": {
+                  "valid": false,
+                  "reasons": [
+                    {
+                      "code": "prompt-count-out-of-range",
+                      "expectedMin": 20,
+                      "expectedMax": 64,
+                      "actual": 68,
+                      "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                    }
+                  ]
+                }
+              }
+            ],
+            "measurement": {
+              "total_duration": 2376782200,
+              "load_duration": 197476900,
+              "prompt_eval_count": 68,
+              "prompt_eval_duration": 7418000,
+              "eval_count": 512,
+              "eval_duration": 2169720000,
+              "timeToFirstTokenMs": 207.5500999999931,
+              "timeToFirstVisibleTokenMs": 207.5500999999931
+            },
+            "validity": {
+              "valid": false,
+              "reasons": [
+                {
+                  "code": "prompt-count-out-of-range",
+                  "expectedMin": 20,
+                  "expectedMax": 64,
+                  "actual": 68,
+                  "message": "prompt_eval_count must fall between 20 and 64 tokens"
+                }
+              ]
+            }
+          }
+        ],
+        "failed": true
+      }
+    }
+  },
+  "derived": {
+    "generationTokensPerSecond": {
+      "median": null,
+      "coefficientOfVariation": null,
+      "samples": 0
+    },
+    "prefillTokensPerSecond": {
+      "median": 18231.274893947735,
+      "coefficientOfVariation": 0.05817244496717306,
+      "samples": 5
+    },
+    "timeToFirstTokenMs": {
+      "median": null,
+      "coefficientOfVariation": null,
+      "samples": 0,
+      "reasoningWithheldPasses": 0
+    },
+    "timeToFirstVisibleTokenMs": {
+      "median": null,
+      "coefficientOfVariation": null,
+      "samples": 0
+    },
+    "coldLoad": {
+      "seconds": 2.3246926,
+      "samples": 1
+    },
+    "passFailureRate": {
+      "failedMeasuredPasses": 10,
+      "totalMeasuredPasses": 16,
+      "percent": 62.5
+    },
+    "attemptFailureRate": {
+      "failedAttempts": 30,
+      "totalAttempts": 36,
+      "percent": 83.33333333333334
+    },
+    "roofline": {
+      "modelWeightsGB": 0.986062089,
+      "memoryBandwidthGBps": 504,
+      "theoreticalMaxTokensPerSecond": 511.1240008335824,
+      "utilization": null
+    },
+    "diagnostics": [
+      {
+        "id": "partial-cpu-offload",
+        "status": "not-detected",
+        "message": "The whole resident footprint is on one side; no split between VRAM and host memory",
+        "evidence": {
+          "source": "ollama.ps.size_vram",
+          "granularity": "bytes",
+          "residentBytes": 1111291329,
+          "vramResidentBytes": 1111291329,
+          "hostResidentBytes": 0,
+          "vramResidentFraction": 1
+        }
+      },
+      {
+        "id": "context-vram-headroom",
+        "status": "unavailable",
+        "message": "Ollama /api/show does not expose the resolved KV-cache element type actually in use, so v1.1 does not calculate or threshold projected KV-cache VRAM",
+        "evidence": {
+          "configuredContext": 4096,
+          "availableArchitectureMetadata": {
+            "source": "ollama.show.model_info",
+            "architecture": "qwen2",
+            "blockCount": 28,
+            "kvHeadCount": 2,
+            "attentionHeadCount": 12,
+            "embeddingLength": 1536,
+            "headDimension": 128,
+            "resolvedElementType": null,
+            "projectedBytes": null,
+            "calculationAvailable": false,
+            "missingInputs": [
+              "resolvedKvCacheElementType"
+            ]
+          },
+          "missingInput": "resolvedKvCacheElementType"
+        }
+      },
+      {
+        "id": "cpu-only-with-gpu",
+        "status": "not-detected",
+        "message": "100% of the model's resident bytes are in VRAM",
+        "evidence": {
+          "source": "ollama.ps.size_vram",
+          "granularity": "bytes",
+          "residentBytes": 1111291329,
+          "vramResidentBytes": 1111291329,
+          "hostResidentBytes": 0,
+          "vramResidentFraction": 1,
+          "gpuModel": "NVIDIA GeForce RTX 4070 Ti"
+        }
+      },
+      {
+        "id": "weights-exceed-vram",
+        "status": "not-detected",
+        "message": "Quantized on-disk model weight size does not exceed total VRAM",
+        "evidence": {
+          "weightsBytes": 986062089,
+          "totalVramBytes": 12878610432
+        }
+      }
+    ]
+  }
+}

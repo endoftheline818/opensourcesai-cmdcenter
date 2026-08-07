@@ -62,9 +62,14 @@ Each is a trust property, not a preference, and each is enforced by a test in
     cannot run inference. `keep_alive` comes from a fixed internal set, never
     from the caller, and the model name must exactly match one Ollama reports
     as installed.
-  - `POST` is allowed only for paths in `ACTION_PATHS` (an exact-match
-    allowlist), always requires the session token even where assets do not, and
-    is subject to the same Host and Origin checks.
+  - `POST` is allowed only for paths in `ACTION_PATHS` plus `INSPECT_PATHS`
+    (both exact-match allowlists), always requires the session token even where
+    assets do not, and is subject to the same Host and Origin checks. The
+    inspect paths mutate **nothing** — they exist because a bench-result file's
+    content must reach the pure derive layer for validation and a GET cannot
+    carry a file; they are kept in a separate set precisely so "the complete
+    set of mutating paths" stays a true two-member sentence. Mirror tests force
+    both allowlists to agree with the dispatcher.
 
   > **Phase 1 was absolutely read-only** — the server refused every non-GET verb
   > before routing. That guarantee was replaced deliberately in Phase 2, not

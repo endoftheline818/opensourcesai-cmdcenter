@@ -62,7 +62,7 @@ Opened deliberately as a product decision. **Widening it is a maintainer decisio
   - Exactly one Ollama endpoint is called — `/api/generate` — with an **always-empty prompt**, so the action layer *structurally cannot run inference*.
   - `keep_alive` comes from a fixed internal set, never the caller.
   - The model name must match Ollama's own installed list **before any request** — so an unknown name cannot provoke a pull.
-  - `POST` is allowed only for an exact-match `ACTION_PATHS` allowlist, always requires the session token, and keeps Host/Origin checks.
+  - `POST` is allowed only for the exact-match `ACTION_PATHS` allowlist — plus `INSPECT_PATHS`, two pure bench-result inspection routes that mutate nothing (POST as transport for a file's content; separate set, so "the complete set of mutating paths" stays a true sentence). Both always require the session token and keep Host/Origin checks; mirror tests force each allowlist to agree with the dispatcher.
   - `PUT`/`PATCH`/`DELETE` refused everywhere.
 
 ---

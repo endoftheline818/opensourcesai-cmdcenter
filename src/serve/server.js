@@ -1,9 +1,17 @@
 // The local dashboard server.
 //
-// Binds to loopback only. Serves three static assets and four read-only JSON
-// routes, all behind the checks in security.js. There is no route that mutates
-// anything, no route that takes a path or a command, and no request body is
-// ever read — non-GET verbs are rejected before routing.
+// Binds to loopback only, everything behind the checks in security.js. The
+// route surface, exhaustively: static assets, read-only JSON routes, the two
+// mutating action routes (load/unload, security.js ACTION_PATHS), and the two
+// pure inspection routes (bench-result validation, INSPECT_PATHS — POST as
+// transport for a file's content, mutating nothing). No route takes a path or
+// a command, request bodies are bounded per route while being read, and every
+// other verb is rejected before routing.
+//
+// (The previous version of this header still claimed "no route that mutates
+// anything" a phase after that stopped being true — the same stale-claim class
+// as the READ-ONLY badge. If you change the route surface, change this
+// paragraph in the same commit.)
 
 import http from "node:http";
 import fs from "node:fs";
@@ -29,8 +37,17 @@ try {
   brandIcon = null;
 }
 
-/** Hard cap on a request body. An action payload is two short strings. */
+/** Hard cap on an ACTION body. An action payload is two short strings. */
 const MAX_BODY_BYTES = 4096;
+
+/**
+ * Cap on an INSPECT body — a whole osai-bench result file (or two, for a
+ * comparison). Real results run tens of kilobytes; 2 MiB leaves room for
+ * protocol growth without letting a stuck client buffer the moon. Sized per
+ * route rather than raised globally, so the action cap stays exactly as tight
+ * as an action payload warrants.
+ */
+const MAX_INSPECT_BODY_BYTES = 2 * 1024 * 1024;
 
 /**
  * Read and parse a JSON request body, bounded.
@@ -39,14 +56,14 @@ const MAX_BODY_BYTES = 4096;
  * body is refused before it is buffered — an unbounded read on a local server
  * is a trivial way to exhaust memory.
  */
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     let size = 0;
     let tooLarge = false;
     const chunks = [];
     req.on("data", (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         // Stop BUFFERING, but keep draining. Destroying the socket here was a
         // real bug: it killed the connection before the 400 could be written,
         // so the client saw a transport error instead of the explanation — and
@@ -95,6 +112,7 @@ export function createServer({
   catalog,
   telemetry = null,
   actions = null,
+  inspect = null,
   now = () => new Date().toISOString(),
   monotonic = () => Date.now(),
   token = createSessionToken(),
@@ -109,6 +127,21 @@ export function createServer({
     ? {
         "/api/actions/load": (body) => actions.load(body?.model),
         "/api/actions/unload": (body) => actions.unload(body?.model),
+      }
+    : {};
+
+  // Mirrors security.js's INSPECT_PATHS the same way, under the same test
+  // discipline. These are POST as TRANSPORT only: the handlers are pure
+  // functions over the request body — no state held, nothing written, nothing
+  // called. The larger body cap exists because the payload is a whole bench
+  // result file, not because these routes are any less bounded.
+  const inspectRoutes = inspect
+    ? {
+        "/api/bench/inspect": (body) => inspect.inspectResult(body),
+        "/api/bench/compare": (body) =>
+          inspect.compareResults(body?.left, body?.right, {
+            sameMachineAttested: body?.sameMachineAttested === true,
+          }),
       }
     : {};
 
@@ -136,14 +169,15 @@ export function createServer({
     }
 
     if (req.method === "POST") {
-      const handler = actionRoutes[pathname];
+      const isInspect = pathname in inspectRoutes;
+      const handler = isInspect ? inspectRoutes[pathname] : actionRoutes[pathname];
       if (!handler) {
         send(res, 404, "text/plain; charset=utf-8", "not found");
         return;
       }
       let body;
       try {
-        body = await readJsonBody(req);
+        body = await readJsonBody(req, isInspect ? MAX_INSPECT_BODY_BYTES : MAX_BODY_BYTES);
       } catch (err) {
         send(res, 400, "application/json; charset=utf-8", JSON.stringify({ ok: false, reason: err.message }));
         return;

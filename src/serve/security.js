@@ -98,23 +98,40 @@ export function isAllowedOrigin(origin, port) {
  * @returns {{ok: true} | {ok: false, status: number, reason: string}}
  */
 /**
- * The complete set of paths that may be POSTed to. Everything else is
- * read-only, and the check below is an exact-match allowlist rather than a
- * prefix or pattern — so a new mutating route cannot appear by accident, only
- * by being named here.
+ * The complete set of MUTATING paths. The check below is an exact-match
+ * allowlist rather than a prefix or pattern — so a new mutating route cannot
+ * appear by accident, only by being named here. Everything in this set changes
+ * machine state (today: model residency, and nothing else).
  */
 export const ACTION_PATHS = new Set(["/api/actions/load", "/api/actions/unload"]);
 
+/**
+ * POSTable paths that MUTATE NOTHING. POST here is transport, not intent: a
+ * bench result file is read in the browser and its content must reach the
+ * pure derive layer for validation, because duplicating those rules in the
+ * browser bundle would fork them (the drift class the generated copies exist
+ * to close), and a GET cannot carry a file. These handlers hold no state,
+ * write nothing, and call nothing — asserted by the same structural guards
+ * that confine mutation to src/actions and file writes to src/storage.
+ *
+ * Kept as a SEPARATE set from ACTION_PATHS so "the complete set of mutating
+ * paths" stays a true sentence with two members. Growing either set is a
+ * deliberate act; the mirror tests force the dispatcher to agree.
+ */
+export const INSPECT_PATHS = new Set(["/api/bench/inspect", "/api/bench/compare"]);
+
 export function authorize(req, { token, port, requireToken = true, pathname = null }) {
-  const isAction = pathname !== null && ACTION_PATHS.has(pathname);
+  const isPostable =
+    pathname !== null && (ACTION_PATHS.has(pathname) || INSPECT_PATHS.has(pathname));
 
   if (req.method === "POST") {
-    if (!isAction) {
+    if (!isPostable) {
       return { ok: false, status: 405, reason: "this endpoint is read-only" };
     }
-    // An action ALWAYS requires the session token, whatever the caller asks
-    // for. The `requireToken` relaxation exists only for unauthenticated UI
-    // assets, and must never extend to something that changes state.
+    // A POST ALWAYS requires the session token, whatever the caller asks
+    // for — actions because they change state, inspections because machine-
+    // adjacent data flows through them. The `requireToken` relaxation exists
+    // only for unauthenticated UI assets, and must never extend here.
     if (!tokensMatch(req.headers?.[TOKEN_HEADER], token)) {
       return { ok: false, status: 401, reason: "missing or invalid session token" };
     }

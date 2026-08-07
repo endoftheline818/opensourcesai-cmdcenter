@@ -12,6 +12,7 @@ import path from "node:path";
 import { collect, resolveHost } from "./collect/index.js";
 import { collectTelemetry } from "./collect/telemetry.js";
 import { createActions } from "./actions/ollama.js";
+import { compareBenchResults, inspectBenchResult } from "./derive/bench-results.js";
 import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
@@ -23,6 +24,33 @@ export async function loadCatalog() {
   return JSON.parse(
     await readFile(path.join(packageRoot, "data", "checker-models-snapshot.json"), "utf8"),
   );
+}
+
+export async function loadRooflineLimits() {
+  return JSON.parse(
+    await readFile(path.join(packageRoot, "data", "bench-roofline-limits.json"), "utf8"),
+  );
+}
+
+/**
+ * The bench-result inspection surface handed to the server: pure functions
+ * over a POSTed body, plus the roofline caveats a utilization figure must
+ * never render without. Holds no state, writes nothing, calls nothing.
+ *
+ * A refused comparison returns ok:true — the evaluation SUCCEEDED and its
+ * honest answer is "no". Only an unreadable file is an error.
+ */
+export function createInspect(rooflineLimits) {
+  return {
+    inspectResult(body) {
+      const result = inspectBenchResult(body);
+      if (!result.ok) return { ok: false, status: 400, reason: result.reason };
+      return { ok: true, view: result.view, rooflineLimits: rooflineLimits.limits };
+    },
+    compareResults(left, right, options) {
+      return { ok: true, comparison: compareBenchResults(left, right, options) };
+    },
+  };
 }
 
 /**
@@ -49,6 +77,7 @@ export async function startDashboard({ port = DEFAULT_PORT } = {}) {
     catalog,
     telemetry: ({ sampledAt }) => collectTelemetry({ host, storePath, sampledAt }),
     actions: createActions({ host }),
+    inspect: createInspect(await loadRooflineLimits()),
     port,
   });
   return { ...started, catalog };
