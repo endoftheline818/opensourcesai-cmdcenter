@@ -24,6 +24,8 @@ var chatConversations = [];
 var chatActiveId = null;
 var chatEvents = [];
 var chatStrips = [];
+var chatExpectations = [];
+var chatPhysics = null;
 var chatStreaming = false;
 var chatAbort = null;
 var chatNotice = null;
@@ -77,6 +79,28 @@ function chatStripLine(strip) {
   return row;
 }
 
+// The expectation line: what the fit engine predicted beside what the machine
+// did. Quiet when the promise was kept, warn-colored when it was broken —
+// disagreement between prediction and observation is the product's founding
+// reason to exist, and it must not whisper.
+function chatExpectationLine(expectation) {
+  if (!expectation || expectation.available !== true || expectation.verdict === "unknown") return null;
+  const cls = expectation.verdict === "disagrees" ? "chat-expect disagrees" : "chat-expect";
+  const row = el("div", cls);
+  row.append(el("span", "chat-expect-verdict", expectation.verdict === "disagrees" ? "prediction broken" : "as predicted"));
+  row.append(el("span", null, expectation.note));
+  return row;
+}
+
+// The conversation's own trend, spill distinguished from physics — rendered
+// once above the messages when there is enough history to say anything.
+function chatPhysicsLine() {
+  if (!chatPhysics || chatPhysics.available !== true) return null;
+  const row = el("div", "chat-physics" + (chatPhysics.spillSuspected ? " disagrees" : ""));
+  row.append(el("span", null, chatPhysics.note));
+  return row;
+}
+
 async function chatRefreshConversations() {
   try {
     const res = await fetch("/api/chat/conversations", { headers: { "x-cmdcenter-token": TOKEN } });
@@ -100,6 +124,8 @@ async function chatOpen(id) {
     chatActiveId = id;
     chatEvents = body.events;
     chatStrips = body.strips || [];
+    chatExpectations = body.expectations || [];
+    chatPhysics = body.physics || null;
     chatNotice = null;
   } catch (err) {
     chatNotice = String(err.message);
@@ -111,6 +137,8 @@ function chatNew() {
   chatActiveId = null;
   chatEvents = [];
   chatStrips = [];
+  chatExpectations = [];
+  chatPhysics = null;
   chatNotice = null;
   refreshChat();
 }
@@ -180,6 +208,8 @@ async function chatSend(model, text) {
               (chunk.conversationPersisted === false ? "to the conversation " : "to measurement history ") + "failed";
           }
           if (chunk.strip) chatStrips.push(chunk.strip);
+          if (chunk.expectation) chatExpectations.push(chunk.expectation);
+          if (chunk.physics) chatPhysics = chunk.physics;
         }
       }
     }
@@ -259,6 +289,8 @@ function chatMessages() {
       if (event.stopped) bubble.append(el("div", "chat-strip-muted", "stopped before completion"));
       if (!event.streamingNow && !event.failed && chatStrips[stripIndex]) {
         bubble.append(chatStripLine(chatStrips[stripIndex]));
+        const expectation = chatExpectationLine(chatExpectations[stripIndex]);
+        if (expectation) bubble.append(expectation);
       }
       if (!event.streamingNow && !event.failed) stripIndex += 1;
     } else {
@@ -320,6 +352,8 @@ function chatView(d) {
   const layout = el("div", "chat-layout");
   layout.append(chatSidebar());
   const main = el("div", "chat-main");
+  const physics = chatPhysicsLine();
+  if (physics) main.append(physics);
   main.append(chatMessages(), chatComposer(d));
   layout.append(main);
   p.append(layout);
@@ -366,6 +400,22 @@ export const CHAT_CSS = `
   color: var(--hud-cyan); font-variant-numeric: tabular-nums;
 }
 .chat-strip-muted { color: var(--color-text-muted); }
+.chat-expect {
+  display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap;
+  margin-top: 0.35rem; font-size: var(--fs-overline); color: var(--color-text-muted);
+}
+.chat-expect-verdict {
+  flex: 0 0 auto; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+  color: var(--color-success);
+}
+.chat-expect.disagrees .chat-expect-verdict { color: var(--color-error); }
+.chat-expect.disagrees { color: var(--color-text); }
+.chat-physics {
+  margin-bottom: var(--space-3); padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border); border-radius: 0.5rem;
+  font-size: var(--fs-small); color: var(--color-text-muted);
+}
+.chat-physics.disagrees { border-color: color-mix(in srgb, var(--color-error) 40%, transparent); color: var(--color-text); }
 .chat-composer { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
 .chat-input { width: 100%; resize: vertical; }
 .chat-composer-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }

@@ -211,17 +211,21 @@ no sourced figure exists, both say "unavailable" rather than guessing.
   memory-bandwidth ceiling, vendor-verdict throttle reporting, and a versioned
   local store built for measurement history (no-prose schema, tested from day
   one, not yet wired to any command).
-- **Phase 3b (landed): the chat surface, built measurement-first.** Every
+- **Phase 3b (complete): the chat surface, built measurement-first.** Every
   generation this machine performs is a measurement opportunity, and the
   instrument came before the conveniences: each reply carries its own honest
   figures under the same rules as everything above (unavailable is never zero;
-  ceilings are never guessed). Inference lives in its own module, never in the
-  action layer, and only ever against AI runtimes on this machine.
-- **Next:** expectation-versus-observation (what the fit engine predicted
-  beside what the machine did), per-conversation slowdown physics, and a
-  second local runtime. Chat conveniences (parameters, system prompts, search)
-  stay deliberately behind measurement capability. Deliberately not planned,
-  ever: cloud endpoints, accounts, or anything that leaves the machine.
+  ceilings are never guessed), plus a verdict on whether the machine kept the
+  fit engine's promise — a model predicted to fit that spills renders as a
+  broken prediction, in red, with both figures named. Conversations carry
+  their own trend line, with a slowdown attributed to context physics only
+  when residency stayed put; if residency fell, it says spill instead.
+  Inference lives in its own module, never in the action layer, and only ever
+  against AI runtimes on this machine.
+- **Next:** a second local runtime, and machine baselines from retained
+  history. Chat conveniences (parameters, system prompts, search) stay
+  deliberately behind measurement capability. Deliberately not planned, ever:
+  cloud endpoints, accounts, or anything that leaves the machine.
 
 ## What it remembers
 
