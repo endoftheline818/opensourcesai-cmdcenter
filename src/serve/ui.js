@@ -1140,6 +1140,134 @@ function trustCell(label, value, detail) {
   return cell;
 }
 
+// ---------------------------------------------------------------------------
+// The bandwidth ceiling's provenance, and the manual-entry escape hatch. The
+// table is deliberately narrow (manufacturer-sourced entries only), so an
+// unlisted GPU gets an honest "no figure" - and this panel is where a user
+// supplies their own, labelled manual everywhere it travels.
+// ---------------------------------------------------------------------------
+
+var bandwidthStatus = null;
+
+function refreshHardware() {
+  if (activeView === "hardware" && dashboardData) renderView("hardware");
+}
+
+async function refreshBandwidthStatus() {
+  try {
+    const res = await fetch("/api/settings/bandwidth", { headers: { "x-cmdcenter-token": TOKEN } });
+    bandwidthStatus = await res.json();
+  } catch (err) {
+    bandwidthStatus = { ok: false, reason: String(err.message) };
+  }
+}
+
+async function saveBandwidth(value) {
+  try {
+    const res = await fetch("/api/settings/bandwidth/set", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ memoryBandwidthGBps: value }),
+    });
+    const payload = await res.json();
+    if (payload.ok) bandwidthStatus = payload;
+    else bandwidthStatus = Object.assign({}, bandwidthStatus, { lastError: payload.reason });
+  } catch (err) {
+    bandwidthStatus = Object.assign({}, bandwidthStatus, { lastError: String(err.message) });
+  }
+  refreshHardware();
+}
+
+async function clearBandwidth() {
+  try {
+    const res = await fetch("/api/settings/bandwidth/clear", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: "{}",
+    });
+    const payload = await res.json();
+    if (payload.ok) bandwidthStatus = payload;
+    else bandwidthStatus = Object.assign({}, bandwidthStatus, { lastError: payload.reason });
+  } catch (err) {
+    bandwidthStatus = Object.assign({}, bandwidthStatus, { lastError: String(err.message) });
+  }
+  refreshHardware();
+}
+
+function bandwidthPanel() {
+  const p = panel("Memory-bandwidth ceiling");
+  if (!bandwidthStatus) {
+    p.append(el("p", "bench-note", "Reading the ceiling's provenance…"));
+    return p;
+  }
+  if (bandwidthStatus.ok === false) {
+    p.append(el("p", "bench-error", bandwidthStatus.reason || "unavailable"));
+    return p;
+  }
+  const s = bandwidthStatus;
+  const r = s.resolution;
+
+  if (r.memoryBandwidthGBps !== null) {
+    const isManual = r.source === "manual";
+    const head = el("div", "bench-quality");
+    head.append(el("span", isManual ? "status-chip warn" : "status-chip ok", isManual ? "manual entry" : "manufacturer-sourced"));
+    head.append(el("span", null, r.memoryBandwidthGBps + " GB/s in effect" + (!isManual && r.entryId ? " · table entry " + r.entryId : "")));
+    p.append(head);
+    if (isManual) {
+      p.append(el("p", "bench-note",
+        "You entered this figure" + (s.manual && s.manual.enteredAt ? " on " + new Date(s.manual.enteredAt).toLocaleDateString() : "") +
+        ". It is your claim about your hardware and is labelled manual everywhere it is used - it never counts as manufacturer-sourced."));
+      if (s.overridesTable) {
+        p.append(el("p", "bench-note",
+          "It overrides the manufacturer-sourced figure for this GPU (" + s.overridesTable.memoryBandwidthGBps +
+          " GB/s, entry " + s.overridesTable.entryId + "). Remove the manual entry to return to the sourced figure."));
+      }
+    }
+  } else {
+    p.append(el("p", "bench-note", s.gpu
+      ? 'No sourced bandwidth figure exists for "' + s.gpu.name + '" - the table lists only GPUs with an archived manufacturer source, and a missing entry renders as unavailable rather than guessed. Enter your own figure below to get utilization readings, labelled manual everywhere they appear.'
+      : "No GPU detected - there is no hardware to resolve a ceiling for."));
+  }
+
+  if (s.manual && s.manual.exists && !s.manual.applied && s.manual.ignoredReason) {
+    p.append(el("p", "bench-error",
+      "A stored manual figure (" + s.manual.memoryBandwidthGBps + " GB/s) is NOT applied: " + s.manual.ignoredReason + ". Remove it below if it no longer describes this machine."));
+  }
+  if (s.manual && s.manual.exists === false && s.manual.problem) {
+    p.append(el("p", "bench-error", "The stored manual entry could not be read: " + s.manual.problem));
+  }
+  if (s.lastError) p.append(el("p", "bench-error", s.lastError));
+
+  if (!s.persistence.available) {
+    p.append(el("p", "bench-note", "Manual entry is unavailable: " + (s.persistence.reason || "storage did not open") + "."));
+    return p;
+  }
+  if (s.gpu) {
+    const row = el("div", "bench-command-row");
+    const input = el("input");
+    input.type = "number";
+    input.min = "1";
+    input.max = "10000";
+    input.step = "0.1";
+    input.placeholder = "GB/s";
+    input.setAttribute("aria-label", "Manual memory bandwidth in GB/s");
+    const save = el("button", null, s.manual && s.manual.exists ? "Replace manual figure" : "Save manual figure");
+    save.type = "button";
+    save.addEventListener("click", function () { saveBandwidth(Number(input.value)); });
+    row.append(input, save);
+    if (s.manual && s.manual.exists) {
+      const remove = el("button", null, "Remove manual entry");
+      remove.type = "button";
+      remove.addEventListener("click", clearBandwidth);
+      row.append(remove);
+    }
+    p.append(row);
+    p.append(el("p", "bench-note",
+      'The figure is tied to "' + s.gpu.name + '" and stops applying if the primary GPU changes. Use the memory-bandwidth figure (GB/s) from the manufacturer spec sheet for your exact card.'));
+  }
+  return p;
+}
+
 function hardwareTrustPanel(d) {
   const p = panel("Hardware trust readout");
   p.className += " trust-readout";
@@ -2738,7 +2866,14 @@ const VIEWS = [
     // Surfaced in the nav because an unresolved source disagreement is
     // something the user should know exists without hunting for it.
     count: (d) => (d.report.disagreements.length ? d.report.disagreements.length : null),
-    build: (d) => [hardwareTrustPanel(d), machinePanel(d), disagreementPanel(d)],
+    build: (d) => {
+      // First visit: one provenance read, without blocking the render.
+      if (!bandwidthPanel.fetchedOnce) {
+        bandwidthPanel.fetchedOnce = true;
+        refreshBandwidthStatus().then(refreshHardware);
+      }
+      return [hardwareTrustPanel(d), bandwidthPanel(), machinePanel(d), disagreementPanel(d)];
+    },
   },
   {
     id: "report",

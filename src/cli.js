@@ -22,6 +22,12 @@ import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
 import { resolveGradingHardware, resolveInstalledModels } from "./serve/routes.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
+import {
+  MANUAL_BANDWIDTH_SCHEMA_VERSION,
+  clearManualBandwidth,
+  readManualBandwidth,
+  writeManualBandwidth,
+} from "./storage/bandwidth.js";
 import { dataDirectory } from "./storage/paths.js";
 import { openStore } from "./storage/store.js";
 import { CLIENT_VERSION } from "./version.js";
@@ -83,6 +89,126 @@ export function createInspect(rooflineLimits, { resultsDirectory = null } = {}) 
 }
 
 /**
+ * The manual-bandwidth setting, as a surface: the honest escape hatch the
+ * bandwidth decision promised for GPUs the manufacturer-sourced table does
+ * not list. The copied resolver has carried the manual path all along —
+ * `manualGBps` wins over the table and comes back labelled source: "manual" —
+ * and this service is the persistence and gating around it.
+ *
+ * THE FIGURE APPLIES ONLY TO THE GPU IT WAS ENTERED FOR. `set` stamps the
+ * capture's current primary-GPU name server-side (a client cannot tie a
+ * figure to hardware it merely names), and a stored figure whose GPU no
+ * longer matches is reported as ignored-with-reason rather than silently
+ * applied to a different card — a borrowed number is exactly what the
+ * provenance labels exist to prevent.
+ */
+export function createBandwidthSettings({
+  dataDir = null,
+  persistenceUnavailableReason = null,
+  capture,
+  now,
+}) {
+  let manual = null;
+  let manualProblem = null;
+
+  const gpuOf = () => resolveCaptureBandwidth(capture).gpu;
+  const appliedManualGBps = () => {
+    if (manual === null) return null;
+    const gpu = gpuOf();
+    return gpu !== null && gpu.name === manual.gpuName ? manual.memoryBandwidthGBps : null;
+  };
+
+  const api = {
+    /** Read the stored entry once at startup; a broken file is a reason, not a crash. */
+    async load() {
+      if (dataDir === null) return;
+      const read = await readManualBandwidth(dataDir);
+      if (read.ok) manual = read.entry;
+      else if (read.exists) manualProblem = read.reason;
+    },
+
+    /** The ceiling the measurement strips should use RIGHT NOW, with its source. */
+    effectiveCeiling() {
+      const resolution = resolveCaptureBandwidth(capture, { manualGBps: appliedManualGBps() });
+      return { memoryBandwidthGBps: resolution.memoryBandwidthGBps, bandwidthSource: resolution.source };
+    },
+
+    /** The full provenance story, display-ready. */
+    async status() {
+      const gpu = gpuOf();
+      const applied = appliedManualGBps();
+      const effective = resolveCaptureBandwidth(capture, { manualGBps: applied });
+      const tableOnly = resolveCaptureBandwidth(capture);
+      return {
+        ok: true,
+        persistence: { available: dataDir !== null, reason: persistenceUnavailableReason },
+        gpu,
+        resolution: {
+          memoryBandwidthGBps: effective.memoryBandwidthGBps,
+          source: effective.source,
+          entryId: effective.entryId ?? null,
+          tableVersion: effective.tableVersion ?? null,
+        },
+        manual:
+          manual !== null
+            ? {
+                exists: true,
+                memoryBandwidthGBps: manual.memoryBandwidthGBps,
+                gpuName: manual.gpuName,
+                enteredAt: manual.enteredAt,
+                applied: applied !== null,
+                ignoredReason:
+                  applied !== null
+                    ? null
+                    : gpu === null
+                      ? "no GPU is detected on this machine"
+                      : `it was entered for "${manual.gpuName}", but this machine's primary GPU is "${gpu.name}"`,
+              }
+            : { exists: false, problem: manualProblem },
+        // When the manual figure displaces a manufacturer-sourced one, both
+        // are shown — the user should see exactly what their entry overrode.
+        overridesTable:
+          applied !== null && tableOnly.memoryBandwidthGBps !== null
+            ? { memoryBandwidthGBps: tableOnly.memoryBandwidthGBps, entryId: tableOnly.entryId }
+            : null,
+      };
+    },
+
+    async set(body) {
+      if (dataDir === null) {
+        return { ok: false, status: 400, reason: `the figure cannot be saved: ${persistenceUnavailableReason}` };
+      }
+      const gpu = gpuOf();
+      if (gpu === null) {
+        return { ok: false, status: 400, reason: "no GPU is detected, so there is no hardware to tie the figure to" };
+      }
+      const entry = {
+        manualBandwidthSchemaVersion: MANUAL_BANDWIDTH_SCHEMA_VERSION,
+        memoryBandwidthGBps: body?.memoryBandwidthGBps,
+        gpuName: gpu.name,
+        enteredAt: now(),
+      };
+      const written = await writeManualBandwidth(dataDir, entry);
+      if (!written.ok) return { ok: false, status: 400, reason: written.reason };
+      manual = entry;
+      manualProblem = null;
+      return api.status();
+    },
+
+    async clear() {
+      if (dataDir === null) {
+        return { ok: false, status: 400, reason: `the setting cannot be changed: ${persistenceUnavailableReason}` };
+      }
+      await clearManualBandwidth(dataDir);
+      manual = null;
+      manualProblem = null;
+      return api.status();
+    },
+  };
+  return api;
+}
+
+/**
  * Wire up and start the dashboard.
  *
  * EXPORTED SO IT CAN BE TESTED. This wiring previously lived inline in main()'s
@@ -110,6 +236,19 @@ export async function startDashboard({ port = DEFAULT_PORT, llamacppPort = null 
   let chat = null;
   let chatUnavailableReason = null;
   const store = await openStore(dataDirectory(), { createdAt: new Date().toISOString() });
+
+  // The bandwidth setting exists even when the store does not: its DISPLAY
+  // half (what ceiling is in effect, from where) needs only the capture, and
+  // only saving a new figure needs the data directory — refused with the
+  // store's own reason when that failed.
+  const settings = createBandwidthSettings({
+    dataDir: store.ok ? store.dir : null,
+    persistenceUnavailableReason: store.ok ? null : store.reason,
+    capture: bootstrap,
+    now: () => new Date().toISOString(),
+  });
+  await settings.load();
+
   if (store.ok) {
     // Fit grades for the expectation panel, resolved once at startup by the
     // same engine and the same platform rules the dashboard grades with —
@@ -132,10 +271,12 @@ export async function startDashboard({ port = DEFAULT_PORT, llamacppPort = null 
       // flag: there is no address input to mistype or to point off-machine.
       openAiHost: llamacppPort === null ? null : `http://127.0.0.1:${llamacppPort}`,
       dataDir: store.dir,
-      // The ceiling inputs, resolved once from the bootstrap capture: a sourced
-      // bandwidth figure (or null — utilization then renders unavailable), and
-      // each installed model's on-disk bytes as its weights figure.
-      memoryBandwidthGBps: resolveCaptureBandwidth(bootstrap).memoryBandwidthGBps,
+      // The ceiling arrives as a LIVE thunk, not a startup value, so a manual
+      // figure entered in the Hardware view reaches the very next reply's
+      // strip — with its source, because a manual ceiling must never render
+      // indistinguishably from a manufacturer-sourced one. Weights stay
+      // startup-resolved: on-disk bytes per installed model.
+      bandwidth: settings.effectiveCeiling,
       weightsByModel: new Map(
         (bootstrap.ollama?.installedModels ?? []).map((m) => [m.name, m.sizeBytes]),
       ),
@@ -156,6 +297,7 @@ export async function startDashboard({ port = DEFAULT_PORT, llamacppPort = null 
     actions: createActions({ host }),
     inspect: createInspect(await loadRooflineLimits(), { resultsDirectory: benchResultsDirectory() }),
     chat,
+    settings,
     port,
   });
   return { ...started, catalog, chatUnavailableReason };

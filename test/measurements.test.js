@@ -156,6 +156,26 @@ test("describeMeasurement carries every figure with availability, inventing noth
   }
 });
 
+test("the ceiling's source travels with the utilization figure", () => {
+  // A percentage against a user-entered ceiling must never render
+  // indistinguishably from one against a manufacturer-sourced figure, so the
+  // provenance rides ON the figure rather than being looked up elsewhere.
+  const base = record({ reported: { evalCount: 512, evalDurationNs: 4_534_000_000 } });
+  const manual = describeMeasurement(base, {
+    memoryBandwidthGBps: 800, bandwidthSource: "manual", weightsBytes: 4.9e9,
+  });
+  assert.equal(manual.utilization.available, true);
+  assert.equal(manual.utilization.ceilingSource, "manual");
+
+  const sourced = describeMeasurement(base, {
+    memoryBandwidthGBps: 760, bandwidthSource: "manufacturer-table", weightsBytes: 4.9e9,
+  });
+  assert.equal(sourced.utilization.ceilingSource, "manufacturer-table");
+
+  const none = describeMeasurement(base);
+  assert.equal(none.utilization.ceilingSource, null, "no ceiling, no source to claim");
+});
+
 test("describeMeasurement on an empty record is all reasons and no numbers", () => {
   const described = describeMeasurement(record());
   for (const key of ["generation", "prefill", "coldLoad", "timeToFirstTokenMs", "utilization"]) {

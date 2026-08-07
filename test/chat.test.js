@@ -167,7 +167,8 @@ test("one send: user text persisted first, chunks relayed, exchange and record s
       let tick = 0;
       const chat = createChatService({
         host, dataDir: dir,
-        memoryBandwidthGBps: 504, weightsByModel: new Map([["stub:1b", 1_000_000_000]]),
+        bandwidth: () => ({ memoryBandwidthGBps: 504, bandwidthSource: "manufacturer-table" }),
+        weightsByModel: new Map([["stub:1b", 1_000_000_000]]),
         gradeByModel: new Map([["stub:1b", { fit: "comfortable", quant: "q4_k_m", requiredVramGb: 2.5, sparseMoe: false }]]),
         runtimeVersion: "0.32.6", environmentHash: "cd".repeat(32),
         now: () => `2026-08-08T10:00:0${tick++}Z`,

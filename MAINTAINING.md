@@ -81,7 +81,14 @@ versioned local store (platform data dir: `%LOCALAPPDATA%\osai-cmdcenter`,
 JSONL: `measurements.jsonl` (counters, NO prose — its closed schema is the
 enforcement) and `conversations/<id>.jsonl` (the prose, deletable through the
 UI's confirm; measurement history deliberately survives a deleted
-conversation, joined only by an opaque id).
+conversation, joined only by an opaque id) — plus one non-JSONL file,
+`manual-bandwidth.json` (2026-08-10): the single recorded setting, a
+user-entered bandwidth figure for a GPU the sourced table does not list. It
+is validated by the same closed-allowlist discipline, tied to the exact GPU
+name it was entered for (a different primary GPU means ignored-with-reason,
+never borrowed), labelled `source: "manual"` everywhere it travels, and
+managed by the `SETTINGS_PATHS` pair under the same mirror-tested allowlist
+discipline as every other POST surface.
 
 Rules, each enforced by a test:
 

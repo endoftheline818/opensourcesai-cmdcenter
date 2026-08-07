@@ -25,6 +25,9 @@ export const META_FILE = "meta.json";
 /** Append-only measurement history. Counters and metadata ONLY — see measurements.js. */
 export const MEASUREMENTS_FILE = "measurements.jsonl";
 
+/** The one recorded setting: a user-entered bandwidth figure — see bandwidth.js. */
+export const MANUAL_BANDWIDTH_FILE = "manual-bandwidth.json";
+
 /**
  * Resolve the data directory for this platform.
  *
