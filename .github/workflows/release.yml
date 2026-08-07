@@ -1,0 +1,59 @@
+# The only publish path — and it holds NO credential: a workflow guard in
+# test/package.test.js greps every workflow for registry-token variable
+# names and fails on any hit (which is also why this comment does not spell
+# them out — that guard reads prose too, the same trap class the import
+# guard documented). Publishing authenticates via npm TRUSTED PUBLISHING: the
+# job's OIDC id-token is exchanged directly with the registry, so there is
+# no long-lived secret to steal, and `provenance: true` in package.json
+# rides the same token — every published tarball is publicly traceable to
+# the exact commit and workflow run that built it, and a publish from a
+# laptop fails by construction.
+#
+# One-time setup on npmjs.com (package settings → Trusted Publisher):
+#   repository endoftheline818/opensourcesai-cmdcenter, workflow release.yml.
+# Releasing is: merge to main, tag vX.Y.Z (matching package.json's version —
+# the workflow refuses a mismatch), push the tag.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # trusted publishing + provenance both ride this OIDC token
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm >= 11.5.1; pin the major rather than
+      # trusting whatever the runner image happens to carry.
+      - name: use an npm that speaks trusted publishing
+        run: npm install -g npm@11
+
+      # A tag that disagrees with package.json publishes a version nobody
+      # chose; refuse loudly instead.
+      - name: tag must match package.json version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "tag v$TAG_VERSION does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      # The same full check every PR runs (prepack re-runs it at pack time —
+      # belt and suspenders, since a green suite is the only release gate).
+      - name: test
+        run: npm run check
+
+      - name: publish with provenance, no stored credential
+        run: npm publish
