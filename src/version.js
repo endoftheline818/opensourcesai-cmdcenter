@@ -2,7 +2,7 @@
 // questions and move at different rates.
 
 /** The package version. Must equal package.json's version (asserted in tests). */
-export const CLIENT_VERSION = "0.1.0";
+export const CLIENT_VERSION = "0.1.1";
 
 /**
  * Shape of a raw capture (what src/collect produces). Bump when the RAW probe
