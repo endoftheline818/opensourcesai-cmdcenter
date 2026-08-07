@@ -126,7 +126,7 @@ export function createServer({
   token = createSessionToken(),
   port = DEFAULT_PORT,
 }) {
-  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic, chat });
+  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic, chat, inspect });
 
   // Mirrors security.js's ACTION_PATHS exactly. Two places name these routes —
   // the authorizer and the dispatcher — and a test asserts the two lists agree,
@@ -150,6 +150,9 @@ export function createServer({
           inspect.compareResults(body?.left, body?.right, {
             sameMachineAttested: body?.sameMachineAttested === true,
           }),
+        // By NAME, never by path: the handler reads one file from the known
+        // results directory behind a pattern-and-containment gate.
+        "/api/bench/results/inspect": (body) => inspect.inspectStored(body?.name),
       }
     : {};
 
