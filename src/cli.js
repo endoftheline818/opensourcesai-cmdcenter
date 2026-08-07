@@ -12,10 +12,15 @@ import path from "node:path";
 import { collect, resolveHost } from "./collect/index.js";
 import { collectTelemetry } from "./collect/telemetry.js";
 import { createActions } from "./actions/ollama.js";
+import { createChatService } from "./chat/service.js";
+import { resolveCaptureBandwidth } from "./derive/bandwidth.js";
 import { compareBenchResults, inspectBenchResult } from "./derive/bench-results.js";
+import { deriveRuntimeEnvironment, environmentDeclarationHash } from "./derive/environment.js";
 import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
+import { dataDirectory } from "./storage/paths.js";
+import { openStore } from "./storage/store.js";
 import { CLIENT_VERSION } from "./version.js";
 
 const packageRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
@@ -72,15 +77,45 @@ export async function startDashboard({ port = DEFAULT_PORT } = {}) {
   const bootstrap = await collect({ capturedAt: new Date().toISOString() });
   const storePath = bootstrap.ollama?.modelStore?.path ?? null;
 
+  // THE STORAGE WIRING (MAINTAINING §4a/§4b): the store opens here, once, and
+  // only the chat surface receives it. A store that refuses to open — newer
+  // schema on disk, corrupt meta — disables chat WITH ITS REASON, and the rest
+  // of the dashboard runs untouched: measurement history is worth having, but
+  // a diagnostic tool that cannot start because of its own data files would
+  // have its priorities inverted.
+  let chat = null;
+  let chatUnavailableReason = null;
+  const store = await openStore(dataDirectory(), { createdAt: new Date().toISOString() });
+  if (store.ok) {
+    chat = createChatService({
+      host,
+      dataDir: store.dir,
+      // The ceiling inputs, resolved once from the bootstrap capture: a sourced
+      // bandwidth figure (or null — utilization then renders unavailable), and
+      // each installed model's on-disk bytes as its weights figure.
+      memoryBandwidthGBps: resolveCaptureBandwidth(bootstrap).memoryBandwidthGBps,
+      weightsByModel: new Map(
+        (bootstrap.ollama?.installedModels ?? []).map((m) => [m.name, m.sizeBytes]),
+      ),
+      runtimeVersion: bootstrap.ollama?.apiVersion ?? null,
+      environmentHash: environmentDeclarationHash(deriveRuntimeEnvironment(process.env)),
+      now: () => new Date().toISOString(),
+    });
+  } else {
+    chatUnavailableReason = store.reason;
+    process.stderr.write(`cmdcenter: chat disabled — ${store.reason}\n`);
+  }
+
   const started = await startServer({
     collect,
     catalog,
     telemetry: ({ sampledAt }) => collectTelemetry({ host, storePath, sampledAt }),
     actions: createActions({ host }),
     inspect: createInspect(await loadRooflineLimits()),
+    chat,
     port,
   });
-  return { ...started, catalog };
+  return { ...started, catalog, chatUnavailableReason };
 }
 
 function usage() {

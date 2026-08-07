@@ -439,11 +439,17 @@ test("the mutation surface lives in exactly one directory", async () => {
   for (const file of await walk(path.join(root, "src"))) {
     const relative = path.relative(root, file);
     if (relative.includes(path.join("src", "actions"))) continue;
+    // src/chat is the inference surface MAINTAINING §4b opened — its POSTs
+    // target loopback Ollama and are bound by the package URL guard. It is a
+    // second POSTing directory, not a widening of THIS one: the property this
+    // test protects is that the ACTION surface stays one reviewable folder,
+    // and it still does.
+    if (relative.includes(path.join("src", "chat"))) continue;
     const source = await readFile(file, "utf8");
     const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    // ui.js is browser code posting to THIS server, not to Ollama — allowed,
+    // ui*.js is browser code posting to THIS server, not to Ollama — allowed,
     // and constrained by the same-origin rule asserted in package.test.js.
-    if (relative.endsWith(path.join("serve", "ui.js"))) continue;
+    if (/serve[\\/]ui[^\\/]*\.js$/.test(relative)) continue;
     assert.doesNotMatch(code, /method:\s*["']POST["']/i, `unexpected POST outside the action layer in ${relative}`);
   }
 });

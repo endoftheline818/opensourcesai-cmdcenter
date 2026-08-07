@@ -30,12 +30,14 @@ These implementation decisions are already taken and bind current work:
   actions (load and unload installed Ollama models), and the measurement layer
   (bench-result inspection, the bandwidth ceiling, throttle verdicts, the
   not-yet-wired storage layer).
-- **An inference surface is authorized by recorded maintainer decision**
-  (2026-08-07; MAINTAINING.md §4b) and not yet built. When it arrives it lives
-  in its own module class — never in `src/actions/`, whose empty-prompt
-  property is permanent — talks only to AI runtimes on this machine, and wires
-  the storage layer together with the UI that shows and deletes what it keeps.
+- **The inference surface is built** (`src/chat/`, 2026-08-08) under the
+  recorded 2026-08-07 decision (MAINTAINING.md §4b): its own module class —
+  never `src/actions/`, whose empty-prompt property is permanent — talking
+  only to AI runtimes on this machine, storage wired together with the UI
+  that shows and deletes what it keeps, and every reply measured at the relay.
   **Cloud endpoints are permanently out**; do not open a PR that adds one.
+  Chat conveniences (params, system prompts, search, titles) are deliberately
+  deferred — measurement capabilities come first.
 - **The shared companion-repo code is digest-pinned generated copies**, not
   direct imports. See "The parity fixtures" below.
 

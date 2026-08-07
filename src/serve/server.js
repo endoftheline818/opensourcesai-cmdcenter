@@ -50,6 +50,13 @@ const MAX_BODY_BYTES = 4096;
 const MAX_INSPECT_BODY_BYTES = 2 * 1024 * 1024;
 
 /**
+ * Cap on a CHAT body. A pasted prompt legitimately exceeds the action cap by
+ * orders of magnitude; 300 KiB comfortably holds the conversation store's own
+ * per-message bound (256 KiB of text) plus JSON envelope, and nothing more.
+ */
+const MAX_CHAT_BODY_BYTES = 300 * 1024;
+
+/**
  * Read and parse a JSON request body, bounded.
  *
  * The size limit is enforced while reading rather than after, so an oversized
@@ -113,12 +120,13 @@ export function createServer({
   telemetry = null,
   actions = null,
   inspect = null,
+  chat = null,
   now = () => new Date().toISOString(),
   monotonic = () => Date.now(),
   token = createSessionToken(),
   port = DEFAULT_PORT,
 }) {
-  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic });
+  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic, chat });
 
   // Mirrors security.js's ACTION_PATHS exactly. Two places name these routes —
   // the authorizer and the dispatcher — and a test asserts the two lists agree,
@@ -145,6 +153,19 @@ export function createServer({
       }
     : {};
 
+  // Mirrors security.js's CHAT_PATHS (MAINTAINING §4b). history and delete are
+  // ordinary JSON handlers; send is the one STREAMING route in the package and
+  // is dispatched separately below — it writes NDJSON as the generation runs,
+  // and a client disconnect aborts the upstream request so a closed tab stops
+  // the model rather than leaving it generating for nobody.
+  const chatJsonRoutes = chat
+    ? {
+        "/api/chat/history": (body) => chat.history(body?.id ?? null),
+        "/api/chat/delete": (body) => chat.remove(body?.id ?? null),
+      }
+    : {};
+  const CHAT_SEND_PATH = "/api/chat/send";
+
   const server = http.createServer(async (req, res) => {
     // Parsed against a fixed base purely to extract a clean pathname; the base
     // is discarded. Query strings are ignored entirely — no route reads one, so
@@ -169,15 +190,57 @@ export function createServer({
     }
 
     if (req.method === "POST") {
+      // The streaming route. The response is NDJSON written as the generation
+      // runs; the security headers still apply, and a client disconnect aborts
+      // the upstream request via the service's abort hook.
+      if (pathname === CHAT_SEND_PATH && chat) {
+        let body;
+        try {
+          body = await readJsonBody(req, MAX_CHAT_BODY_BYTES);
+        } catch (err) {
+          send(res, 400, "application/json; charset=utf-8", JSON.stringify({ ok: false, reason: err.message }));
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", ...securityHeaders() });
+        let abortUpstream = null;
+        res.on("close", () => {
+          if (abortUpstream && !res.writableEnded) abortUpstream();
+        });
+        try {
+          await chat.send(
+            { conversationId: body?.conversationId ?? null, model: body?.model, text: body?.text },
+            {
+              writeLine: (line) => {
+                if (!res.writableEnded) res.write(`${JSON.stringify(line)}\n`);
+              },
+              onUpstreamAbort: (abort) => {
+                abortUpstream = abort;
+              },
+            },
+          );
+        } catch (err) {
+          // Generic on the wire; the specifics go to stderr like every other
+          // handler failure — an error string can carry a filesystem path.
+          if (!res.writableEnded) res.write(`${JSON.stringify({ done: true, failure: "the send failed" })}\n`);
+          process.stderr.write(`cmdcenter: chat send failed: ${err.stack}\n`);
+        }
+        res.end();
+        return;
+      }
+
       const isInspect = pathname in inspectRoutes;
-      const handler = isInspect ? inspectRoutes[pathname] : actionRoutes[pathname];
+      const isChat = pathname in chatJsonRoutes;
+      const handler = isInspect ? inspectRoutes[pathname] : isChat ? chatJsonRoutes[pathname] : actionRoutes[pathname];
       if (!handler) {
         send(res, 404, "text/plain; charset=utf-8", "not found");
         return;
       }
       let body;
       try {
-        body = await readJsonBody(req, isInspect ? MAX_INSPECT_BODY_BYTES : MAX_BODY_BYTES);
+        body = await readJsonBody(
+          req,
+          isInspect ? MAX_INSPECT_BODY_BYTES : isChat ? MAX_CHAT_BODY_BYTES : MAX_BODY_BYTES,
+        );
       } catch (err) {
         send(res, 400, "application/json; charset=utf-8", JSON.stringify({ ok: false, reason: err.message }));
         return;

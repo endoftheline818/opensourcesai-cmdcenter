@@ -120,9 +120,22 @@ export const ACTION_PATHS = new Set(["/api/actions/load", "/api/actions/unload"]
  */
 export const INSPECT_PATHS = new Set(["/api/bench/inspect", "/api/bench/compare"]);
 
+/**
+ * The chat surface's POSTable paths (MAINTAINING §4b). `send` runs inference
+ * and writes to the tool's own data directory through the storage layer;
+ * `history` is POST-as-transport for a conversation id (query strings are
+ * ignored by design, and an id must not ride a URL); `delete` removes one
+ * conversation, with containment enforced and tested in src/storage. A third
+ * set rather than a widening of the others, so each set's sentence stays
+ * exactly true: ACTION_PATHS mutate Ollama residency, INSPECT_PATHS mutate
+ * nothing, CHAT_PATHS run inference and manage this tool's own data.
+ */
+export const CHAT_PATHS = new Set(["/api/chat/send", "/api/chat/history", "/api/chat/delete"]);
+
 export function authorize(req, { token, port, requireToken = true, pathname = null }) {
   const isPostable =
-    pathname !== null && (ACTION_PATHS.has(pathname) || INSPECT_PATHS.has(pathname));
+    pathname !== null &&
+    (ACTION_PATHS.has(pathname) || INSPECT_PATHS.has(pathname) || CHAT_PATHS.has(pathname));
 
   if (req.method === "POST") {
     if (!isPostable) {
