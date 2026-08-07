@@ -199,3 +199,62 @@ test("collectTools works on this machine without leaking a path", async () => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Tier 1 static verdicts — located, never executed
+// ---------------------------------------------------------------------------
+
+test("verdicts map every static outcome, and remote stays declared by design", async () => {
+  const { serverVerdict } = await import("../src/derive/tools.js");
+  const resolution = { node: true, "gone-tool": false };
+
+  assert.equal(serverVerdict({ transport: "stdio", command: "node" }, resolution), "config-ok");
+  assert.equal(serverVerdict({ transport: "stdio", command: "gone-tool" }, resolution), "command-not-found");
+  assert.equal(serverVerdict({ transport: "stdio", command: "unprobed" }, resolution), "unchecked",
+    "an unanswered probe is not a verdict in either direction");
+  assert.equal(serverVerdict({ transport: "unknown", command: null }, resolution), "config-broken");
+  assert.equal(serverVerdict({ transport: "remote", command: null }, resolution), "declared",
+    "remote servers are never probed — that would be an outbound call");
+});
+
+test("the payload carries verdicts, the not-found count, and the honesty label", async () => {
+  const { buildToolsPayload } = await import("../src/derive/tools.js");
+  const payload = buildToolsPayload({
+    mcpClients: [{
+      client: "Test Client", present: true, configFile: "c.json",
+      servers: [
+        { name: "good", transport: "stdio", command: "node", packageHint: null, envVarNames: [], envVarCount: 0, secretShapedEnvCount: 0 },
+        { name: "gone", transport: "stdio", command: "gone-tool", packageHint: null, envVarNames: [], envVarCount: 0, secretShapedEnvCount: 0 },
+        { name: "far", transport: "remote", command: null, packageHint: null, envVarNames: [], envVarCount: 0, secretShapedEnvCount: 0 },
+      ],
+    }],
+    tools: [],
+    commandResolution: { node: true, "gone-tool": false },
+  });
+
+  assert.deepEqual(payload.servers.map((s) => s.verdict), ["config-ok", "command-not-found", "declared"]);
+  assert.equal(payload.summary.commandsNotFound, 1);
+  assert.match(payload.verdictNote, /never executed/);
+  assert.match(payload.verdictNote, /declared, not probed/);
+});
+
+test("the shareable block still carries counts only — verdicts stay on-screen", async () => {
+  const { buildToolsPayload, exportableTools } = await import("../src/derive/tools.js");
+  const payload = buildToolsPayload({
+    mcpClients: [{ client: "C", present: true, servers: [{ name: "s", transport: "stdio", command: "gone", packageHint: null, envVarNames: [], envVarCount: 0, secretShapedEnvCount: 0 }] }],
+    tools: [],
+    commandResolution: { gone: false },
+  });
+  const exported = exportableTools(payload);
+  assert.deepEqual(Object.keys(exported).sort(), ["local_tools", "mcp_clients", "mcp_servers"]);
+  assert.ok(!JSON.stringify(exported).includes("command-not-found"), "a verdict names what someone runs; counts only may leave the machine");
+});
+
+test("command resolution locates real binaries without executing anything", async () => {
+  const { resolveCommands } = await import("../src/collect/tools.js");
+  // `node` is running this test, so it must resolve; the sentinel must not.
+  const resolution = await resolveCommands(["node", "definitely-not-a-real-binary-xyz", "node", null, ""]);
+  assert.equal(resolution.node, true);
+  assert.equal(resolution["definitely-not-a-real-binary-xyz"], false);
+  assert.equal(Object.keys(resolution).length, 2, "distinct commands only, empties dropped");
+});
