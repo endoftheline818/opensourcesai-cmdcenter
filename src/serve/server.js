@@ -121,12 +121,13 @@ export function createServer({
   actions = null,
   inspect = null,
   chat = null,
+  settings = null,
   now = () => new Date().toISOString(),
   monotonic = () => Date.now(),
   token = createSessionToken(),
   port = DEFAULT_PORT,
 }) {
-  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic, chat, inspect });
+  const routes = createRoutes({ collect, catalog, now, telemetry, monotonic, chat, inspect, settings });
 
   // Mirrors security.js's ACTION_PATHS exactly. Two places name these routes —
   // the authorizer and the dispatcher — and a test asserts the two lists agree,
@@ -168,6 +169,16 @@ export function createServer({
       }
     : {};
   const CHAT_SEND_PATH = "/api/chat/send";
+
+  // Mirrors security.js's SETTINGS_PATHS, same discipline again. The pair
+  // manages exactly one recorded setting — the manual bandwidth figure in the
+  // tool's own data directory — and mutates no machine state.
+  const settingsRoutes = settings
+    ? {
+        "/api/settings/bandwidth/set": (body) => settings.set(body),
+        "/api/settings/bandwidth/clear": () => settings.clear(),
+      }
+    : {};
 
   const server = http.createServer(async (req, res) => {
     // Parsed against a fixed base purely to extract a clean pathname; the base
@@ -238,7 +249,14 @@ export function createServer({
 
       const isInspect = pathname in inspectRoutes;
       const isChat = pathname in chatJsonRoutes;
-      const handler = isInspect ? inspectRoutes[pathname] : isChat ? chatJsonRoutes[pathname] : actionRoutes[pathname];
+      const isSettings = pathname in settingsRoutes;
+      const handler = isInspect
+        ? inspectRoutes[pathname]
+        : isChat
+          ? chatJsonRoutes[pathname]
+          : isSettings
+            ? settingsRoutes[pathname]
+            : actionRoutes[pathname];
       if (!handler) {
         send(res, 404, "text/plain; charset=utf-8", "not found");
         return;

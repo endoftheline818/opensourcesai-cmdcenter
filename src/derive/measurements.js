@@ -404,9 +404,15 @@ export function compareToBaseline(record, baseline) {
  * nothing invented. The measurement strip renders this shape directly; the
  * roofline inputs arrive from the caller because bandwidth provenance is the
  * caller's problem (a sourced table entry or an explicit manual figure —
- * never a guess made here).
+ * never a guess made here). The SOURCE travels with the utilization figure
+ * for the same reason: a percentage computed against a user-entered ceiling
+ * must never render indistinguishably from one computed against a
+ * manufacturer-sourced figure.
  */
-export function describeMeasurement(record, { memoryBandwidthGBps = null, weightsBytes = null } = {}) {
+export function describeMeasurement(
+  record,
+  { memoryBandwidthGBps = null, bandwidthSource = null, weightsBytes = null } = {},
+) {
   const observed = record?.observed ?? {};
   return {
     source: record?.source ?? null,
@@ -422,7 +428,10 @@ export function describeMeasurement(record, { memoryBandwidthGBps = null, weight
       ? figure(observed.timeToFirstVisibleTokenMs)
       : figure(null, UNAVAILABLE.notMeasured),
     elapsedMs: usable(observed.elapsedMs) ? figure(observed.elapsedMs) : figure(null, UNAVAILABLE.notMeasured),
-    utilization: rooflineUtilization(record, { memoryBandwidthGBps, weightsBytes }),
+    utilization: {
+      ...rooflineUtilization(record, { memoryBandwidthGBps, weightsBytes }),
+      ceilingSource: bandwidthSource,
+    },
     environmentHash: record?.environmentHash ?? null,
   };
 }

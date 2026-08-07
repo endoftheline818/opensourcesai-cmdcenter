@@ -57,7 +57,8 @@ async function installedModels(host) {
  * @param {object} deps
  * @param {string} deps.host           Resolved loopback Ollama endpoint.
  * @param {string} deps.dataDir        Opened storage directory (openStore ran).
- * @param {number|null} deps.memoryBandwidthGBps Resolved ceiling input, or null.
+ * @param {() => {memoryBandwidthGBps: number|null, bandwidthSource: string|null}} [deps.bandwidth]
+ *   Live ceiling-with-provenance thunk (see the parameter comment below).
  * @param {Map<string, number>} deps.weightsByModel name → on-disk bytes, from
  *   the bootstrap capture. A model installed after startup is simply absent —
  *   its utilization renders unavailable, which is the honest answer.
@@ -73,7 +74,10 @@ export function createChatService({
   // send is then refused with the reason rather than probed hopefully.
   openAiHost = null,
   dataDir,
-  memoryBandwidthGBps = null,
+  // The ceiling as a LIVE thunk with its provenance: a manual figure entered
+  // mid-session reaches the next reply's strip, and the strip can label a
+  // manual ceiling as manual — the number never travels without its source.
+  bandwidth = () => ({ memoryBandwidthGBps: null, bandwidthSource: null }),
   weightsByModel = new Map(),
   // name → fit grade from the SAME engine as the website's checker, resolved
   // once at startup. Null/absent for uncatalogued models — their expectation
@@ -236,7 +240,7 @@ export function createChatService({
       conversationPersisted: assistantAppend.ok,
       measurementRecorded: measurementAppend.ok,
       strip: describeMeasurement(record, {
-        memoryBandwidthGBps,
+        ...bandwidth(),
         weightsBytes: weightsByModel.get(model) ?? null,
       }),
       // What the engine predicted for this model, beside what just happened —
@@ -278,8 +282,9 @@ export function createChatService({
       // append order — the same order as its assistant messages — plus the
       // per-record expectation verdicts and the conversation-level trend.
       const records = await conversationRecords(id);
+      const ceiling = bandwidth();
       const strips = records.map((r) => describeMeasurement(r, {
-        memoryBandwidthGBps,
+        ...ceiling,
         weightsBytes: weightsByModel.get(r.model?.name) ?? null,
       }));
       const expectations = records.map((r) =>

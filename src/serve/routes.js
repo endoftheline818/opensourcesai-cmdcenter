@@ -142,7 +142,7 @@ const json = (body) => ({ status: 200, type: "application/json; charset=utf-8", 
  * @param {() => Promise<object>} [deps.telemetry] Cheap poll-safe sample.
  * @param {() => number} [deps.monotonic]         Injected elapsed-ms source, for the rate limiter.
  */
-export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now(), chat = null, inspect = null }) {
+export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now(), chat = null, inspect = null, settings = null }) {
   // Rate-limiter state. Deliberately per-server rather than per-client: the
   // resource being protected is the machine's CPU, and it does not care which
   // tab asked.
@@ -176,6 +176,15 @@ export function createRoutes({ collect, catalog, now, telemetry = null, monotoni
       inspect?.listResults
         ? json(await inspect.listResults())
         : json({ configured: false, exists: false, results: [] }),
+
+    // The bandwidth ceiling's full provenance story: what figure is in
+    // effect, where it came from (manufacturer table entry or the user's own
+    // manual entry), and why a stored manual figure is NOT applied when the
+    // GPU it was entered for is no longer this machine's primary.
+    "/api/settings/bandwidth": async () =>
+      settings
+        ? json(await settings.status())
+        : json({ ok: false, reason: "settings are not configured" }),
 
     "/api/live": async () => {
       if (!telemetry) return json({ available: false, reason: "telemetry collector not configured" });

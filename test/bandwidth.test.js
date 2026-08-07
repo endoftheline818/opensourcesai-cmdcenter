@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   GPU_MEMORY_BANDWIDTH_TABLE,
@@ -11,6 +13,10 @@ import {
 } from "../src/derive/bandwidth.js";
 import { __test } from "../src/derive/bench-gpu-bandwidth.generated.js";
 import { rooflineUtilization } from "../src/derive/measurements.js";
+import { readManualBandwidth } from "../src/storage/bandwidth.js";
+import { SETTINGS_PATHS, TOKEN_HEADER, authorize } from "../src/serve/security.js";
+import { createBandwidthSettings } from "../src/cli.js";
+import { createServer } from "../src/serve/server.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const load = async (...p) => JSON.parse(await readFile(path.join(root, ...p), "utf8"));
@@ -159,4 +165,209 @@ test("the roofline caveats are committed, non-empty, and provenance-stamped", as
 
   const fixture = await load("fixtures", "bench-gpu-bandwidth-parity.json");
   assert.equal(fixture.rooflineLimitsFile, "data/bench-roofline-limits.json");
+});
+
+// ---------------------------------------------------------------------------
+// The manual-entry surface — persistence and gating around the copied resolver
+// ---------------------------------------------------------------------------
+
+const AT = "2026-08-10T10:00:00Z";
+const TOKEN = "a".repeat(64);
+
+async function withTmpDir(fn) {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "osai-bandwidth-test-"));
+  try {
+    return await fn(dir);
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** The real Windows capture with its GPU renamed to something the table cannot know. */
+async function unlistedCapture() {
+  const fixture = await load("fixtures", "windows-rtx-4070-ti.json");
+  return JSON.parse(
+    JSON.stringify(fixture).replaceAll("NVIDIA GeForce RTX 4070 Ti", "Prototype GPU 9000"),
+  );
+}
+
+test("an unlisted GPU takes a manual figure, labelled manual, tied to that GPU", async () => {
+  await withTmpDir(async (dir) => {
+    const settings = createBandwidthSettings({
+      dataDir: dir, capture: await unlistedCapture(), now: () => AT,
+    });
+    await settings.load();
+
+    // Before entry: honest absence, with the GPU named so the UI can say so.
+    let status = await settings.status();
+    assert.equal(status.resolution.memoryBandwidthGBps, null);
+    assert.equal(status.gpu.name, "Prototype GPU 9000");
+    assert.equal(status.manual.exists, false);
+    assert.deepEqual(settings.effectiveCeiling(), { memoryBandwidthGBps: null, bandwidthSource: null });
+
+    // Absurdity is refused and nothing lands on disk.
+    const refused = await settings.set({ memoryBandwidthGBps: -5 });
+    assert.equal(refused.ok, false);
+    assert.equal((await readManualBandwidth(dir)).exists, false);
+
+    // A sane figure persists, stamped with the CURRENT gpu server-side.
+    status = await settings.set({ memoryBandwidthGBps: 800 });
+    assert.equal(status.ok, true);
+    assert.equal(status.resolution.memoryBandwidthGBps, 800);
+    assert.equal(status.resolution.source, "manual");
+    assert.equal(status.manual.applied, true);
+    assert.equal(status.overridesTable, null, "nothing was overridden — the table had no figure");
+    const stored = await readManualBandwidth(dir);
+    assert.equal(stored.entry.gpuName, "Prototype GPU 9000");
+    assert.equal(stored.entry.enteredAt, AT);
+    assert.deepEqual(settings.effectiveCeiling(), { memoryBandwidthGBps: 800, bandwidthSource: "manual" });
+
+    // Clearing returns to the honest absence.
+    status = await settings.clear();
+    assert.equal(status.resolution.memoryBandwidthGBps, null);
+    assert.equal((await readManualBandwidth(dir)).exists, false);
+  });
+});
+
+test("a manual figure over a LISTED gpu wins but names what it overrode", async () => {
+  await withTmpDir(async (dir) => {
+    const settings = createBandwidthSettings({
+      dataDir: dir, capture: await load("fixtures", "windows-rtx-4070-ti.json"), now: () => AT,
+    });
+    await settings.load();
+    const status = await settings.set({ memoryBandwidthGBps: 600 });
+    assert.equal(status.resolution.source, "manual");
+    assert.equal(status.resolution.memoryBandwidthGBps, 600);
+    assert.deepEqual(status.overridesTable, {
+      memoryBandwidthGBps: 504,
+      entryId: "nvidia-geforce-rtx-4070-ti-12gb",
+    }, "the displaced manufacturer figure stays visible");
+  });
+});
+
+test("a stored figure for a DIFFERENT gpu is ignored with its reason, never borrowed", async () => {
+  await withTmpDir(async (dir) => {
+    // Entered on the prototype card…
+    const before = createBandwidthSettings({
+      dataDir: dir, capture: await unlistedCapture(), now: () => AT,
+    });
+    await before.load();
+    await before.set({ memoryBandwidthGBps: 800 });
+
+    // …then the machine boots with the 4070 Ti as primary.
+    const after = createBandwidthSettings({
+      dataDir: dir, capture: await load("fixtures", "windows-rtx-4070-ti.json"), now: () => AT,
+    });
+    await after.load();
+    const status = await after.status();
+    assert.equal(status.manual.exists, true);
+    assert.equal(status.manual.applied, false);
+    assert.match(status.manual.ignoredReason, /Prototype GPU 9000/);
+    assert.equal(status.resolution.source, "manufacturer-table", "the table figure stands; the stale figure is not borrowed");
+    assert.equal(status.resolution.memoryBandwidthGBps, 504);
+  });
+});
+
+test("without persistence the display half still works and saving refuses with the reason", async () => {
+  const settings = createBandwidthSettings({
+    dataDir: null,
+    persistenceUnavailableReason: "the store is from a newer version",
+    capture: await load("fixtures", "windows-rtx-4070-ti.json"),
+    now: () => AT,
+  });
+  await settings.load();
+  const status = await settings.status();
+  assert.equal(status.resolution.memoryBandwidthGBps, 504, "provenance display needs no storage");
+  assert.equal(status.persistence.available, false);
+  const refused = await settings.set({ memoryBandwidthGBps: 800 });
+  assert.equal(refused.ok, false);
+  assert.match(refused.reason, /newer version/);
+});
+
+// ---------------------------------------------------------------------------
+// Transport: the settings pair under the same allowlist discipline
+// ---------------------------------------------------------------------------
+
+test("POST to a settings path authorizes; the mirror with the dispatch table holds", async () => {
+  const req = { method: "POST", headers: { host: "127.0.0.1:7717", [TOKEN_HEADER]: TOKEN } };
+  for (const pathname of SETTINGS_PATHS) {
+    assert.equal(authorize(req, { token: TOKEN, port: 7717, pathname }).ok, true, `POST ${pathname} must be allowed`);
+  }
+  assert.equal(authorize(req, { token: TOKEN, port: 7717, pathname: "/api/settings/other" }).ok, false);
+
+  const source = await readFile(path.join(root, "src", "serve", "server.js"), "utf8");
+  for (const p of SETTINGS_PATHS) {
+    assert.ok(source.includes(`"${p}"`), `${p} is authorized but not dispatched`);
+  }
+  const dispatched = [...source.matchAll(/"(\/api\/settings\/[a-z/]+)":/g)].map((m) => m[1]);
+  assert.ok(dispatched.length > 0, "expected dispatched settings routes — otherwise this guard is vacuous");
+  for (const p of dispatched) {
+    assert.ok(SETTINGS_PATHS.has(p), `${p} is dispatched but not in the authorizer's allowlist`);
+  }
+});
+
+test("the settings routes work end to end, and their absence answers honestly", async () => {
+  await withTmpDir(async (dir) => {
+    const settings = createBandwidthSettings({
+      dataDir: dir, capture: await unlistedCapture(), now: () => AT,
+    });
+    await settings.load();
+    const { server } = createServer({
+      collect: async () => ({}),
+      catalog: { models: [] },
+      settings,
+      token: TOKEN,
+      port: 0,
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      const before = await (await fetch(`${base}/api/settings/bandwidth`, { headers: { [TOKEN_HEADER]: TOKEN } })).json();
+      assert.equal(before.resolution.memoryBandwidthGBps, null);
+
+      const noToken = await fetch(`${base}/api/settings/bandwidth/set`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+      });
+      assert.equal(noToken.status, 401, "settings writes require the session token");
+
+      const saved = await (await fetch(`${base}/api/settings/bandwidth/set`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [TOKEN_HEADER]: TOKEN },
+        body: JSON.stringify({ memoryBandwidthGBps: 800 }),
+      })).json();
+      assert.equal(saved.resolution.source, "manual");
+
+      const bad = await fetch(`${base}/api/settings/bandwidth/set`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [TOKEN_HEADER]: TOKEN },
+        body: JSON.stringify({ memoryBandwidthGBps: "fast" }),
+      });
+      assert.equal(bad.status, 400);
+
+      const cleared = await (await fetch(`${base}/api/settings/bandwidth/clear`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [TOKEN_HEADER]: TOKEN },
+        body: "{}",
+      })).json();
+      assert.equal(cleared.resolution.memoryBandwidthGBps, null);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+
+  // A server wired without settings: GET says so, POST is a 404 — the same
+  // honest-absence shape chat and inspection already follow.
+  const { server } = createServer({ collect: async () => ({}), catalog: { models: [] }, token: TOKEN, port: 0 });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const absent = await (await fetch(`${base}/api/settings/bandwidth`, { headers: { [TOKEN_HEADER]: TOKEN } })).json();
+    assert.equal(absent.ok, false);
+    const post = await fetch(`${base}/api/settings/bandwidth/set`, {
+      method: "POST", headers: { "content-type": "application/json", [TOKEN_HEADER]: TOKEN }, body: "{}",
+    });
+    assert.equal(post.status, 404);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
 });

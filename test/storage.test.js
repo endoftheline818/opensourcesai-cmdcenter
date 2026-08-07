@@ -14,6 +14,13 @@ import {
   readMeasurements,
   validateMeasurement,
 } from "../src/storage/measurements.js";
+import {
+  MANUAL_BANDWIDTH_SCHEMA_VERSION,
+  clearManualBandwidth,
+  readManualBandwidth,
+  validateManualBandwidth,
+  writeManualBandwidth,
+} from "../src/storage/bandwidth.js";
 import { openStore } from "../src/storage/store.js";
 import { MEASUREMENT_SCHEMA_VERSION, STORAGE_SCHEMA_VERSION } from "../src/version.js";
 
@@ -284,6 +291,84 @@ test("clearing history deletes exactly the measurements file and nothing beside 
     assert.deepEqual(again, { ok: true, existed: false }, "clearing nothing is a no-op, not an error");
 
     assert.deepEqual(await appendMeasurement(dir, valid()), { ok: true }, "the store keeps working after a clear");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The manual bandwidth entry — the one recorded setting
+// ---------------------------------------------------------------------------
+
+const validEntry = () => ({
+  manualBandwidthSchemaVersion: MANUAL_BANDWIDTH_SCHEMA_VERSION,
+  memoryBandwidthGBps: 800,
+  gpuName: "Prototype GPU 9000",
+  enteredAt: AT,
+});
+
+test("the manual-bandwidth validator refuses what no real memory system reports", () => {
+  assert.deepEqual(validateManualBandwidth(validEntry()), { ok: true });
+
+  for (const [label, mutate] of [
+    ["zero", (e) => ({ ...e, memoryBandwidthGBps: 0 })],
+    ["negative", (e) => ({ ...e, memoryBandwidthGBps: -10 })],
+    ["non-finite", (e) => ({ ...e, memoryBandwidthGBps: Infinity })],
+    ["a typo past 10 TB/s", (e) => ({ ...e, memoryBandwidthGBps: 50_400 })],
+    ["a string figure", (e) => ({ ...e, memoryBandwidthGBps: "504" })],
+    ["a null figure", (e) => ({ ...e, memoryBandwidthGBps: null })],
+    ["an empty gpu name", (e) => ({ ...e, gpuName: "" })],
+    ["an unbounded gpu name", (e) => ({ ...e, gpuName: "x".repeat(201) })],
+    ["a loose timestamp", (e) => ({ ...e, enteredAt: "yesterday" })],
+    ["an unknown field", (e) => ({ ...e, note: "prose does not live here" })],
+  ]) {
+    assert.equal(validateManualBandwidth(mutate(validEntry())).ok, false, `must refuse ${label}`);
+  }
+  const { enteredAt, ...missing } = validEntry();
+  assert.equal(validateManualBandwidth(missing).ok, false, "every field is required");
+});
+
+test("the manual entry round-trips; garbage and the future are honest reasons", async () => {
+  await withTmpDir(async (dir) => {
+    const absent = await readManualBandwidth(dir);
+    assert.deepEqual(absent, { exists: false, ok: false, entry: null }, "absent is a normal state");
+
+    const refused = await writeManualBandwidth(dir, { ...validEntry(), memoryBandwidthGBps: 0 });
+    assert.equal(refused.ok, false);
+    assert.equal((await readManualBandwidth(dir)).exists, false, "a refused write touches nothing");
+
+    assert.deepEqual(await writeManualBandwidth(dir, validEntry()), { ok: true });
+    const read = await readManualBandwidth(dir);
+    assert.equal(read.ok, true);
+    assert.deepEqual(read.entry, validEntry());
+
+    // Hand-edited to garbage: reported, never thrown, never silently dropped.
+    await fsp.writeFile(path.join(dir, "manual-bandwidth.json"), "{torn", "utf8");
+    const broken = await readManualBandwidth(dir);
+    assert.equal(broken.ok, false);
+    assert.match(broken.reason, /not valid JSON/);
+
+    // A FUTURE schema version names both versions rather than guessing.
+    await fsp.writeFile(
+      path.join(dir, "manual-bandwidth.json"),
+      JSON.stringify({ ...validEntry(), manualBandwidthSchemaVersion: MANUAL_BANDWIDTH_SCHEMA_VERSION + 1 }),
+      "utf8",
+    );
+    const future = await readManualBandwidth(dir);
+    assert.equal(future.ok, false);
+    assert.match(future.reason, new RegExp(`v${MANUAL_BANDWIDTH_SCHEMA_VERSION + 1}`));
+    assert.match(future.reason, new RegExp(`v${MANUAL_BANDWIDTH_SCHEMA_VERSION}`));
+  });
+});
+
+test("clearing the manual entry deletes exactly its one file", async () => {
+  await withTmpDir(async (dir) => {
+    await writeManualBandwidth(dir, validEntry());
+    const bystander = path.join(dir, "bystander.txt");
+    await fsp.writeFile(bystander, "untouched");
+
+    assert.deepEqual(await clearManualBandwidth(dir), { ok: true, existed: true });
+    assert.equal((await readManualBandwidth(dir)).exists, false);
+    assert.equal(await fsp.readFile(bystander, "utf8"), "untouched", "neighbours survive");
+    assert.deepEqual(await clearManualBandwidth(dir), { ok: true, existed: false }, "clearing nothing is a no-op");
   });
 });
 

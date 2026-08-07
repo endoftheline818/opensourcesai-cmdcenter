@@ -55,8 +55,9 @@ This tool closes that gap by reading the machine directly.
 - **Chat with every reply measured.** A minimal chat surface against this
   machine's AI runtimes — Ollama, and optionally an OpenAI-compatible server
   such as llama.cpp via `--llamacpp-port` — where each response arrives with
-  its own figures: tokens per second against this machine's sourced bandwidth
-  ceiling, first-token time (thinking-aware), cold loads annotated rather than
+  its own figures: tokens per second against this machine's bandwidth ceiling
+  (manufacturer-sourced, or your own manual figure labelled as exactly that),
+  first-token time (thinking-aware), cold loads annotated rather than
   averaged away, residency at generation time, and this machine's own standing
   best for the model, compared only across replies made under the same declared
   run conditions. The model picker shows each model's fit grade and live
@@ -263,6 +264,11 @@ platform data directory (`%LOCALAPPDATA%\osai-cmdcenter` on Windows,
   can carry prose** (the schema refuses unknown fields at every level, and a
   test smuggles message-shaped fields at it to prove it). It deliberately
   survives deleted conversations, joined only by an opaque id.
+- **One setting: a manual bandwidth figure** — for GPUs the sourced table
+  does not list, entered in the Hardware view. It is tied to the exact GPU it
+  was entered for (a replacement card never inherits it), labelled `manual`
+  everywhere it is used so it can never pass as manufacturer-sourced, and
+  removable with one click.
 
 Nothing in this directory is ever transmitted, exported, or read into a
 diagnostic capture — the same structural guards that keep this tool off the

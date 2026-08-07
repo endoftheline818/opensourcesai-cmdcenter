@@ -72,8 +72,14 @@ function chatStripLine(strip, baseline) {
   };
   add("", stripFigure(strip.generation, " tok/s", 2));
   if (strip.utilization && strip.utilization.available) {
-    add("", (strip.utilization.value * 100).toFixed(1) + "% of ceiling",
-      "observed generation rate against this machine's sourced memory-bandwidth ceiling for this model");
+    // A manual ceiling is labelled IN the figure, not only in a tooltip — a
+    // percentage against a user-entered number must never render
+    // indistinguishably from one against a manufacturer-sourced figure.
+    const manualCeiling = strip.utilization.ceilingSource === "manual";
+    add("", (strip.utilization.value * 100).toFixed(1) + "% of " + (manualCeiling ? "manual ceiling" : "ceiling"),
+      manualCeiling
+        ? "observed generation rate against the bandwidth figure YOU entered in the Hardware view - not manufacturer-sourced"
+        : "observed generation rate against this machine's manufacturer-sourced memory-bandwidth ceiling for this model");
   }
   add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0));
   if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {

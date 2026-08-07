@@ -141,10 +141,26 @@ export const INSPECT_PATHS = new Set([
  */
 export const CHAT_PATHS = new Set(["/api/chat/send", "/api/chat/history", "/api/chat/delete"]);
 
+/**
+ * The settings pair: exactly ONE recorded setting exists — the manual
+ * bandwidth figure (the honest escape hatch for GPUs the sourced table does
+ * not list). `set` writes it into the tool's own data directory through the
+ * storage layer's validated single-entry store; `clear` removes that one
+ * file, containment-tested. Neither touches machine state, a model, or a
+ * runtime — a fourth set so each set's sentence stays exactly true.
+ */
+export const SETTINGS_PATHS = new Set([
+  "/api/settings/bandwidth/set",
+  "/api/settings/bandwidth/clear",
+]);
+
 export function authorize(req, { token, port, requireToken = true, pathname = null }) {
   const isPostable =
     pathname !== null &&
-    (ACTION_PATHS.has(pathname) || INSPECT_PATHS.has(pathname) || CHAT_PATHS.has(pathname));
+    (ACTION_PATHS.has(pathname) ||
+      INSPECT_PATHS.has(pathname) ||
+      CHAT_PATHS.has(pathname) ||
+      SETTINGS_PATHS.has(pathname));
 
   if (req.method === "POST") {
     if (!isPostable) {
