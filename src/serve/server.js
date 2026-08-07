@@ -208,7 +208,12 @@ export function createServer({
         });
         try {
           await chat.send(
-            { conversationId: body?.conversationId ?? null, model: body?.model, text: body?.text },
+            {
+              conversationId: body?.conversationId ?? null,
+              runtime: body?.runtime ?? "ollama",
+              model: body?.model,
+              text: body?.text,
+            },
             {
               writeLine: (line) => {
                 if (!res.writableEnded) res.write(`${JSON.stringify(line)}\n`);

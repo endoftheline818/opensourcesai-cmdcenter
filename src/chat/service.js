@@ -42,6 +42,7 @@ import {
   residencyAfter,
   streamGeneration,
 } from "./ollama.js";
+import { listOpenAiModels, streamOpenAiGeneration } from "./openai.js";
 
 const MAX_USER_TEXT = 262_144; // matches the conversation store's event bound
 
@@ -67,6 +68,10 @@ async function installedModels(host) {
  */
 export function createChatService({
   host,
+  // Loopback endpoint of an OpenAI-compatible server (llama.cpp), built by the
+  // CLI from a PORT — null when none was declared, and every openai-compat
+  // send is then refused with the reason rather than probed hopefully.
+  openAiHost = null,
   dataDir,
   memoryBandwidthGBps = null,
   weightsByModel = new Map(),
@@ -85,7 +90,7 @@ export function createChatService({
     const all = await readMeasurements(dataDir);
     return all.records.filter((r) => r.conversationId === id);
   }
-  async function send({ conversationId = null, model, text }, { writeLine, onUpstreamAbort }) {
+  async function send({ conversationId = null, runtime = "ollama", model, text }, { writeLine, onUpstreamAbort }) {
     // --- validation, before anything is written or requested -----------------
     if (typeof text !== "string" || text.trim().length === 0) {
       writeLine({ done: true, refused: "no message text given" });
@@ -95,16 +100,44 @@ export function createChatService({
       writeLine({ done: true, refused: "message is too long" });
       return;
     }
-    let installed;
-    try {
-      installed = await installedModels(host);
-    } catch {
-      writeLine({ done: true, refused: "Ollama is not reachable" });
+    // The runtime is a closed choice, same as the measurement schema's enum:
+    // an unknown runtime is an unknown meaning for every counter downstream.
+    if (runtime !== "ollama" && runtime !== "openai-compat") {
+      writeLine({ done: true, refused: "unknown runtime" });
       return;
     }
-    if (typeof model !== "string" || !installed.some((m) => m.name === model)) {
-      writeLine({ done: true, refused: "that model is not installed on this machine" });
+    if (runtime === "openai-compat" && openAiHost === null) {
+      writeLine({ done: true, refused: "no OpenAI-compatible runtime is configured — start with --llamacpp-port" });
       return;
+    }
+
+    // The same gate for both runtimes: the model must exactly match one the
+    // runtime itself reports as served, checked live — an arbitrary string
+    // cannot reach either engine.
+    let digest = null;
+    if (runtime === "ollama") {
+      let installed;
+      try {
+        installed = await installedModels(host);
+      } catch {
+        writeLine({ done: true, refused: "Ollama is not reachable" });
+        return;
+      }
+      if (typeof model !== "string" || !installed.some((m) => m.name === model)) {
+        writeLine({ done: true, refused: "that model is not installed on this machine" });
+        return;
+      }
+      digest = installed.find((m) => m.name === model)?.digest?.slice(0, 64) ?? null;
+    } else {
+      const served = await listOpenAiModels(openAiHost);
+      if (!served.available) {
+        writeLine({ done: true, refused: "the OpenAI-compatible runtime is not reachable" });
+        return;
+      }
+      if (typeof model !== "string" || !served.models.includes(model)) {
+        writeLine({ done: true, refused: "that model is not served by the local runtime" });
+        return;
+      }
     }
 
     // --- conversation resolution, and the user's text persisted FIRST -------
@@ -136,16 +169,28 @@ export function createChatService({
     onUpstreamAbort(() => controller.abort());
     const messages = [...messagesFromEvents(priorEvents), { role: "user", content: text }];
 
-    const result = await streamGeneration({
-      host,
-      model,
-      messages,
-      signal: controller.signal,
-      onChunk: (chunk) => writeLine(chunk),
-    });
+    const result =
+      runtime === "ollama"
+        ? await streamGeneration({
+            host,
+            model,
+            messages,
+            signal: controller.signal,
+            onChunk: (chunk) => writeLine(chunk),
+          })
+        : await streamOpenAiGeneration({
+            host: openAiHost,
+            model,
+            messages,
+            signal: controller.signal,
+            onChunk: (chunk) => writeLine(chunk),
+          });
 
     // Outside the measured interval, and outside the failure path's way.
-    const residency = await residencyAfter(host, model);
+    // Ollama only: the OpenAI-compatible protocol has no /api/ps, so residency
+    // after a reply is honestly unknowable there — null, and the expectation
+    // panel answers "unknown" rather than pretending a probe existed.
+    const residency = runtime === "ollama" ? await residencyAfter(host, model) : null;
 
     // --- persistence, honestly reported --------------------------------------
     const assistantAppend = await appendEvent(dataDir, id, {
@@ -162,15 +207,18 @@ export function createChatService({
     // hash, because a best set under different run conditions is not this
     // configuration's best.
     const priorAll = await readMeasurements(dataDir);
-    const priorBaseline = machineBaseline(priorAll.records, { model, environmentHash });
+    const priorBaseline = machineBaseline(priorAll.records, { model, environmentHash, runtime });
 
     const record = buildGenerationRecord({
       schemaVersion: MEASUREMENT_SCHEMA_VERSION,
       recordedAt: now(),
       conversationId: id,
       modelName: model,
-      modelDigest: installed.find((m) => m.name === model)?.digest?.slice(0, 64) ?? null,
-      runtimeVersion,
+      modelDigest: digest,
+      runtimeName: runtime,
+      // The resolved version is OLLAMA's; the OpenAI-compatible protocol does
+      // not report one, and null is the honest entry, not a borrowed string.
+      runtimeVersion: runtime === "ollama" ? runtimeVersion : null,
       finalChunk: result.finalChunk,
       elapsedMs: result.elapsedMs,
       timeToFirstTokenMs: result.timeToFirstTokenMs,
@@ -203,6 +251,26 @@ export function createChatService({
   return {
     send,
     list: () => listConversations(dataDir),
+    // What the second runtime serves, for the model picker. Three honest
+    // states: not configured (no --llamacpp-port), configured but unreachable
+    // (with the reason), or the served list. Ollama's models arrive via the
+    // dashboard payload as they always have — this route reports only what
+    // the dashboard cannot know.
+    async models() {
+      if (openAiHost === null) {
+        return { ok: true, openaiCompat: { configured: false, available: false, models: [] } };
+      }
+      const served = await listOpenAiModels(openAiHost);
+      return {
+        ok: true,
+        openaiCompat: {
+          configured: true,
+          available: served.available,
+          reason: served.available ? null : served.reason,
+          models: served.models,
+        },
+      };
+    },
     async history(id) {
       const read = await readConversation(dataDir, id);
       if (!read.ok) return { ok: false, status: 400, reason: read.reason };

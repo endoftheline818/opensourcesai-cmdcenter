@@ -317,14 +317,23 @@ export function conversationPhysics(records) {
  * @param {string|null} options.environmentHash Current declaration hash;
  *   records must match it exactly. Null matches only records that also carry
  *   null — "unknown conditions" only ever compares with itself.
+ * @param {string|null} [options.runtime]   When given, records from OTHER
+ *   runtimes are excluded and counted: two runtimes can serve the same model
+ *   NAME while running different artifacts (quantization, engine), so their
+ *   counters are not the same claim. Null skips the gate.
  */
-export function machineBaseline(records, { model, environmentHash = null } = {}) {
+export function machineBaseline(records, { model, environmentHash = null, runtime = null } = {}) {
   let best = null;
   let comparable = 0;
   let excludedByEnvironment = 0;
+  let excludedByRuntime = 0;
 
   for (const record of records ?? []) {
     if (record?.model?.name !== model) continue;
+    if (runtime !== null && record?.runtime?.name !== runtime) {
+      excludedByRuntime += 1;
+      continue;
+    }
     if ((record.environmentHash ?? null) !== environmentHash) {
       excludedByEnvironment += 1;
       continue;
@@ -343,12 +352,15 @@ export function machineBaseline(records, { model, environmentHash = null } = {})
       reason:
         excludedByEnvironment > 0
           ? `no comparable history — ${excludedByEnvironment} record(s) exist under different run conditions`
-          : "no measured history for this model yet",
+          : excludedByRuntime > 0
+            ? `no comparable history — ${excludedByRuntime} record(s) exist from a different runtime`
+            : "no measured history for this model yet",
       comparableCount: 0,
       excludedByEnvironment,
+      excludedByRuntime,
     };
   }
-  return { available: true, ...best, comparableCount: comparable, excludedByEnvironment };
+  return { available: true, ...best, comparableCount: comparable, excludedByEnvironment, excludedByRuntime };
 }
 
 /**

@@ -48,10 +48,14 @@ const NETWORK_CAPABLE = [
   path.join("collect", "ollama.js"),
   path.join("collect", "telemetry.js"),
   path.join("actions", "ollama.js"),
-  // The inference surface (MAINTAINING §4b): the relay streams to Ollama's
-  // /api/chat, the service validates against /api/tags. Loopback like every
-  // other entry — the URL guard below still binds them both.
+  // The inference surface (MAINTAINING §4b): the relays stream to the local
+  // runtimes (Ollama's /api/chat, an OpenAI-compatible /v1/chat/completions),
+  // the service validates against their model lists. Loopback like every
+  // other entry — the URL guard below still binds all three, and openai.js
+  // additionally contains no URL literal at all: its endpoint is built from a
+  // CLI-supplied port.
   path.join("chat", "ollama.js"),
+  path.join("chat", "openai.js"),
   path.join("chat", "service.js"),
 ];
 

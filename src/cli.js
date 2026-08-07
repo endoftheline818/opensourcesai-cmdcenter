@@ -69,7 +69,7 @@ export function createInspect(rooflineLimits) {
  * server was actually run by hand. A seam that returns the handle lets a test
  * boot the real path on an ephemeral port and close it again.
  */
-export async function startDashboard({ port = DEFAULT_PORT } = {}) {
+export async function startDashboard({ port = DEFAULT_PORT, llamacppPort = null } = {}) {
   const catalog = await loadCatalog();
 
   // Resolve the Ollama endpoint and model-store path ONCE at startup and close
@@ -105,6 +105,10 @@ export async function startDashboard({ port = DEFAULT_PORT } = {}) {
     );
     chat = createChatService({
       host,
+      // The second runtime's endpoint is built from a PORT and nothing else —
+      // loopback by construction, mirroring the deliberate absence of a --host
+      // flag: there is no address input to mistype or to point off-machine.
+      openAiHost: llamacppPort === null ? null : `http://127.0.0.1:${llamacppPort}`,
       dataDir: store.dir,
       // The ceiling inputs, resolved once from the bootstrap capture: a sourced
       // bandwidth figure (or null — utilization then renders unavailable), and
@@ -149,14 +153,18 @@ Options:
   --json        Emit the full report as JSON instead of text
   --capture     Emit the RAW capture as JSON (for fixtures and bug reports)
   --port <n>    Port for 'serve' (default ${DEFAULT_PORT})
+  --llamacpp-port <n>  Chat with an OpenAI-compatible server (llama.cpp) on
+                this loopback port, alongside Ollama. Port only, on purpose:
+                there is no host flag, so the endpoint cannot leave this machine
   --version     Print the version
   --help        Show this help
 
 This tool talks only to AI runtimes on this machine — never to the internet.
-Its only connection is Ollama on loopback (127.0.0.1:11434). The dashboard
-binds to 127.0.0.1 only and requires a per-session token. Its actions are
-loading and unloading a model; it never pulls, deletes or removes anything it
-did not itself create.`;
+Its connections are Ollama on loopback (127.0.0.1:11434) and, only when
+--llamacpp-port is given, an OpenAI-compatible server on that loopback port.
+The dashboard binds to 127.0.0.1 only and requires a per-session token. Its
+actions are loading and unloading a model; it never pulls, deletes or removes
+anything it did not itself create.`;
 }
 
 function parseArguments(argv) {
@@ -165,6 +173,9 @@ function parseArguments(argv) {
   const portIndex = args.indexOf("--port");
   const rawPort = portIndex === -1 ? null : args[portIndex + 1];
   const port = rawPort === null ? DEFAULT_PORT : Number(rawPort);
+  const llamacppIndex = args.indexOf("--llamacpp-port");
+  const rawLlamacpp = llamacppIndex === -1 ? null : args[llamacppIndex + 1];
+  const llamacppPort = rawLlamacpp === null ? null : Number(rawLlamacpp);
 
   return {
     serve: args[0] === "serve",
@@ -174,6 +185,9 @@ function parseArguments(argv) {
     help: flags.has("--help") || flags.has("-h"),
     port,
     portValid: Number.isInteger(port) && port > 0 && port < 65536,
+    llamacppPort,
+    llamacppPortValid:
+      llamacppPort === null || (Number.isInteger(llamacppPort) && llamacppPort > 0 && llamacppPort < 65536),
   };
 }
 
@@ -194,7 +208,11 @@ export async function main(argv = process.argv, stdout = process.stdout) {
       stdout.write(`Invalid --port value. Expected an integer between 1 and 65535.\n`);
       return 1;
     }
-    const { url, token, catalog } = await startDashboard({ port: args.port });
+    if (!args.llamacppPortValid) {
+      stdout.write(`Invalid --llamacpp-port value. Expected an integer between 1 and 65535.\n`);
+      return 1;
+    }
+    const { url, token, catalog } = await startDashboard({ port: args.port, llamacppPort: args.llamacppPort });
     stdout.write(
       [
         `OpenSourcesAI Command Center`,

@@ -37,7 +37,17 @@ var chatNotice = null;
 // select to its first option — found in browser verification when a
 // continuation send silently went to a different model, visible ONLY because
 // the strip's ceiling changed with it. The instrument caught its own UI bug.
+// Holds the option KEY ("<runtime> <name>"), not a bare name, because two
+// runtimes can serve the same model name.
 var chatSelectedModel = null;
+// What /api/chat/models reported about the second runtime: null until fetched,
+// then { configured, available, reason, models }. Rendered honestly in all
+// three states — absent, unreachable-with-reason, or listed.
+var chatOpenAiRuntime = null;
+// Option key → { runtime, model }, rebuilt each composer render. The select's
+// value alone cannot carry both fields without string-parsing model names,
+// which may themselves contain any separator we could pick.
+var chatModelIndex = new Map();
 
 function refreshChat() {
   if (activeView === "chat" && dashboardData) renderView("chat");
@@ -123,6 +133,16 @@ async function chatRefreshConversations() {
   }
 }
 
+async function chatRefreshRuntimes() {
+  try {
+    const res = await fetch("/api/chat/models", { headers: { "x-cmdcenter-token": TOKEN } });
+    const body = await res.json();
+    chatOpenAiRuntime = body.ok === false ? null : body.openaiCompat || null;
+  } catch (err) {
+    chatOpenAiRuntime = null;
+  }
+}
+
 async function chatOpen(id) {
   try {
     const res = await fetch("/api/chat/history", {
@@ -176,7 +196,7 @@ async function chatDelete(id) {
   refreshChat();
 }
 
-async function chatSend(model, text) {
+async function chatSend(runtime, model, text) {
   if (chatStreaming || !text.trim()) return;
   chatStreaming = true;
   chatNotice = null;
@@ -191,7 +211,7 @@ async function chatSend(model, text) {
     const res = await fetch("/api/chat/send", {
       method: "POST",
       headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
-      body: JSON.stringify({ conversationId: chatActiveId, model: model, text: text }),
+      body: JSON.stringify({ conversationId: chatActiveId, runtime: runtime, model: model, text: text }),
       signal: controller.signal,
     });
     const reader = res.body.getReader();
@@ -324,11 +344,25 @@ function chatComposer(d) {
   select.id = "chat-model";
   select.setAttribute("aria-label", "Model");
   const loadedMap = loadedModelMap(lastLive);
+  chatModelIndex = new Map();
+  const addOption = function (runtime, name, label) {
+    const key = runtime + " " + name;
+    chatModelIndex.set(key, { runtime: runtime, model: name });
+    const option = el("option", null, label);
+    option.value = key;
+    select.append(option);
+  };
   const runnable = d.installed.filter(function (i) { return !i.grade || i.grade.fit !== "too_large"; });
   for (const entry of (runnable.length ? runnable : d.installed)) {
-    const option = el("option", null, chatModelLabel(entry, loadedMap));
-    option.value = entry.name;
-    select.append(option);
+    addOption("ollama", entry.name, chatModelLabel(entry, loadedMap));
+  }
+  // The second runtime's models, labelled by origin. No grade and no residency
+  // annotation: the fit engine graded the OLLAMA artifacts, and this protocol
+  // has no residency probe — an unlabelled figure would be a borrowed one.
+  if (chatOpenAiRuntime && chatOpenAiRuntime.available) {
+    for (const name of chatOpenAiRuntime.models) {
+      addOption("openai-compat", name, name + " · llama.cpp");
+    }
   }
   if (chatSelectedModel && [...select.options].some(function (o) { return o.value === chatSelectedModel; })) {
     select.value = chatSelectedModel;
@@ -347,7 +381,8 @@ function chatComposer(d) {
     const text = input.value;
     input.value = "";
     chatSelectedModel = select.value;
-    chatSend(select.value, text);
+    const pick = chatModelIndex.get(select.value);
+    if (pick) chatSend(pick.runtime, pick.model, text);
   });
   const stop = el("button", null, "Stop");
   stop.type = "button";
@@ -357,6 +392,13 @@ function chatComposer(d) {
   row.append(select);
   for (const b of buttons) row.append(b);
   wrap.append(input, row);
+  // Configured-but-unreachable is a state worth a sentence, not silence: the
+  // user asked for this runtime by flag, and its absence has a reason.
+  if (chatOpenAiRuntime && chatOpenAiRuntime.configured && !chatOpenAiRuntime.available) {
+    wrap.append(el("p", "chat-strip-muted",
+      "OpenAI-compatible runtime (--llamacpp-port) is configured but unreachable" +
+      (chatOpenAiRuntime.reason ? ": " + chatOpenAiRuntime.reason : "")));
+  }
   return wrap;
 }
 
@@ -371,10 +413,12 @@ function chatView(d) {
   main.append(chatMessages(), chatComposer(d));
   layout.append(main);
   p.append(layout);
-  // First visit: load the list once without blocking the render.
+  // First visit: load the list and the second runtime's models once without
+  // blocking the render.
   if (!chatConversations.length && !chatView.loadedOnce) {
     chatView.loadedOnce = true;
     chatRefreshConversations().then(refreshChat);
+    chatRefreshRuntimes().then(refreshChat);
   }
   return [p];
 }

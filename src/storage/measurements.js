@@ -28,7 +28,7 @@
 
 import path from "node:path";
 import fsp from "node:fs/promises";
-import { MEASUREMENT_SCHEMA_VERSION } from "../version.js";
+import { MEASUREMENT_SCHEMA_VERSION, SUPPORTED_MEASUREMENT_VERSIONS } from "../version.js";
 import { MEASUREMENTS_FILE } from "./paths.js";
 import { appendRecord, readRecords } from "./jsonl.js";
 
@@ -126,7 +126,11 @@ export function validateMeasurement(record) {
   }
 
   const TOP = {
-    measurementSchemaVersion: (v) => v === MEASUREMENT_SCHEMA_VERSION,
+    // Any SUPPORTED version validates — v2 only widened the runtime enum, so
+    // one validator covers both shapes soundly. Appends still stamp the
+    // CURRENT version (enforced in appendMeasurement), so old shapes are only
+    // ever read, never newly written.
+    measurementSchemaVersion: (v) => SUPPORTED_MEASUREMENT_VERSIONS.includes(v),
     recordedAt: boundedString(40, ISO_8601),
     source: (v) => MEASUREMENT_SOURCES.includes(v),
     // Null for sources that have no conversation (load/unload actions).
@@ -154,7 +158,9 @@ export function validateMeasurement(record) {
   if (model) return { ok: false, reason: model };
 
   const runtime = checkBlock(record.runtime, {
-    name: (v) => v === "ollama",
+    // Widened in v2 for the second local runtime. Still a closed enum: a
+    // runtime name is a claim about how the counters were obtained.
+    name: (v) => v === "ollama" || v === "openai-compat",
     version: nullOr(boundedString(64)),
   }, "runtime");
   if (runtime) return { ok: false, reason: runtime };
@@ -201,6 +207,11 @@ export function emptyMeasurement({ recordedAt, source, modelName, conversationId
  * a reason, never a throw — and a refused record touches the disk not at all.
  */
 export async function appendMeasurement(dir, record) {
+  // Old shapes are read, never newly written: an append must carry the
+  // current version, even though the validator accepts every supported one.
+  if (record?.measurementSchemaVersion !== MEASUREMENT_SCHEMA_VERSION) {
+    return { ok: false, reason: `appends must carry schema v${MEASUREMENT_SCHEMA_VERSION}` };
+  }
   const verdict = validateMeasurement(record);
   if (!verdict.ok) return verdict;
   await appendRecord(path.join(dir, MEASUREMENTS_FILE), record);

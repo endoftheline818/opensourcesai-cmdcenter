@@ -34,5 +34,14 @@ export const STORAGE_SCHEMA_VERSION = 1;
  * closed, so even an additive field is a new shape. Records carry their version;
  * a reader reports records from a newer version as uninterpreted rather than
  * dropping them silently or guessing at their fields.
+ *
+ * v2 (2026-08-09): runtime.name widened from the constant "ollama" to the enum
+ * ["ollama", "openai-compat"] for the second local runtime. The FIRST true
+ * bump — writers existed by then, so the in-place-amendment allowance v1 used
+ * was no longer available. v1 records remain readable: the reader accepts
+ * every version in SUPPORTED_MEASUREMENT_VERSIONS, appends always stamp the
+ * current version, and only versions ABOVE the newest supported are reported
+ * as uninterpreted.
  */
-export const MEASUREMENT_SCHEMA_VERSION = 1;
+export const MEASUREMENT_SCHEMA_VERSION = 2;
+export const SUPPORTED_MEASUREMENT_VERSIONS = [1, 2];
