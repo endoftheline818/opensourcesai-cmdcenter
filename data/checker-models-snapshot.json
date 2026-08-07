@@ -9,7 +9,7 @@
   },
   "snapshotVersion": 1,
   "note": "Committed snapshot, not live data. Discovery-spec §8 decision 3 (a fetchable data manifest) is open; until it is decided this file is refreshed by rerunning scripts/sync-from-website.mjs. The dashboard displays its age.",
-  "modelCount": 31,
+  "modelCount": 32,
   "models": [
     {
       "id": "qwen3-4b",
@@ -210,7 +210,7 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 8.9,
+          "vramGb": 9.3,
           "qualityTier": "good"
         },
         "q8_0": {
@@ -262,7 +262,7 @@
       "license": "MIT",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 8.5,
+          "vramGb": 9.1,
           "qualityTier": "good"
         },
         "q8_0": {
@@ -386,7 +386,7 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 10,
+          "vramGb": 9,
           "qualityTier": "good"
         },
         "q8_0": {
@@ -550,6 +550,32 @@
       "checkerOrder": 21
     },
     {
+      "id": "qwen2-5-coder-14b",
+      "name": "Qwen2.5-Coder 14B",
+      "family": "qwen2.5-coder",
+      "parametersBillions": 14,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 9,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 15.7,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 29.6,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen2.5-coder:14b",
+      "ollamaTagQ8": "qwen2.5-coder:14b-instruct-q8_0",
+      "ollamaTagFp16": "qwen2.5-coder:14b-instruct-fp16",
+      "checkerOrder": 22
+    },
+    {
       "id": "qwen2-5-coder-32b",
       "name": "Qwen2.5-Coder 32B",
       "family": "qwen2.5-coder",
@@ -573,7 +599,7 @@
       "ollamaTag": "qwen2.5-coder:32b",
       "ollamaTagQ8": "qwen2.5-coder:32b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5-coder:32b-instruct-fp16",
-      "checkerOrder": 22
+      "checkerOrder": 23
     },
     {
       "id": "gpt-oss-20b",
@@ -589,7 +615,7 @@
         }
       },
       "ollamaTag": "gpt-oss:20b",
-      "checkerOrder": 23
+      "checkerOrder": 24
     },
     {
       "id": "laguna-xs-2-1",
@@ -606,7 +632,7 @@
         }
       },
       "ollamaTag": "laguna-xs-2.1",
-      "checkerOrder": 24
+      "checkerOrder": 25
     },
     {
       "id": "north-mini-code-1-0",
@@ -623,7 +649,7 @@
         }
       },
       "ollamaTag": "north-mini-code-1.0",
-      "checkerOrder": 25
+      "checkerOrder": 26
     },
     {
       "id": "gemma-4-26b-a4b",
@@ -640,7 +666,7 @@
         }
       },
       "ollamaTag": "gemma4:26b",
-      "checkerOrder": 26
+      "checkerOrder": 27
     },
     {
       "id": "gemma-4-31b",
@@ -656,7 +682,7 @@
         }
       },
       "ollamaTag": "gemma4:31b",
-      "checkerOrder": 27
+      "checkerOrder": 28
     },
     {
       "id": "qwen3-6-27b",
@@ -672,7 +698,7 @@
         }
       },
       "ollamaTag": "qwen3.6:27b",
-      "checkerOrder": 28
+      "checkerOrder": 29
     },
     {
       "id": "qwen3-6-35b-a3b",
@@ -689,7 +715,7 @@
         }
       },
       "ollamaTag": "qwen3.6:35b-a3b",
-      "checkerOrder": 29
+      "checkerOrder": 30
     },
     {
       "id": "qwen3-30b-a3b",
@@ -706,7 +732,7 @@
         }
       },
       "ollamaTag": "qwen3:30b",
-      "checkerOrder": 30
+      "checkerOrder": 31
     },
     {
       "id": "qwen3-coder-30b-a3b",
@@ -723,7 +749,7 @@
         }
       },
       "ollamaTag": "qwen3-coder:30b",
-      "checkerOrder": 31
+      "checkerOrder": 32
     }
   ]
 }
