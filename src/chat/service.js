@@ -29,7 +29,11 @@ import {
   readConversation,
 } from "../storage/conversations.js";
 import { readMeasurements } from "../storage/measurements.js";
-import { describeMeasurement } from "../derive/measurements.js";
+import {
+  conversationPhysics,
+  describeMeasurement,
+  expectationVersusObservation,
+} from "../derive/measurements.js";
 import {
   buildGenerationRecord,
   messagesFromEvents,
@@ -64,11 +68,21 @@ export function createChatService({
   dataDir,
   memoryBandwidthGBps = null,
   weightsByModel = new Map(),
+  // name → fit grade from the SAME engine as the website's checker, resolved
+  // once at startup. Null/absent for uncatalogued models — their expectation
+  // panel honestly reads "nothing was predicted".
+  gradeByModel = new Map(),
   runtimeVersion = null,
   environmentHash = null,
   now,
   newId = () => randomBytes(12).toString("hex"),
 }) {
+  // This conversation's records, in append order — the same order as its
+  // assistant replies. One read serves both the physics trend and history.
+  async function conversationRecords(id) {
+    const all = await readMeasurements(dataDir);
+    return all.records.filter((r) => r.conversationId === id);
+  }
   async function send({ conversationId = null, model, text }, { writeLine, onUpstreamAbort }) {
     // --- validation, before anything is written or requested -----------------
     if (typeof text !== "string" || text.trim().length === 0) {
@@ -168,6 +182,11 @@ export function createChatService({
         memoryBandwidthGBps,
         weightsBytes: weightsByModel.get(model) ?? null,
       }),
+      // What the engine predicted for this model, beside what just happened —
+      // and the conversation's slowdown trend, spill distinguished from
+      // physics. Both computed here, in the same pure code the tests pin.
+      expectation: expectationVersusObservation(gradeByModel.get(model) ?? null, record),
+      physics: conversationPhysics(await conversationRecords(id)),
     });
   }
 
@@ -178,15 +197,25 @@ export function createChatService({
       const read = await readConversation(dataDir, id);
       if (!read.ok) return { ok: false, status: 400, reason: read.reason };
       // The strip data for past exchanges: this conversation's records, in
-      // append order — the same order as its assistant messages.
-      const measurements = await readMeasurements(dataDir);
-      const strips = measurements.records
-        .filter((r) => r.conversationId === id)
-        .map((r) => describeMeasurement(r, {
-          memoryBandwidthGBps,
-          weightsBytes: weightsByModel.get(r.model?.name) ?? null,
-        }));
-      return { ok: true, header: read.header, events: read.events, strips, tornTail: read.tornTail };
+      // append order — the same order as its assistant messages — plus the
+      // per-record expectation verdicts and the conversation-level trend.
+      const records = await conversationRecords(id);
+      const strips = records.map((r) => describeMeasurement(r, {
+        memoryBandwidthGBps,
+        weightsBytes: weightsByModel.get(r.model?.name) ?? null,
+      }));
+      const expectations = records.map((r) =>
+        expectationVersusObservation(gradeByModel.get(r.model?.name) ?? null, r),
+      );
+      return {
+        ok: true,
+        header: read.header,
+        events: read.events,
+        strips,
+        expectations,
+        physics: conversationPhysics(records),
+        tornTail: read.tornTail,
+      };
     },
     async remove(id) {
       const result = await deleteConversation(dataDir, id);

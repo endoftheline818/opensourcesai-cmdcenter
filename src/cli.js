@@ -16,8 +16,10 @@ import { createChatService } from "./chat/service.js";
 import { resolveCaptureBandwidth } from "./derive/bandwidth.js";
 import { compareBenchResults, inspectBenchResult } from "./derive/bench-results.js";
 import { deriveRuntimeEnvironment, environmentDeclarationHash } from "./derive/environment.js";
+import { gradeCatalog } from "./derive/fit.js";
 import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
+import { resolveGradingHardware, resolveInstalledModels } from "./serve/routes.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
 import { dataDirectory } from "./storage/paths.js";
 import { openStore } from "./storage/store.js";
@@ -87,6 +89,20 @@ export async function startDashboard({ port = DEFAULT_PORT } = {}) {
   let chatUnavailableReason = null;
   const store = await openStore(dataDirectory(), { createdAt: new Date().toISOString() });
   if (store.ok) {
+    // Fit grades for the expectation panel, resolved once at startup by the
+    // same engine and the same platform rules the dashboard grades with —
+    // nameplate VRAM, Apple usable memory — so prediction and observation can
+    // never disagree about what was predicted.
+    const bootstrapReport = buildReport(bootstrap);
+    const graded = gradeCatalog(bootstrap.ollama?.apiReachable
+      ? catalog.models
+      : [], resolveGradingHardware(bootstrapReport));
+    const installedNames = (bootstrap.ollama?.installedModels ?? []).map((m) => m.name);
+    const resolved = resolveInstalledModels(
+      { ...bootstrapReport, ollama: { ...bootstrapReport.ollama, installedModels: installedNames } },
+      catalog,
+      graded,
+    );
     chat = createChatService({
       host,
       dataDir: store.dir,
@@ -97,6 +113,7 @@ export async function startDashboard({ port = DEFAULT_PORT } = {}) {
       weightsByModel: new Map(
         (bootstrap.ollama?.installedModels ?? []).map((m) => [m.name, m.sizeBytes]),
       ),
+      gradeByModel: new Map(resolved.map((entry) => [entry.name, entry.grade])),
       runtimeVersion: bootstrap.ollama?.apiVersion ?? null,
       environmentHash: environmentDeclarationHash(deriveRuntimeEnvironment(process.env)),
       now: () => new Date().toISOString(),

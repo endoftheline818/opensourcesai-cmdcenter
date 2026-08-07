@@ -100,7 +100,7 @@ test("a broken or stopped pass records what was observed and nulls the rest", ()
 // The stub Ollama — streams a fixed NDJSON generation like the real thing
 // ---------------------------------------------------------------------------
 
-function stubOllama({ modelName = "stub:1b" } = {}) {
+function stubOllama({ modelName = "stub:1b", vramFraction = 1 } = {}) {
   const server = http.createServer((req, res) => {
     if (req.method === "GET" && req.url === "/api/tags") {
       res.writeHead(200, { "content-type": "application/json" });
@@ -109,7 +109,9 @@ function stubOllama({ modelName = "stub:1b" } = {}) {
     }
     if (req.method === "GET" && req.url === "/api/ps") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ models: [{ name: modelName, size: 1_200_000_000, size_vram: 1_200_000_000 }] }));
+      res.end(JSON.stringify({
+        models: [{ name: modelName, size: 1_200_000_000, size_vram: Math.round(1_200_000_000 * vramFraction) }],
+      }));
       return;
     }
     if (req.method === "POST" && req.url === "/api/chat") {
@@ -160,6 +162,7 @@ test("one send: user text persisted first, chunks relayed, exchange and record s
       const chat = createChatService({
         host, dataDir: dir,
         memoryBandwidthGBps: 504, weightsByModel: new Map([["stub:1b", 1_000_000_000]]),
+        gradeByModel: new Map([["stub:1b", { fit: "comfortable", quant: "q4_k_m", requiredVramGb: 2.5, sparseMoe: false }]]),
         runtimeVersion: "0.32.6", environmentHash: "cd".repeat(32),
         now: () => `2026-08-08T10:00:0${tick++}Z`,
         newId: () => "deadbeef0001",
@@ -205,6 +208,13 @@ test("one send: user text persisted first, chunks relayed, exchange and record s
       assert.equal(record.residencyAfter.sizeVramBytes, 1_200_000_000);
       assert.ok(!JSON.stringify(record).includes("hello"), "no prose may reach the measurements log");
 
+      // The expectation panel: the engine predicted a full fit, the stub
+      // reports 100% resident — the promise was kept and the verdict says so.
+      assert.equal(final.expectation.verdict, "agrees");
+      assert.equal(final.expectation.observed.residencyPercent, 100);
+      // One reply cannot make a trend, and the physics block says so.
+      assert.equal(final.physics.available, false);
+
       // A second send continues the conversation, replaying history as context.
       const more = [];
       await chat.send(
@@ -212,6 +222,12 @@ test("one send: user text persisted first, chunks relayed, exchange and record s
         { writeLine: (l) => more.push(l), onUpstreamAbort: () => {} },
       );
       assert.equal(more[more.length - 1].done, true);
+      // Two measured replies make a trend; the stub's identical counters hold steady.
+      const physics = more[more.length - 1].physics;
+      assert.equal(physics.available, true);
+      assert.equal(physics.points.length, 2);
+      assert.match(physics.note, /held ~100\.0 tok\/s/);
+      assert.match(physics.note, /tokens/, "cumulative context reconstructed from the counters");
       assert.deepEqual(
         server.lastChatBody.messages.map((m) => m.role),
         ["user", "assistant", "user"],
@@ -364,5 +380,59 @@ test("the chat authorizer allowlist and the server's dispatch agree", async () =
       CHAT_PATHS.has(p) || p === "/api/chat/conversations",
       `${p} is dispatched but not authorized (conversations is GET and lives in the read-only table)`,
     );
+  }
+});
+
+test("a spilled generation turns the expectation verdict against the grade", async () => {
+  // The stub reports only 62% of the model resident after the reply — the
+  // founding misconfiguration, reproduced end to end: the engine's promise was
+  // "fits fully", and the envelope must say the machine broke it.
+  const { server, host } = await stubOllama({ vramFraction: 0.62 });
+  try {
+    await withTmpDir(async (dir) => {
+      const chat = createChatService({
+        host, dataDir: dir,
+        gradeByModel: new Map([["stub:1b", { fit: "comfortable", quant: "q4_k_m", requiredVramGb: 2.5, sparseMoe: false }]]),
+        now: () => AT, newId: () => "deadbeef0009",
+      });
+      const lines = [];
+      await chat.send(
+        { conversationId: null, model: "stub:1b", text: "hello" },
+        { writeLine: (l) => lines.push(l), onUpstreamAbort: () => {} },
+      );
+      const final = lines[lines.length - 1];
+      assert.equal(final.expectation.verdict, "disagrees");
+      assert.equal(final.expectation.observed.residencyPercent, 62);
+      assert.match(final.expectation.note, /62% resident/);
+      assert.match(final.expectation.note, /holding VRAM|constraining/);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("history carries expectations and physics alongside the strips", async () => {
+  const { server, host } = await stubOllama();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      const chat = createChatService({
+        host, dataDir: dir,
+        gradeByModel: new Map([["stub:1b", { fit: "comfortable", quant: "q4_k_m", requiredVramGb: 2.5, sparseMoe: false }]]),
+        now: () => `2026-08-08T12:00:0${tick++}Z`, newId: () => "deadbeef000a",
+      });
+      const sink = { writeLine: () => {}, onUpstreamAbort: () => {} };
+      await chat.send({ conversationId: null, model: "stub:1b", text: "one" }, sink);
+      await chat.send({ conversationId: "deadbeef000a", model: "stub:1b", text: "two" }, sink);
+
+      const history = await chat.history("deadbeef000a");
+      assert.equal(history.ok, true);
+      assert.equal(history.expectations.length, 2, "one verdict per reply");
+      assert.equal(history.expectations[0].verdict, "agrees");
+      assert.equal(history.physics.available, true);
+      assert.equal(history.physics.points.length, 2);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
   }
 });

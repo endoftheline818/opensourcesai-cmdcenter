@@ -113,6 +113,191 @@ export function rooflineUtilization(record, { memoryBandwidthGBps = null, weight
 }
 
 /**
+ * The residency a record observed, as a percentage — null when the post-stream
+ * probe did not answer, which is a different claim from "0% resident".
+ */
+export function residencyPercent(record) {
+  const r = record?.residencyAfter;
+  if (!r || !usable(r.sizeBytes) || r.sizeBytes <= 0 || !usable(r.sizeVramBytes)) return null;
+  return Math.round((r.sizeVramBytes / r.sizeBytes) * 100);
+}
+
+/**
+ * The fit engine's prediction beside what the machine actually did — the
+ * comparison this product exists for, and the one neither side could make
+ * alone. PURE: a grade (from the same engine as the website's checker) and a
+ * stored record in, a verdict out.
+ *
+ * THE RULES ARE THE ENGINE'S OWN CLAIMS, NOT NEW OPINIONS. A comfortable or
+ * tight grade claims the model fits in VRAM; a partial grade claims CPU
+ * offload, and for a dense model the engine publishes "roughly 1–5 tokens per
+ * second" as the cost. This function only checks whether the machine kept
+ * those exact promises — it invents no thresholds of its own, and where
+ * either side is silent (no catalog grade, no residency probe) it says
+ * "unknown" rather than guessing.
+ *
+ * The verdicts:
+ *   agrees     — the machine did what the engine predicted.
+ *   disagrees  — it did not, in either direction. Predicted-fit-but-spilled is
+ *                the misconfiguration this product was founded on; predicted-
+ *                offload-but-resident means more VRAM was free than assumed.
+ *   unknown    — one side did not speak.
+ */
+export function expectationVersusObservation(grade, record) {
+  if (!grade || !grade.fit) {
+    return {
+      available: false,
+      reason: "this model is not in the catalog, so nothing was predicted",
+      verdict: "unknown",
+    };
+  }
+  const resident = residencyPercent(record);
+  const generation = generationTokensPerSecond(record);
+  const observed = {
+    residencyPercent: resident,
+    tokensPerSecond: generation.available ? generation.value : null,
+  };
+  const quantLabel = grade.quant ? ` in ${String(grade.quant).toUpperCase()}` : "";
+  const predicted = {
+    fit: grade.fit,
+    quant: grade.quant ?? null,
+    requiredVramGb: grade.requiredVramGb ?? null,
+    summary:
+      grade.fit === "partial"
+        ? (grade.sparseMoe
+            ? "CPU RAM offload at usable speed (sparse mixture-of-experts)"
+            : "CPU RAM offload — the engine's published expectation for a dense offloaded model is roughly 1–5 tokens per second")
+        : grade.fit === "too_large"
+          ? "does not fit this machine at all"
+          : `fits in VRAM${quantLabel}, fully resident`,
+  };
+
+  if (resident === null) {
+    return {
+      available: true,
+      verdict: "unknown",
+      predicted,
+      observed,
+      note: "residency was not observed after this reply, so the prediction cannot be checked",
+    };
+  }
+
+  if (grade.fit === "comfortable" || grade.fit === "tight") {
+    if (resident >= 100) {
+      return { available: true, verdict: "agrees", predicted, observed, note: "fully resident, as predicted" };
+    }
+    return {
+      available: true,
+      verdict: "disagrees",
+      predicted,
+      observed,
+      note:
+        `predicted to fit fully in VRAM${quantLabel}` +
+        (predicted.requiredVramGb !== null ? ` (needs about ${predicted.requiredVramGb} GB)` : "") +
+        `; observed ${resident}% resident — something else is holding VRAM, or a setting is constraining the load`,
+    };
+  }
+
+  if (grade.fit === "partial") {
+    if (resident < 100) {
+      let note = `offloaded as predicted (${resident}% resident)`;
+      if (!grade.sparseMoe && observed.tokensPerSecond !== null) {
+        note += ` — the engine's published expectation for a dense offloaded model is roughly 1–5 tok/s; observed ${observed.tokensPerSecond.toFixed(1)}`;
+      }
+      return { available: true, verdict: "agrees", predicted, observed, note };
+    }
+    return {
+      available: true,
+      verdict: "disagrees",
+      predicted,
+      observed,
+      note: "predicted CPU offload, but the model is fully resident — more VRAM was free than the grading assumed",
+    };
+  }
+
+  // too_large, yet a generation happened: report it plainly rather than
+  // pretending the grade was right.
+  return {
+    available: true,
+    verdict: "disagrees",
+    predicted,
+    observed,
+    note: `graded too large for this machine, yet it ran at ${resident}% residency — the grade's inputs are worth re-checking`,
+  };
+}
+
+/**
+ * The slowdown a long conversation actually has, explained honestly.
+ *
+ * As context grows the decode ceiling genuinely falls — KV-cache reads add
+ * per-token memory traffic (the roofline's own caveat) — so a model slowing
+ * down as a conversation deepens is often PHYSICS, not misconfiguration. But
+ * not always: if residency fell across the same span, the slowdown is spill,
+ * and calling it physics would hide exactly the problem this product exists
+ * to surface. This function draws that distinction and no other.
+ *
+ * Cumulative context is reconstructed from the counters themselves: each
+ * turn's promptEvalCount counts newly-processed prompt tokens (the uncached
+ * delta) and evalCount the generated ones, so their running sum approximates
+ * the context after each turn. A turn with missing counters makes every LATER
+ * cumulative figure unknown — a gap does not silently heal.
+ */
+export function conversationPhysics(records) {
+  const points = [];
+  let cumulative = 0;
+  let cumulativeKnown = true;
+
+  (records ?? []).forEach((record, index) => {
+    const generation = generationTokensPerSecond(record);
+    const prompt = record?.reported?.promptEvalCount;
+    const evaluated = record?.reported?.evalCount;
+    if (usable(prompt) && usable(evaluated) && cumulativeKnown) {
+      cumulative += prompt + evaluated;
+    } else {
+      cumulativeKnown = false;
+    }
+    points.push({
+      turn: index + 1,
+      tokensPerSecond: generation.available ? generation.value : null,
+      cumulativeContextTokens: cumulativeKnown ? cumulative : null,
+      residencyPercent: residencyPercent(record),
+    });
+  });
+
+  const measured = points.filter((p) => p.tokensPerSecond !== null);
+  if (measured.length < 2) {
+    return { available: false, reason: "fewer than two measured replies", points };
+  }
+
+  const first = measured[0];
+  const last = measured[measured.length - 1];
+  const firstRate = first.tokensPerSecond;
+  const lastRate = last.tokensPerSecond;
+  const contextText =
+    last.cumulativeContextTokens !== null
+      ? ` as context grew to ~${last.cumulativeContextTokens.toLocaleString("en-US")} tokens`
+      : "";
+
+  let note;
+  const residencyFell =
+    first.residencyPercent !== null && last.residencyPercent !== null && last.residencyPercent < first.residencyPercent;
+  if (Math.round(lastRate) < Math.round(firstRate)) {
+    note = residencyFell
+      ? `generation slowed ${firstRate.toFixed(1)} → ${lastRate.toFixed(1)} tok/s and residency fell ` +
+        `${first.residencyPercent}% → ${last.residencyPercent}% — the slowdown is spill, not context physics`
+      : `generation slowed ${firstRate.toFixed(1)} → ${lastRate.toFixed(1)} tok/s${contextText} — ` +
+        "the ceiling genuinely falls as context grows (KV reads add per-token memory traffic); " +
+        "a slowdown with growing context is physics, not misconfiguration";
+  } else if (Math.round(lastRate) > Math.round(firstRate)) {
+    note = `generation went ${firstRate.toFixed(1)} → ${lastRate.toFixed(1)} tok/s${contextText}`;
+  } else {
+    note = `generation held ~${firstRate.toFixed(1)} tok/s${contextText}`;
+  }
+
+  return { available: true, points, note, spillSuspected: residencyFell };
+}
+
+/**
  * One record, display-ready: every figure with its availability and reason,
  * nothing invented. The measurement strip renders this shape directly; the
  * roofline inputs arrive from the caller because bandwidth provenance is the
