@@ -2,7 +2,7 @@
   "name": "@opensourcesai/cmdcenter",
   "version": "0.1.0",
   "private": true,
-  "description": "Local dashboard for a machine running Ollama — real hardware detection, model fit, live system pressure, and load/unload for installed models.",
+  "description": "Local command center for a machine running Ollama — real hardware detection, model fit, live system pressure, honest measurement, and bench-result inspection. Talks only to AI runtimes on this machine, never to the internet.",
   "type": "module",
   "bin": {
     "osai-cmdcenter": "src/cli.js"

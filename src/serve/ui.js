@@ -97,7 +97,7 @@ export const HTML = (token) => `<!doctype html>
     <span class="brand-divider" aria-hidden="true"></span>
     <span class="product">Command Center</span>
     <span id="livestrip" class="livestrip" aria-live="off"></span>
-    <span class="badge-readonly" title="This tool can load and unload models. It never pulls, deletes or removes anything.">Load / unload only</span>
+    <span class="badge-readonly" title="Talks only to AI runtimes on this machine — never to the internet. Its actions are load and unload; it never pulls, deletes or removes anything it did not itself create.">Local AI only</span>
   </div>
 </header>
 <div class="layout shell">
@@ -1182,7 +1182,7 @@ function summaryTrustRail(d) {
   const installed = d.installed.length;
   rail.append(
     el("span", null, "Loopback only"),
-    el("span", null, "Load / unload only"),
+    el("span", null, "Never touches the internet"),
     el("span", null, installed + " installed"),
     el("span", null, d.report.disagreements.length ? d.report.disagreements.length + " hardware disagreement" : sourceConfidence(d).label),
   );
@@ -2639,7 +2639,7 @@ function hudReadout(d) {
   pre.append(document.createTextNode("OSAI:// COMMAND CENTER\\n"));
   line("STATUS:", d.report.ollama.installed ? "OLLAMA " + (d.report.ollama.version || "UP") : "OLLAMA DOWN");
   line("HOST:", (d.report.platform.os || "?") + " · " + (d.hardware.basis === "apple-unified-usable" ? "APPLE UNIFIED" : (d.report.gpu ? d.report.gpu.name : "NO GPU")));
-  line("MODE:", "LOAD / UNLOAD ONLY · LOOPBACK");
+  line("MODE:", "LOCAL AI ONLY · LOOPBACK");
   return pre;
 }
 

@@ -100,10 +100,11 @@ Options:
   --version     Print the version
   --help        Show this help
 
-This tool makes no external network calls — its only connection is to Ollama on
-loopback (127.0.0.1:11434). The dashboard binds to 127.0.0.1 only and requires a
-per-session token. The only things it changes are loading and unloading a model;
-it never pulls, deletes or removes anything.`;
+This tool talks only to AI runtimes on this machine — never to the internet.
+Its only connection is Ollama on loopback (127.0.0.1:11434). The dashboard
+binds to 127.0.0.1 only and requires a per-session token. Its actions are
+loading and unloading a model; it never pulls, deletes or removes anything it
+did not itself create.`;
 }
 
 function parseArguments(argv) {
@@ -149,7 +150,9 @@ export async function main(argv = process.argv, stdout = process.stdout) {
         `  ${url}`,
         ``,
         `Bound to 127.0.0.1 only, so it is not reachable from another machine.`,
-        `It can load and unload models; it never pulls, deletes or removes anything.`,
+        `It talks only to AI runtimes on this machine — never to the internet. Its`,
+        `actions are load and unload; it never pulls, deletes or removes anything`,
+        `it did not itself create.`,
         `The page authenticates with a token generated for this session; it is`,
         `never written to disk and changes every time you start the server.`,
         `Catalog snapshot: ${catalog.source?.generatedAt ?? "unknown"} (${catalog.modelCount} models).`,

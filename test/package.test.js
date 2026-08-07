@@ -307,6 +307,47 @@ test("no user-facing string still claims the tool is read-only", async () => {
   }
 });
 
+// THE SECOND RETIRED BOUNDARY CLAIM, same mechanism as read-only above.
+//
+// The 2026-08-07 decision (MAINTAINING §4b) replaced "load / unload only" as
+// the tool's headline with the successor guarantee — *talks only to AI
+// runtimes on this machine, never to the internet* — because an inference
+// surface is authorized. The old phrase was stated in a badge, a trust rail,
+// the HUD mode line, the CLI help and the serve banner; each was rewritten,
+// and this guard keeps the retired phrasing from quietly returning to any of
+// them. (The action layer is still load/unload only, and comments may say so —
+// this guards the strings a USER reads as a claim about the whole tool.)
+test("no user-facing string still claims load-and-unload is the whole tool", async () => {
+  const files = await sourceFiles(path.join(root, "src"));
+  for (const file of files) {
+    const source = withoutComments(await readFile(file, "utf8"));
+    const relative = path.relative(root, file);
+    for (const claim of [
+      /Load \/ unload only/,
+      /LOAD \/ UNLOAD ONLY/,
+      /It can load and unload models\. It never pulls/,
+      /The only things it changes are loading and unloading/,
+    ]) {
+      assert.doesNotMatch(source, claim, `retired boundary claim in ${relative}`);
+    }
+  }
+});
+
+// THE SUCCESSOR BOUNDARY MUST STAY STATED, not just enforced. The structural
+// URL guard makes the property true; this keeps it VISIBLE — in the README a
+// security-conscious user reads before running the tool, and in the badge the
+// dashboard shows while it runs. A guarantee that silently stops being stated
+// is halfway to being renegotiated.
+test("the successor trust boundary is stated where users read it", async () => {
+  const readme = await readFile(path.join(root, "README.md"), "utf8");
+  assert.match(readme, /talks only to AI runtimes on this machine/i, "README must state the guarantee");
+  assert.match(readme, /never to the internet/i);
+  assert.match(readme, /permanently out of scope/i, "the cloud-endpoints exclusion must stay stated");
+
+  const ui = await readFile(path.join(root, "src", "serve", "ui.js"), "utf8");
+  assert.match(ui, /never to the internet/i, "the dashboard badge must state the guarantee");
+});
+
 test("POST exists only in the action layer and the browser bundle", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   for (const file of files) {

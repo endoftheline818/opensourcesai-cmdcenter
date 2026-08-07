@@ -25,11 +25,19 @@ is allowed to become*; this file governs *how to work in here*.
 
 These implementation decisions are already taken and bind current work:
 
-- **Phases 0, 1 and 2 are complete.** The shipped boundary is diagnostic core,
-  local dashboard, live telemetry, MCP inventory, and exactly two actions: load
-  and unload installed Ollama models.
-- **The shared website data is fixture-verified copies**, not direct imports. See
-  "The parity fixtures" below.
+- **Phases 0–2 are complete; Phase 3 is in progress.** The shipped boundary is
+  diagnostic core, local dashboard, live telemetry, MCP inventory, exactly two
+  actions (load and unload installed Ollama models), and the measurement layer
+  (bench-result inspection, the bandwidth ceiling, throttle verdicts, the
+  not-yet-wired storage layer).
+- **An inference surface is authorized by recorded maintainer decision**
+  (2026-08-07; MAINTAINING.md §4b) and not yet built. When it arrives it lives
+  in its own module class — never in `src/actions/`, whose empty-prompt
+  property is permanent — talks only to AI runtimes on this machine, and wires
+  the storage layer together with the UI that shows and deletes what it keeps.
+  **Cloud endpoints are permanently out**; do not open a PR that adds one.
+- **The shared companion-repo code is digest-pinned generated copies**, not
+  direct imports. See "The parity fixtures" below.
 
 Decisions 3 (a published data manifest vs. the website's "no public API"
 non-goal) and 4 (whether to extract the shared engine) are **open**. Do not
@@ -41,9 +49,12 @@ These exist because the tool asks people to run it against their own machine.
 Each is a trust property, not a preference, and each is enforced by a test in
 `test/package.test.js`:
 
-- **No network access except the local Ollama endpoint.** No telemetry, no
-  upload, no update check, no analytics, no crash reporting. Not implemented,
-  not stubbed, not behind a disabled flag. An audit must find zero outbound calls.
+- **It talks only to AI runtimes on this machine — never to the internet.**
+  (Successor to "no network access except the local Ollama endpoint", widened
+  by the recorded 2026-08-07 decision.) No telemetry, no upload, no update
+  check, no analytics, no crash reporting, no cloud model endpoints. Not
+  implemented, not stubbed, not behind a disabled flag. An audit must find
+  zero outbound calls.
 - **The mutation surface is exactly two actions: load and unload.** Nothing
   else, and widening it is a maintainer decision, not a refactor.
   - **Why these two:** both are small, reversible and self-undoing — a loaded

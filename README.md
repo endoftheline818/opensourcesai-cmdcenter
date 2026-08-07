@@ -2,12 +2,16 @@
 
 A local command center for a machine running Ollama. It reports what your
 hardware **actually is** — not what a browser can guess — what Ollama is
-actually running, shows live system pressure, inventories local MCP servers, and
-can load or unload already-installed models within a narrow action boundary.
+actually running, shows live system pressure, inspects osai-bench results under
+the bench protocol's own rules, inventories local MCP servers, and can load or
+unload already-installed models within a narrow action boundary. It talks only
+to AI runtimes on this machine — never to the internet.
 
-> **Status: Phases 0, 1, and 2 complete.** This is the diagnostic core, local
-> dashboard, live telemetry view, model catalog, MCP inventory, and load/unload
-> action surface. It remains unpublished (`private: true` in `package.json`) and
+> **Status: Phases 0–2 complete; Phase 3 in progress.** Shipped: the diagnostic
+> core, local dashboard, live telemetry, model catalog, MCP inventory, the
+> load/unload action surface, and the measurement layer (bench-result
+> inspection, a provenance-pinned bandwidth ceiling, vendor-verdict throttle
+> reporting). It remains unpublished (`private: true` in `package.json`) and
 > installed by clone, not by `npx`. See [Roadmap](#roadmap).
 
 ```bash
@@ -119,15 +123,22 @@ you stop it.
 These are trust properties, enforced by tests in `test/package.test.js`, not
 preferences:
 
-1. **It never transmits anything.** The only network call in the package is to
-   Ollama on `127.0.0.1`. An audit must find zero outbound calls, and a test
-   fails the build if one appears.
+1. **It talks only to AI runtimes on this machine — never to the internet.**
+   Every network call in the package targets loopback (today: Ollama on
+   `127.0.0.1`); a structural test asserts every absolute URL in the source is
+   loopback, so an outbound call cannot appear without failing the build.
+   **Cloud endpoints are permanently out of scope** — an API-key field for a
+   hosted model would end this guarantee, and it is this tool's identity, not
+   a missing feature.
 2. **It has exactly two actions: load and unload.** No model pulls, no
    deletions, no starting or stopping services. Both actions only target models
-   Ollama already reports as installed. (The package contains a storage layer
-   that can delete only its own data files — never models, never configs, never
-   anything it did not create — and no command reaches it yet; tests assert
-   both the containment and the unreachability.)
+   Ollama already reports as installed, and the action layer is structurally
+   incapable of running inference — its one request carries an always-empty
+   prompt, permanently. (Inference belongs to a separate, deliberately-opened
+   surface; see the roadmap. The package also contains a storage layer that can
+   delete only its own data files — never models, never configs, never anything
+   it did not create — and no command reaches it yet; tests assert both the
+   containment and the unreachability.)
 3. **It never runs a shell.** Every subprocess goes through one `execFile`
    wrapper with an explicit argument array, so there is no command-injection
    surface to reason about — it is absent by construction.
@@ -189,9 +200,20 @@ no sourced figure exists, both say "unavailable" rather than guessing.
 - **Phase 1:** local dashboard over the same core, with live telemetry, model
   catalog, and public-safe report views.
 - **Phase 2:** narrow load/unload actions for already-installed Ollama models.
-- **Next:** request/activity history after filtering out the dashboard's own
-  polling, plus deferred deployment-intelligence and packaging work when their
-  inputs and maintainer decisions are ready.
+- **Phase 3 (in progress):** the measurement layer — bench-result inspection
+  under the bench protocol's own comparability rules, a provenance-pinned
+  memory-bandwidth ceiling, vendor-verdict throttle reporting, and a versioned
+  local store built for measurement history (no-prose schema, tested from day
+  one, not yet wired to any command).
+- **Next: a chat surface, built measurement-first.** Every generation this
+  machine performs is a measurement opportunity, and the instrument comes
+  before the conveniences: each response will carry its own honest figures —
+  tokens per second against this machine's own ceiling, residency at
+  generation time, cold loads annotated rather than averaged away — under the
+  same rules as everything above (unavailable is never zero; comparisons must
+  be earned). Inference lives in its own module, never in the action layer,
+  and only ever against AI runtimes on this machine. Deliberately not planned:
+  cloud endpoints, accounts, or anything that leaves the machine.
 
 ## Requirements
 

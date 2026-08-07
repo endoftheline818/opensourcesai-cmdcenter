@@ -6,7 +6,7 @@ Working notes for anyone maintaining this tool. **Read this before making a subs
 
 ## 1. What this is
 
-`opensourcesai-cmdcenter` — a local dashboard for a machine running [Ollama](https://ollama.com). It reads the real hardware, tells you which models actually fit, shows live system gauges, inventories MCP servers, and can load/unload models.
+`opensourcesai-cmdcenter` — a local command center for a machine running [Ollama](https://ollama.com). It reads the real hardware, tells you which models actually fit, shows live system gauges, inspects osai-bench results, inventories MCP servers, and can load/unload models. It talks only to AI runtimes on this machine — never to the internet.
 
 - **Repo:** `endoftheline818/opensourcesai-cmdcenter`
 - **Package:** `@opensourcesai/cmdcenter`, `"private": true`, not published to npm
@@ -20,7 +20,7 @@ node src/cli.js --capture  # raw capture (for bug reports)
 npm test                   # runs the suite and prints its own test count
 ```
 
-**Status:** Phases 0, 1 and 2 are complete. `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
+**Status:** Phases 0–2 are complete; Phase 3's measurement layer has landed and its inference surface is authorized but not yet built (§4b). `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
 
 ---
 
@@ -44,7 +44,7 @@ This split is not stylistic. It is why `fixtures/*.json` — **real captures fro
 
 Every one is enforced by a test in `test/package.test.js` or `test/actions.test.js`.
 
-1. **No network access except the local Ollama endpoint.** No telemetry, no upload, no update check, no analytics. A test asserts **every absolute URL in `src/` is loopback**.
+1. **It talks only to AI runtimes on this machine — never to the internet.** (Successor to "no network access except the local Ollama endpoint", widened deliberately on 2026-08-07 by recorded decision; see §4b.) No telemetry, no upload, no update check, no analytics, and **no cloud model endpoints, permanently** — an API-key field for a hosted model would end the guarantee, and it is this tool's identity, not a missing feature. A test asserts **every absolute URL in `src/` is loopback**.
 2. **The mutation surface is exactly two actions: load and unload.** Never `pull`, `delete`/`rm`, `push`, `create`, `copy`, or service control. These are named individually in tests.
 3. **No shell.** Every subprocess goes through `src/collect/exec.js` — `execFile` with an explicit argv array and a hard timeout. Only that module may import `child_process`.
 4. **The derive layer never reads a clock or a random source.** Timestamps are caller-supplied from the CLI's top level. This is what makes reports snapshot-testable.
@@ -102,6 +102,36 @@ Rules, each enforced by a test:
 6. **Crash honesty.** A torn tail from an interrupted append is recovered and
    *reported* (`tornTail: true`), never silently dropped — and corruption
    mid-file is counted separately, because a crash cannot produce it.
+
+---
+
+## 4b. The inference boundary (Phase 3b) — opened by decision, before code
+
+Recorded 2026-08-07, the same way Phase 2's boundary was crossed: deliberately,
+with every surface that stated the old guarantee rewritten in one commit —
+badge, trust rail, HUD mode line, CLI help, serve banner, package description,
+README trust properties, and this file — **before any inference code exists**.
+The claims chosen are true both before and after that code lands, which is what
+lets the amendment precede it.
+
+The rules that govern the work when it arrives:
+
+1. **The successor guarantee is the load-bearing line:** *talks only to AI
+   runtimes on this machine — never to the internet.* The loopback-URL
+   structural test enforces it; cloud endpoints are permanently out.
+2. **Inference lives in its own module class** (a chat surface under `src/`),
+   never in `src/actions/` — the action layer's always-empty-prompt property is
+   permanent and stays independently tested.
+3. **The action count stays two.** A chat surface is not an "action" in that
+   sense; the mutating-path allowlist discipline (§4) extends to any new POST
+   routes exactly as it did for the inspect paths.
+4. **Storage wiring arrives with that surface** (§4a): the UI that shows
+   retained history, the control that deletes it, and the rewritten
+   reachability guard, together.
+5. **Measurement first.** Every generation is a measurement opportunity; the
+   response strip renders under derive/measurements.js's rules — unavailable is
+   never zero, ceilings are never guessed, in-situ figures are never presented
+   as protocol-grade.
 
 ---
 
