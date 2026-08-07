@@ -9,7 +9,7 @@ Working notes for anyone maintaining this tool. **Read this before making a subs
 `opensourcesai-cmdcenter` — a local command center for a machine running [Ollama](https://ollama.com). It reads the real hardware, tells you which models actually fit, shows live system gauges, inspects osai-bench results, inventories MCP servers, and can load/unload models. It talks only to AI runtimes on this machine — never to the internet.
 
 - **Repo:** `endoftheline818/opensourcesai-cmdcenter`
-- **Package:** `@opensourcesai/cmdcenter`, `"private": true`, not published to npm
+- **Package:** `@opensourcesai/cmdcenter`, published to npm with provenance (decision recorded 2026-08-10; releases are CI-only by construction — see §4 rule 6)
 - **Node:** ≥20. **Zero dependencies, zero devDependencies.** Tests are `node --test`.
 
 ```bash
@@ -50,7 +50,7 @@ Every one is enforced by a test in `test/package.test.js` or `test/actions.test.
 3. **No shell.** Every subprocess goes through `src/collect/exec.js` — `execFile` with an explicit argv array and a hard timeout. Only that module may import `child_process`.
 4. **The derive layer never reads a clock or a random source.** Timestamps are caller-supplied from the CLI's top level. This is what makes reports snapshot-testable.
 5. **The exportable block is closed-vocabulary only.** No function contributing to it may return caller-supplied text. This is what makes a report safe to paste in public.
-6. **Never remove `"private": true`** from `package.json`. Publishing is a maintainer decision. A test asserts the guard.
+6. **Releases are CI-only, with provenance.** (Successor to "never remove `private: true`" — the publish decision was recorded 2026-08-10, and the guard was rewritten, not deleted.) `publishConfig.provenance` makes npm refuse any publish that cannot present a CI-issued attestation, so a laptop cannot release even with a valid token; the only publish path is the tag-triggered `release.yml`, which runs the full suite first and refuses a tag that disagrees with `package.json`'s version. A test asserts all of it.
 
 ---
 

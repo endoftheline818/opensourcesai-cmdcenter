@@ -12,16 +12,20 @@ to AI runtimes on this machine — never to the internet.
 > verdicts, the load/unload action surface, the measurement layer (bench-result
 > inspection, a provenance-pinned bandwidth ceiling, vendor-verdict throttle
 > reporting), and the measured chat surface against two local runtimes with
-> machine baselines from retained history. It remains unpublished
-> (`private: true` in `package.json`) and installed by clone, not by `npx`.
-> See [Roadmap](#roadmap).
+> machine baselines from retained history. Published to npm as
+> [`@opensourcesai/cmdcenter`](https://www.npmjs.com/package/@opensourcesai/cmdcenter),
+> with provenance — every release is built by CI from a public commit, and
+> npm's attestation proves it. See [Roadmap](#roadmap).
 
 ```bash
-node src/cli.js            # human-readable report
-node src/cli.js serve      # local dashboard at http://127.0.0.1:7717
-node src/cli.js --json     # the full report as JSON
-node src/cli.js --capture  # raw machine capture, for bug reports and fixtures
+npx @opensourcesai/cmdcenter          # human-readable report
+npx @opensourcesai/cmdcenter serve    # local dashboard at http://127.0.0.1:7717
+npx @opensourcesai/cmdcenter --json   # the full report as JSON
+npx @opensourcesai/cmdcenter --capture # raw machine capture, for bug reports
 ```
+
+From a clone, the same commands are `node src/cli.js …` — there is no build
+step and there are no dependencies to install.
 
 ## Why this exists
 

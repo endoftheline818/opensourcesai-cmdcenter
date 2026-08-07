@@ -28,13 +28,24 @@ test("package is executable, dependency-free, and version-aligned", async () => 
   assert.equal(pkg.devDependencies, undefined, "node --test needs no test framework");
 });
 
-// PUBLISH GUARD. This package is deliberately unpublished: discovery-spec §8
-// decision 2 keeps it unpublished until a release is a considered maintainer
-// action. Removing `private: true` would make publishing too easy, so it is
-// asserted rather than trusted.
-test("package is private until a deliberate publish decision", async () => {
+// PUBLISH GUARD, REWRITTEN AT ITS SECOND CROSSING — never deleted. Until
+// 2026-08-10 this test asserted `private: true` (the deliberate-unpublished
+// state the discovery spec chose); the publish decision was taken that day
+// with Phase 3d complete, and the guard now asserts the SUCCESSOR
+// properties: the package publishes publicly WITH provenance attestation,
+// which structurally forces every release through CI (npm refuses
+// provenance from a laptop) — a release stays a considered action, enforced
+// by mechanism rather than by a flag. The workflow's existence is asserted
+// so the only publish path cannot quietly disappear.
+test("publishing carries provenance and only CI can do it", async () => {
   const pkg = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
-  assert.equal(pkg.private, true, "do not remove private:true without a recorded decision");
+  assert.equal(pkg.private, undefined, "the publish decision was recorded 2026-08-10; private:true must not return silently");
+  assert.equal(pkg.publishConfig.access, "public");
+  assert.equal(pkg.publishConfig.provenance, true, "provenance is what pins releases to CI");
+  const workflow = await readFile(path.join(root, ".github", "workflows", "release.yml"), "utf8");
+  assert.match(workflow, /id-token:\s*write/, "provenance needs the OIDC token");
+  assert.match(workflow, /npm publish/, "the release workflow must be the thing that publishes");
+  assert.match(workflow, /node --test|npm (run )?test|npm run check/, "no publish without the suite");
 });
 
 // TRUST PROPERTY 1 — NO TRANSMISSION.

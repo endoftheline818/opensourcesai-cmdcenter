@@ -2,8 +2,9 @@
 
 ## What this is
 
-A local command center for a machine running Ollama, packaged as the unpublished
-scoped npm package `@opensourcesai/cmdcenter`. It reads real hardware and
+A local command center for a machine running Ollama, published to npm as
+`@opensourcesai/cmdcenter` (with provenance — releases are built by CI from
+public commits). It reads real hardware and
 runtime state, serves a local dashboard, inventories local MCP servers, exposes
 narrow load/unload actions for installed models, and turns the machine state
 into a report that is honest about its own limits.
@@ -184,6 +185,8 @@ must assert the set is non-empty first — a pass over zero files is not a pass.
 - Branch and open a PR (`feat/`, `fix/`, `docs/`, `chore/` + kebab slug). Do not
   push to `main` and do not force-push. Maintainers merge.
 - Commit messages record *why*, not just *what*.
-- **Do not remove `private: true` from `package.json`.** Publishing is a
-  deliberate maintainer action and is not yet decided; a test asserts the guard.
-- Do not publish to npm.
+- **Do not publish to npm yourself, and do not touch `publishConfig`.**
+  Releasing is a maintainer action that happens only through the tag-triggered
+  `release.yml` workflow — provenance makes any other path fail — and a test
+  asserts the mechanism. (This rule succeeded "do not remove `private: true`"
+  when the publish decision was recorded on 2026-08-10.)
