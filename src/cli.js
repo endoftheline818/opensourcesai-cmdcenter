@@ -9,6 +9,7 @@
 import { pathToFileURL } from "node:url";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { benchResultsDirectory, listBenchResults, readBenchResult } from "./collect/bench-results.js";
 import { collect, resolveHost } from "./collect/index.js";
 import { collectTelemetry } from "./collect/telemetry.js";
 import { createActions } from "./actions/ollama.js";
@@ -42,12 +43,17 @@ export async function loadRooflineLimits() {
 /**
  * The bench-result inspection surface handed to the server: pure functions
  * over a POSTed body, plus the roofline caveats a utilization figure must
- * never render without. Holds no state, writes nothing, calls nothing.
+ * never render without. Holds no state, writes nothing — and since the
+ * results-directory pairing with bench 0.12 it may READ exactly one thing:
+ * the known bench-results directory
+ * (`~/.osai/bench-results/`, bench's own default output location), through
+ * collect/bench-results.js's pattern-and-containment gate. A request can name
+ * a file already in that directory; it cannot name a path.
  *
  * A refused comparison returns ok:true — the evaluation SUCCEEDED and its
  * honest answer is "no". Only an unreadable file is an error.
  */
-export function createInspect(rooflineLimits) {
+export function createInspect(rooflineLimits, { resultsDirectory = null } = {}) {
   return {
     inspectResult(body) {
       const result = inspectBenchResult(body);
@@ -56,6 +62,22 @@ export function createInspect(rooflineLimits) {
     },
     compareResults(left, right, options) {
       return { ok: true, comparison: compareBenchResults(left, right, options) };
+    },
+    async listResults() {
+      if (resultsDirectory === null) return { configured: false, exists: false, results: [] };
+      return { configured: true, ...(await listBenchResults(resultsDirectory)) };
+    },
+    async inspectStored(name) {
+      if (resultsDirectory === null) {
+        return { ok: false, status: 400, reason: "no results directory is configured" };
+      }
+      const read = await readBenchResult(resultsDirectory, name);
+      if (!read.ok) return { ok: false, status: 400, reason: read.reason };
+      const result = inspectBenchResult(read.record);
+      if (!result.ok) return { ok: false, status: 400, reason: result.reason };
+      // `raw` rides along so the browser can offer the same gated comparison
+      // it offers for dropped files — the client already owns this file.
+      return { ok: true, name, view: result.view, rooflineLimits: rooflineLimits.limits, raw: read.record };
     },
   };
 }
@@ -132,7 +154,7 @@ export async function startDashboard({ port = DEFAULT_PORT, llamacppPort = null 
     catalog,
     telemetry: ({ sampledAt }) => collectTelemetry({ host, storePath, sampledAt }),
     actions: createActions({ host }),
-    inspect: createInspect(await loadRooflineLimits()),
+    inspect: createInspect(await loadRooflineLimits(), { resultsDirectory: benchResultsDirectory() }),
     chat,
     port,
   });

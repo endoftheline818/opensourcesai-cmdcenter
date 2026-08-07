@@ -110,15 +110,24 @@ export const ACTION_PATHS = new Set(["/api/actions/load", "/api/actions/unload"]
  * bench result file is read in the browser and its content must reach the
  * pure derive layer for validation, because duplicating those rules in the
  * browser bundle would fork them (the drift class the generated copies exist
- * to close), and a GET cannot carry a file. These handlers hold no state,
- * write nothing, and call nothing — asserted by the same structural guards
- * that confine mutation to src/actions and file writes to src/storage.
+ * to close), and a GET cannot carry a file. These handlers hold no state and
+ * write nothing — asserted by the same structural guards that confine
+ * mutation to src/actions and file writes to src/storage. Since the
+ * results-directory pairing with bench 0.12, one of them READS:
+ * results/inspect opens one file from the known
+ * bench-results directory, named by a bare filename behind a
+ * pattern-and-containment gate (POST because a filename must not ride a URL,
+ * the same rule the conversation history follows for ids).
  *
  * Kept as a SEPARATE set from ACTION_PATHS so "the complete set of mutating
  * paths" stays a true sentence with two members. Growing either set is a
  * deliberate act; the mirror tests force the dispatcher to agree.
  */
-export const INSPECT_PATHS = new Set(["/api/bench/inspect", "/api/bench/compare"]);
+export const INSPECT_PATHS = new Set([
+  "/api/bench/inspect",
+  "/api/bench/compare",
+  "/api/bench/results/inspect",
+]);
 
 /**
  * The chat surface's POSTable paths (MAINTAINING §4b). `send` runs inference

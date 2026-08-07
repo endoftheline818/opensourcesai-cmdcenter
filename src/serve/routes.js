@@ -142,7 +142,7 @@ const json = (body) => ({ status: 200, type: "application/json; charset=utf-8", 
  * @param {() => Promise<object>} [deps.telemetry] Cheap poll-safe sample.
  * @param {() => number} [deps.monotonic]         Injected elapsed-ms source, for the rate limiter.
  */
-export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now(), chat = null }) {
+export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now(), chat = null, inspect = null }) {
   // Rate-limiter state. Deliberately per-server rather than per-client: the
   // resource being protected is the machine's CPU, and it does not care which
   // tab asked.
@@ -168,6 +168,14 @@ export function createRoutes({ collect, catalog, now, telemetry = null, monotoni
       chat
         ? json(await chat.models())
         : json({ ok: false, reason: chat === null ? "chat is not configured" : "chat unavailable" }),
+
+    // What the known bench-results directory holds: filenames, sizes,
+    // mtimes — read-only, from the one fixed location bench itself writes
+    // to. An absent directory is a normal state, reported as such.
+    "/api/bench/results": async () =>
+      inspect?.listResults
+        ? json(await inspect.listResults())
+        : json({ configured: false, exists: false, results: [] }),
 
     "/api/live": async () => {
       if (!telemetry) return json({ available: false, reason: "telemetry collector not configured" });

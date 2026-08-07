@@ -63,9 +63,13 @@ This tool closes that gap by reading the machine directly.
   residency before you commit to it. What a runtime does not report stays
   unavailable with its reason — llama.cpp's protocol has no residency probe,
   so its replies say so instead of borrowing Ollama's.
-- **osai-bench results, inspected honestly.** Drop a result file from
+- **osai-bench results, inspected honestly.** Results from
   [`@opensourcesai/bench`](https://github.com/endoftheline818/opensourcesai-bench)
-  onto the Bench view: medians with their variation and sample counts, the
+  are found automatically — bench 0.12+ writes into `~/.osai/bench-results/`
+  by default, and the Bench view scans exactly that one directory, read-only,
+  with files openable only by bare name behind a pattern-and-containment
+  gate — or drop a result file from anywhere: medians with their variation
+  and sample counts, the
   roofline with its caveats attached, every diagnostic including the ones that
   say "unavailable", and quality-override marks rendered loudly. Two results
   compare side by side only when they earn it — same machine (you attest it),

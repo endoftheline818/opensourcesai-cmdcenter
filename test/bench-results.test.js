@@ -1,13 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import os from "node:os";
 import path from "node:path";
 import {
   ACCEPTED_PROTOCOL_VERSIONS,
   compareBenchResults,
   inspectBenchResult,
 } from "../src/derive/bench-results.js";
+import {
+  RESULT_FILENAME_PATTERN,
+  benchResultsDirectory,
+  listBenchResults,
+  readBenchResult,
+} from "../src/collect/bench-results.js";
 import { INSPECT_PATHS, TOKEN_HEADER, authorize } from "../src/serve/security.js";
 import { createInspect, loadRooflineLimits } from "../src/cli.js";
 import { createServer } from "../src/serve/server.js";
@@ -157,11 +164,11 @@ test("a result compared against itself, attested, is comparable", async () => {
 
 const TOKEN = "a".repeat(64);
 
-async function withServer(fn) {
+async function withServer(fn, { resultsDirectory = null } = {}) {
   const { server, port } = createServer({
     collect: async () => ({}),
     catalog: { models: [], modelCount: 0 },
-    inspect: createInspect(await loadRooflineLimits()),
+    inspect: createInspect(await loadRooflineLimits(), { resultsDirectory }),
     token: TOKEN,
     port: 0,
   });
@@ -270,9 +277,149 @@ test("the inspect authorizer allowlist and the server's dispatch table agree", a
   for (const p of INSPECT_PATHS) {
     assert.ok(source.includes(`"${p}"`), `${p} is authorized but not dispatched`);
   }
-  const dispatched = [...source.matchAll(/"(\/api\/bench\/[a-z]+)":/g)].map((m) => m[1]);
+  // `[a-z/]+` rather than `[a-z]+`: results/inspect is two segments, and a
+  // single-segment regex would have quietly exempted every multi-segment
+  // route from this reverse check.
+  const dispatched = [...source.matchAll(/"(\/api\/bench\/[a-z/]+)":/g)].map((m) => m[1]);
   assert.ok(dispatched.length > 0, "expected dispatched inspect routes — otherwise this guard is vacuous");
   for (const p of dispatched) {
     assert.ok(INSPECT_PATHS.has(p), `${p} is dispatched but not in the authorizer's allowlist`);
   }
+  assert.ok(
+    dispatched.includes("/api/bench/results/inspect"),
+    "the multi-segment path must be visible to this scan — otherwise the widened regex regressed",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The known results directory — read-only, by name, contained
+// ---------------------------------------------------------------------------
+
+test("the directory resolver spells bench's default identically", () => {
+  // Two repos, one path. Bench writes here by default from 0.12.0; this must
+  // never drift from bench's own defaultResultsDirectory().
+  assert.equal(
+    benchResultsDirectory({ home: path.join("home", "u") }),
+    path.join("home", "u", ".osai", "bench-results"),
+  );
+});
+
+test("listing scans one directory honestly: absent, empty, and noisy states", async () => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "osai-benchdir-"));
+  try {
+    const dir = path.join(base, "bench-results");
+    assert.deepEqual(await listBenchResults(dir), { exists: false, results: [] },
+      "an absent directory is a normal state, not an error");
+
+    await mkdir(dir, { recursive: true });
+    await copyFile(
+      path.join(root, "fixtures", "bench-result-rtx-4070-ti-llama31-8b.json"),
+      path.join(dir, "real-run.json"),
+    );
+    // Noise a real directory accumulates: a stray text file, a subdirectory,
+    // a hidden file. None may appear in the listing.
+    await writeFile(path.join(dir, "notes.txt"), "not a result");
+    await mkdir(path.join(dir, "archive"));
+    await writeFile(path.join(dir, ".hidden.json"), "{}");
+
+    const listed = await listBenchResults(dir);
+    assert.equal(listed.exists, true);
+    assert.deepEqual(listed.results.map((r) => r.name), ["real-run.json"]);
+    assert.ok(listed.results[0].sizeBytes > 0);
+    assert.ok(listed.results[0].modifiedAt.includes("T"), "mtime travels as ISO");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("reading by name refuses everything that is not a bare result filename", async () => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "osai-benchdir-read-"));
+  try {
+    // A real secret OUTSIDE the results directory — the thing traversal
+    // attacks aim at, present so a broken gate would actually leak it.
+    await writeFile(path.join(base, "secret.json"), '{"leaked":true}');
+    const dir = path.join(base, "bench-results");
+    await mkdir(dir, { recursive: true });
+    await copyFile(
+      path.join(root, "fixtures", "bench-result-rtx-4070-ti-llama31-8b.json"),
+      path.join(dir, "real-run.json"),
+    );
+
+    for (const attack of [
+      "../secret.json",
+      "..\\secret.json",
+      path.join(base, "secret.json"),
+      "/etc/passwd.json",
+      "C:\\Windows\\x.json",
+      ".hidden.json",
+      "no-extension",
+      "notes.txt",
+      "",
+      null,
+      42,
+    ]) {
+      const refused = await readBenchResult(dir, attack);
+      assert.equal(refused.ok, false, `must refuse: ${String(attack)}`);
+      assert.ok(!String(refused.reason).includes("secret"),
+        "the refusal must not echo attacker-controlled names");
+    }
+
+    const missing = await readBenchResult(dir, "not-there.json");
+    assert.equal(missing.ok, false);
+
+    await writeFile(path.join(dir, "broken.json"), "{not json");
+    assert.match((await readBenchResult(dir, "broken.json")).reason, /not valid JSON/);
+
+    const good = await readBenchResult(dir, "real-run.json");
+    assert.equal(good.ok, true);
+    assert.equal(good.record.protocolVersion, "osai-bench/1.3");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("a stored result flows through the same validation as a dropped one, end to end", async () => {
+  const base = await mkdtemp(path.join(os.tmpdir(), "osai-benchdir-http-"));
+  try {
+    const dir = path.join(base, "bench-results");
+    await mkdir(dir, { recursive: true });
+    await copyFile(
+      path.join(root, "fixtures", "bench-result-rtx-4070-ti-llama31-8b.json"),
+      path.join(dir, "real-run.json"),
+    );
+
+    await withServer(async (base) => {
+      const listed = await fetch(base + "/api/bench/results", { headers: { [TOKEN_HEADER]: TOKEN } });
+      const listing = await listed.json();
+      assert.equal(listing.configured, true);
+      assert.deepEqual(listing.results.map((r) => r.name), ["real-run.json"]);
+
+      const opened = await post(base, "/api/bench/results/inspect", { name: "real-run.json" });
+      assert.equal(opened.status, 200);
+      const payload = await opened.json();
+      assert.equal(payload.ok, true);
+      assert.equal(payload.view.model.identifier, "llama3.1:8b", "same view as the drop-zone path");
+      assert.ok(payload.rooflineLimits.length >= 3, "the caveats travel here too");
+      assert.equal(payload.raw.protocolVersion, "osai-bench/1.3", "raw rides along for the gated compare");
+
+      const traversal = await post(base, "/api/bench/results/inspect", { name: "../secret.json" });
+      assert.equal(traversal.status, 400);
+    }, { resultsDirectory: dir });
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("without a configured directory the routes answer honestly, not emptily", async () => {
+  await withServer(async (base) => {
+    const listing = await (await fetch(base + "/api/bench/results", { headers: { [TOKEN_HEADER]: TOKEN } })).json();
+    assert.equal(listing.configured, false);
+    const opened = await post(base, "/api/bench/results/inspect", { name: "x.json" });
+    assert.equal(opened.status, 400);
+    assert.match((await opened.json()).reason, /no results directory/);
+  });
+});
+
+test("bench's own timestamped filenames clear the pattern", () => {
+  assert.ok(RESULT_FILENAME_PATTERN.test("osai-bench-result-2026-07-25T12-34-56-789Z.json"));
 });

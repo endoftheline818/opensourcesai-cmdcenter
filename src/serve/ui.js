@@ -286,6 +286,9 @@ body {
 }
 .bench-drop.dragover { background: var(--accent-wash); color: var(--color-text); }
 .bench-drop input { display: none; }
+.bench-dir-list { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.bench-dir-row { display: flex; gap: var(--space-3); align-items: baseline; flex-wrap: wrap; }
+.bench-dir-name { font-family: var(--font-mono); font-size: var(--fs-small); overflow-wrap: anywhere; }
 .bench-note { color: var(--color-text-muted); font-size: var(--fs-small); }
 .bench-error { color: var(--color-error); }
 .bench-cmd {
@@ -2316,9 +2319,23 @@ document.addEventListener("visibilitychange", () => {
 var benchSlots = [null, null];
 var benchError = null;
 var benchComparison = null;
+// What the known results directory (~/.osai/bench-results) held at last scan:
+// null until fetched, then { configured, exists, results }. Absent is a
+// normal state — bench may never have run — and renders as a sentence, not
+// an error.
+var benchDirectory = null;
 
 function refreshBench() {
   if (activeView === "bench" && dashboardData) renderView("bench");
+}
+
+async function benchRefreshDirectory() {
+  try {
+    const res = await fetch("/api/bench/results", { headers: { "x-cmdcenter-token": TOKEN } });
+    benchDirectory = await res.json();
+  } catch (err) {
+    benchDirectory = { configured: false, exists: false, results: [], error: String(err.message) };
+  }
 }
 
 function pctText(fraction, digits) {
@@ -2339,7 +2356,7 @@ function metricText(m, unit, digits) {
 function benchHandoffPanel(d) {
   const p = panel("Run a protocol benchmark");
   p.append(el("p", null,
-    "osai-bench runs the osai-bench/1.3 measurement protocol against this machine's Ollama and writes a result JSON into the directory it is run from."));
+    "osai-bench runs the osai-bench/1.3 measurement protocol against this machine's Ollama and writes a result JSON into ~/.osai/bench-results/ (bench 0.12+; older versions wrote into the directory they were run from)."));
   p.append(el("p", "bench-note",
     "It is a separate tool, and this dashboard never runs it for you - copy the command, run it in a terminal, then drop the result file below. If preconditions refuse the run, that refusal is the protocol working; an overridden run is permanently marked."));
 
@@ -2413,6 +2430,35 @@ async function loadBenchFile(file) {
   refreshBench();
 }
 
+// Open one result from the known directory, by bare name — the server reads
+// it behind its pattern-and-containment gate and returns the same validated
+// view a dropped file gets, so both intake paths render identically.
+async function loadStoredBenchResult(name) {
+  benchComparison = null;
+  const slot = firstFreeBenchSlot();
+  if (slot === -1) {
+    benchError = "Two results are already loaded - remove one first.";
+    refreshBench();
+    return;
+  }
+  benchError = null;
+  try {
+    const res = await fetch("/api/bench/results/inspect", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ name: name }),
+    });
+    const payload = await res.json().catch(function () { return null; });
+    if (!payload || payload.ok !== true) {
+      throw new Error((payload && payload.reason) || "the server refused the file");
+    }
+    benchSlots[slot] = { name: name, raw: payload.raw, view: payload.view, rooflineLimits: payload.rooflineLimits || [] };
+  } catch (err) {
+    benchError = String(err.message);
+  }
+  refreshBench();
+}
+
 async function runBenchCompare(attested) {
   if (!benchSlots[0] || !benchSlots[1]) return;
   try {
@@ -2433,6 +2479,42 @@ async function runBenchCompare(attested) {
     benchComparison = { allowed: false, reason: String(err.message) };
   }
   refreshBench();
+}
+
+function benchDirectoryPanel() {
+  const p = panel("Results on this machine");
+  const note = "osai-bench 0.12+ writes results into ~/.osai/bench-results/ by default; this list is a read-only scan of that one directory.";
+  if (!benchDirectory) {
+    p.append(el("p", "bench-note", "Scanning " + note));
+    return p;
+  }
+  if (!benchDirectory.exists || !benchDirectory.configured) {
+    p.append(el("p", "bench-note",
+      "No results directory yet. " + note + " Older bench versions wrote into whatever directory they were run from - drop those files below instead."));
+  } else if (benchDirectory.results.length === 0) {
+    p.append(el("p", "bench-note", "The results directory exists but holds no result files yet. " + note));
+  } else {
+    p.append(el("p", "bench-note", "Found " + benchDirectory.results.length + " result file(s). " + note));
+    const list = el("div", "bench-dir-list");
+    for (const entry of benchDirectory.results) {
+      const row = el("div", "bench-dir-row");
+      const open = el("button", null, "Open");
+      open.type = "button";
+      open.addEventListener("click", function () { loadStoredBenchResult(entry.name); });
+      row.append(
+        el("span", "bench-dir-name", entry.name),
+        el("span", "bench-note", new Date(entry.modifiedAt).toLocaleString() + " · " + (entry.sizeBytes / 1024).toFixed(0) + " KB"),
+        open,
+      );
+      list.append(row);
+    }
+    p.append(list);
+  }
+  const rescan = el("button", null, "Rescan");
+  rescan.type = "button";
+  rescan.addEventListener("click", function () { benchRefreshDirectory().then(refreshBench); });
+  p.append(rescan);
+  return p;
 }
 
 function benchDropPanel() {
@@ -2582,11 +2664,16 @@ function benchComparePanel() {
 }
 
 function benchView(d) {
-  const out = [benchHandoffPanel(d), benchDropPanel()];
+  const out = [benchHandoffPanel(d), benchDirectoryPanel(), benchDropPanel()];
   benchSlots.forEach(function (slot, index) {
     if (slot) out.push(benchResultPanel(slot, index));
   });
   if (benchSlots[0] && benchSlots[1]) out.push(benchComparePanel());
+  // First visit: one scan of the known directory, without blocking the render.
+  if (!benchView.scannedOnce) {
+    benchView.scannedOnce = true;
+    benchRefreshDirectory().then(refreshBench);
+  }
   return out;
 }
 
