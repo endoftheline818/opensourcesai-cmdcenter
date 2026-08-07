@@ -1,0 +1,77 @@
+{
+  "source": {
+    "repository": "opensourcesai-bench",
+    "generatedBy": "scripts/sync-from-bench.mjs",
+    "generatedAt": "2026-08-07",
+    "modules": [
+      "src/derivation/gpu-bandwidth.js",
+      "data/gpu-memory-bandwidth-v1.js"
+    ],
+    "benchClientVersion": "0.11.0"
+  },
+  "generatedCopies": {
+    "matcher": {
+      "file": "src/derive/bench-gpu-bandwidth.generated.js",
+      "sourceModule": "src/derivation/gpu-bandwidth.js",
+      "algorithm": "sha256",
+      "sha256": "9b47507bd130190c8ac97c91007c922033ccdba1f7277e52df291fe866762b1c"
+    },
+    "table": {
+      "file": "data/gpu-memory-bandwidth-v1.js",
+      "sourceModule": "data/gpu-memory-bandwidth-v1.js",
+      "algorithm": "sha256",
+      "sha256": "414383285b511c3c535b99124a16a36ffbcaf959490150ebf2dac012a341f880"
+    },
+    "note": "Digests of the upstream files, LF-normalized — i.e. of everything below the @generated:begin-verbatim marker in each copy. Recomputed by test/bandwidth.test.js."
+  },
+  "tableSchemaVersion": "osai-gpu-memory-bandwidth/2",
+  "entryIds": [
+    "nvidia-geforce-rtx-3080-10gb",
+    "nvidia-geforce-rtx-4070-ti-12gb"
+  ],
+  "rooflineLimitsFile": "data/bench-roofline-limits.json",
+  "resolutions": {
+    "rtx-3080-nominal": {
+      "memoryBandwidthGBps": 760,
+      "source": "manufacturer-table",
+      "tableVersion": "osai-gpu-memory-bandwidth/2",
+      "entryId": "nvidia-geforce-rtx-3080-10gb"
+    },
+    "rtx-4070-ti-real-vram": {
+      "memoryBandwidthGBps": 504,
+      "source": "manufacturer-table",
+      "tableVersion": "osai-gpu-memory-bandwidth/2",
+      "entryId": "nvidia-geforce-rtx-4070-ti-12gb"
+    },
+    "rtx-3080-wrong-vram": {
+      "memoryBandwidthGBps": null,
+      "source": null,
+      "tableVersion": "osai-gpu-memory-bandwidth/2",
+      "entryId": null
+    },
+    "name-normalized": {
+      "memoryBandwidthGBps": 760,
+      "source": "manufacturer-table",
+      "tableVersion": "osai-gpu-memory-bandwidth/2",
+      "entryId": "nvidia-geforce-rtx-3080-10gb"
+    },
+    "unknown-gpu": {
+      "memoryBandwidthGBps": null,
+      "source": null,
+      "tableVersion": "osai-gpu-memory-bandwidth/2",
+      "entryId": null
+    },
+    "no-gpu": {
+      "memoryBandwidthGBps": null,
+      "source": null,
+      "tableVersion": "osai-gpu-memory-bandwidth/2",
+      "entryId": null
+    },
+    "manual-override-wins": {
+      "memoryBandwidthGBps": 999.5,
+      "source": "manual",
+      "tableVersion": null,
+      "entryId": null
+    }
+  }
+}

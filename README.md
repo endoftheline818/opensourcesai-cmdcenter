@@ -166,7 +166,9 @@ The same arrangement joins this tool to `opensourcesai-bench`: the module
 defining which Ollama settings change what a measurement means — and whether two
 measurements may honestly be compared at all — is copied verbatim from bench and
 digest-pinned, so the two tools can never disagree about which comparisons are
-valid.
+valid. So is the manufacturer-sourced GPU memory-bandwidth table and its
+matcher, meaning both tools resolve the same GPU to the same ceiling — and where
+no sourced figure exists, both say "unavailable" rather than guessing.
 
 ## Roadmap
 

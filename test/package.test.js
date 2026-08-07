@@ -260,6 +260,11 @@ test("generated sources announce themselves and name their regeneration command"
   const generated = [
     [path.join(root, "src", "derive", "checker-engine.generated.js"), /scripts\/sync-from-website\.mjs/],
     [path.join(root, "src", "derive", "bench-environment.generated.js"), /scripts\/sync-from-bench\.mjs/],
+    [path.join(root, "src", "derive", "bench-gpu-bandwidth.generated.js"), /scripts\/sync-from-bench\.mjs/],
+    // Not named *.generated.js, deliberately: the matcher imports it by exactly
+    // this name, so the name is load-bearing. It still must announce itself —
+    // being listed here is what enforces that.
+    [path.join(root, "data", "gpu-memory-bandwidth-v1.js"), /scripts\/sync-from-bench\.mjs/],
   ];
   for (const [file, regenerate] of generated) {
     const source = await readFile(file, "utf8");
