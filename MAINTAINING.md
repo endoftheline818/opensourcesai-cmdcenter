@@ -137,15 +137,13 @@ MCP config files **routinely hold live credentials**.
 
 ---
 
-## 10. What is open, and the evidence that shapes each
+## 10. Deferred and open work
 
-Do not start these blind — each has a finding attached that changes the answer.
-
-1. **Deployment-intelligence guidance cards** — the last unbuilt item from the Phase 1 spec. **But all 10 records in the website's `deployment-intel.json` target Linux**, so this panel would render *empty* on Windows and macOS. Building it is cheap; making it valuable requires DI coverage for other platforms first (that is website/research work, under a verified-evidence gate).
-2. **Request/activity history** — derivable from Ollama's access log at `%LOCALAPPDATA%\Ollama\server.log` (Gin format: timestamp, status, duration, client IP, endpoint). **But 94% of that log is now the dashboard's own polling** (`/api/ps`, `/api/version`, `/api/tags`) — measured: 153 polls vs 6 real generations. Filter to inference endpoints (`/api/generate`, `/api/chat`) or the chart measures itself. Also needs persistence, which this tool currently has none of.
-3. **A proxy for per-request tokens/TTFT** — the only way to get the rich per-request data seen in Ollama Monitor / SigNoz dashboards, because **Ollama does not expose request history**; those tools get it by instrumenting the calling apps or intercepting. **This would put the tool in the user's inference path** — if it stalls, their AI stops working. That is a fundamentally different risk profile and needs an explicit maintainer decision.
-4. **Packaging** (Tauri, signing, notarization) — deferred. Budget Windows code signing and Apple notarization when it happens; an unsigned binary triggers SmartScreen/Gatekeeper.
-5. **Open maintainer decisions** from the discovery spec §8: **(3)** whether the website publishes a fetchable data manifest (a fetchable endpoint is a de facto public API, which collides with a standing non-goal — hence the committed snapshot today), and **(4)** whether to extract the shared engine into a package now that it has three consumers.
+The absence of a feature here is a decision, not an oversight. What comes next — and the
+maintainer decisions gating it — is tracked in the internal planning documents alongside
+opensourcesai.com (§11), deliberately not in this public repository. Before building anything
+beyond maintenance of what already exists, open an issue and wait for a recorded maintainer
+decision; a PR that starts a new surface without one will not be merged, however good it is.
 
 ---
 
