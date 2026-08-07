@@ -91,6 +91,15 @@ const OBSERVED_FIELDS = {
   timeToFirstVisibleTokenMs: nullOr(isNonNegativeFinite),
 };
 
+// The third source class, added in v3: what the USER asked for. Not a
+// measurement — a recorded intent, kept beside the numbers so a reply run
+// under a shrunken or stretched context window can never present itself as
+// a default-conditions reply. Bounds are sanity, not policy: a context
+// window is a positive whole number of tokens, and 2^20 refuses typos.
+const REQUESTED_FIELDS = {
+  numCtx: nullOr((v) => Number.isInteger(v) && v >= 128 && v <= 1_048_576),
+};
+
 const RESIDENCY_FIELDS = {
   sizeBytes: isNonNegativeFinite,
   sizeVramBytes: isNonNegativeFinite,
@@ -126,10 +135,11 @@ export function validateMeasurement(record) {
   }
 
   const TOP = {
-    // Any SUPPORTED version validates — v2 only widened the runtime enum, so
-    // one validator covers both shapes soundly. Appends still stamp the
-    // CURRENT version (enforced in appendMeasurement), so old shapes are only
-    // ever read, never newly written.
+    // Any SUPPORTED version validates. v2 only widened the runtime enum; v3
+    // added the `requested` block, REQUIRED at v3+ and refused below it (an
+    // old record carrying new fields is not an old record). Appends still
+    // stamp the CURRENT version (enforced in appendMeasurement), so old
+    // shapes are only ever read, never newly written.
     measurementSchemaVersion: (v) => SUPPORTED_MEASUREMENT_VERSIONS.includes(v),
     recordedAt: boundedString(40, ISO_8601),
     source: (v) => MEASUREMENT_SOURCES.includes(v),
@@ -142,6 +152,9 @@ export function validateMeasurement(record) {
     residencyAfter: () => true,
     environmentHash: nullOr(boundedString(64, HEX)),
   };
+  const hasRequestedBlock =
+    typeof record.measurementSchemaVersion === "number" && record.measurementSchemaVersion >= 3;
+  if (hasRequestedBlock) TOP.requested = () => true; // checked structurally below
 
   for (const key of Object.keys(record)) {
     if (!(key in TOP)) return { ok: false, reason: `unknown field: ${key}` };
@@ -171,6 +184,11 @@ export function validateMeasurement(record) {
   const observed = checkBlock(record.observed, OBSERVED_FIELDS, "observed");
   if (observed) return { ok: false, reason: observed };
 
+  if (hasRequestedBlock) {
+    const requested = checkBlock(record.requested, REQUESTED_FIELDS, "requested");
+    if (requested) return { ok: false, reason: requested };
+  }
+
   const residency = checkBlock(record.residencyAfter, RESIDENCY_FIELDS, "residencyAfter", {
     nullable: true,
   });
@@ -197,6 +215,7 @@ export function emptyMeasurement({ recordedAt, source, modelName, conversationId
       totalDurationNs: null,
     },
     observed: { elapsedMs: null, timeToFirstTokenMs: null, timeToFirstVisibleTokenMs: null },
+    requested: { numCtx: null },
     residencyAfter: null,
     environmentHash: null,
   };

@@ -79,6 +79,7 @@ export function buildGenerationRecord({
   elapsedMs = null,
   timeToFirstTokenMs = null,
   timeToFirstVisibleTokenMs = null,
+  requestedNumCtx = null,
   residency = null,
   environmentHash = null,
 }) {
@@ -102,6 +103,9 @@ export function buildGenerationRecord({
       totalDurationNs: reported("total_duration"),
     },
     observed: { elapsedMs, timeToFirstTokenMs, timeToFirstVisibleTokenMs },
+    // What the user asked for — recorded so a reply run under a non-default
+    // context window can never present itself as a default-conditions reply.
+    requested: { numCtx: requestedNumCtx },
     residencyAfter: residency,
     environmentHash,
   };
@@ -119,7 +123,7 @@ export function buildGenerationRecord({
  * @param {AbortSignal} [options.signal] Aborting stops the upstream request;
  *   Ollama halts generation on disconnect.
  */
-export async function streamGeneration({ host, model, messages, onChunk, signal }) {
+export async function streamGeneration({ host, model, messages, numCtx = null, onChunk, signal }) {
   const dispatchAt = performance.now();
   let firstTokenAt = null;
   let firstVisibleTokenAt = null;
@@ -133,7 +137,14 @@ export async function streamGeneration({ host, model, messages, onChunk, signal 
     const res = await fetch(`${host}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model, messages, stream: true }),
+      // options is sent only when a context size was actually requested — a
+      // default-conditions request stays byte-identical to what it always was.
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        ...(numCtx === null ? {} : { options: { num_ctx: numCtx } }),
+      }),
       signal,
     });
     if (!res.ok) {

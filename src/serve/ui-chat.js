@@ -48,6 +48,19 @@ var chatOpenAiRuntime = null;
 // value alone cannot carry both fields without string-parsing model names,
 // which may themselves contain any separator we could pick.
 var chatModelIndex = new Map();
+// The requested context window (num_ctx), persisted across re-renders like
+// the model choice. Empty means default conditions — nothing is sent.
+var chatNumCtx = "";
+// System prompt: the DRAFT is composed before a conversation exists; the
+// ACTIVE one is whatever the open conversation was created with — set at
+// start, never changed mid-way, because the replies already made were shaped
+// by the prompt that stood when they happened.
+var chatSystemPromptDraft = "";
+var chatSystemPromptActive = null;
+// Search over the user's own conversations: the query text and, when a
+// search ran, its result payload ({results, truncated}); null shows the list.
+var chatSearchQuery = "";
+var chatSearchResults = null;
 
 function refreshChat() {
   if (activeView === "chat" && dashboardData) renderView("chat");
@@ -84,6 +97,11 @@ function chatStripLine(strip, baseline) {
   add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0));
   if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
     add("", "included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
+  }
+  // A non-default context window is a run condition; the strip says so.
+  if (strip.requestedNumCtx) {
+    add("", "ctx " + strip.requestedNumCtx,
+      "this reply was requested with num_ctx=" + strip.requestedNumCtx + " - a non-default context window changes KV size and speed");
   }
   // This machine's own best for this model, environment-gated server-side —
   // the founding example's actual comparison. A new best is worth its accent.
@@ -164,6 +182,7 @@ async function chatOpen(id) {
     chatExpectations = body.expectations || [];
     chatBaselines = new Array((body.strips || []).length);
     chatPhysics = body.physics || null;
+    chatSystemPromptActive = body.header ? body.header.systemPrompt : null;
     chatNotice = null;
   } catch (err) {
     chatNotice = String(err.message);
@@ -178,6 +197,8 @@ function chatNew() {
   chatExpectations = [];
   chatBaselines = [];
   chatPhysics = null;
+  chatSystemPromptActive = null;
+  chatSystemPromptDraft = "";
   chatNotice = null;
   refreshChat();
 }
@@ -202,7 +223,7 @@ async function chatDelete(id) {
   refreshChat();
 }
 
-async function chatSend(runtime, model, text) {
+async function chatSend(runtime, model, text, numCtx, systemPrompt) {
   if (chatStreaming || !text.trim()) return;
   chatStreaming = true;
   chatNotice = null;
@@ -217,7 +238,14 @@ async function chatSend(runtime, model, text) {
     const res = await fetch("/api/chat/send", {
       method: "POST",
       headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
-      body: JSON.stringify({ conversationId: chatActiveId, runtime: runtime, model: model, text: text }),
+      body: JSON.stringify({
+        conversationId: chatActiveId,
+        runtime: runtime,
+        model: model,
+        text: text,
+        numCtx: numCtx === undefined ? null : numCtx,
+        systemPrompt: systemPrompt === undefined ? null : systemPrompt,
+      }),
       signal: controller.signal,
     });
     const reader = res.body.getReader();
@@ -239,6 +267,7 @@ async function chatSend(runtime, model, text) {
           chatStreamPaint(live);
         }
         if (chunk.done === true && chunk.conversationId) {
+          if (chatActiveId === null && systemPrompt) chatSystemPromptActive = systemPrompt;
           chatActiveId = chunk.conversationId;
           live.stopped = chunk.stopped === true;
           if (chunk.failure) chatNotice = chunk.failure;
@@ -278,6 +307,84 @@ function chatStreamPaint(live) {
   if (pane) pane.scrollTop = pane.scrollHeight;
 }
 
+// The strip as text, for export — the same figures the strip renders, with
+// the same provenance labels ("manual ceiling" stays labelled on paper too).
+function chatStripText(strip) {
+  const parts = [];
+  const gen = stripFigure(strip.generation, " tok/s", 2);
+  if (gen) parts.push(gen);
+  if (strip.utilization && strip.utilization.available) {
+    parts.push((strip.utilization.value * 100).toFixed(1) + "% of " +
+      (strip.utilization.ceilingSource === "manual" ? "manual ceiling" : "ceiling"));
+  }
+  const ttft = stripFigure(strip.timeToFirstTokenMs, " ms", 0);
+  if (ttft) parts.push("first token " + ttft);
+  if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
+    parts.push("included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
+  }
+  if (strip.requestedNumCtx) parts.push("ctx " + strip.requestedNumCtx + " requested");
+  return parts.join(" · ");
+}
+
+// Export the open conversation as markdown, WITH its measurements — the
+// figures are the reason this chat surface exists, and an export without
+// them would be any other chat log. Entirely client-side: a file download
+// the user initiates, onto their own disk; no new server surface.
+function chatExport() {
+  if (!chatActiveId || !chatEvents.length) return;
+  const lines = [];
+  lines.push("# Conversation " + chatActiveId.slice(0, 12) + " — OpenSourcesAI Command Center");
+  lines.push("");
+  lines.push("Exported " + new Date().toLocaleString() +
+    ". Figures are in-situ measurements from this machine, not protocol-grade benchmarks.");
+  if (chatSystemPromptActive) {
+    lines.push("");
+    lines.push("**System prompt:** " + chatSystemPromptActive);
+  }
+  var stripIndex = 0;
+  chatEvents.forEach(function (event) {
+    lines.push("");
+    if (event.type === "user") {
+      lines.push("## User" + (event.at ? " (" + event.at + ")" : ""));
+      lines.push("");
+      lines.push(event.text);
+      return;
+    }
+    lines.push("## " + (event.model || "Assistant") + (event.at ? " (" + event.at + ")" : ""));
+    if (event.thinking) {
+      lines.push("");
+      lines.push("*(thinking)* " + event.thinking.split("\\n").join("\\n> "));
+    }
+    lines.push("");
+    lines.push(event.text);
+    if (event.stopped) { lines.push(""); lines.push("*stopped before completion*"); }
+    if (!event.failed && chatStrips[stripIndex]) {
+      const text = chatStripText(chatStrips[stripIndex]);
+      if (text) { lines.push(""); lines.push("> measured: " + text); }
+      const expectation = chatExpectations[stripIndex];
+      if (expectation && expectation.available && expectation.verdict === "disagrees") {
+        lines.push("> prediction broken: " + expectation.note);
+      }
+    }
+    if (!event.failed) stripIndex += 1;
+  });
+  if (chatPhysics && chatPhysics.available) {
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+    lines.push("Conversation trend: " + chatPhysics.note);
+  }
+  const blob = new Blob([lines.join("\\n") + "\\n"], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a");
+  a.href = url;
+  a.download = "osai-conversation-" + chatActiveId.slice(0, 12) + ".md";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function chatModelLabel(entry, loadedMap) {
   var label = entry.name;
   if (entry.grade && entry.grade.fit) label += " · " + entry.grade.fit.replace("_", " ");
@@ -286,27 +393,79 @@ function chatModelLabel(entry, loadedMap) {
   return label;
 }
 
+async function chatRunSearch() {
+  if (!chatSearchQuery.trim()) { chatSearchResults = null; refreshChat(); return; }
+  try {
+    const res = await fetch("/api/chat/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ query: chatSearchQuery }),
+    });
+    const body = await res.json();
+    chatSearchResults = body.ok === false ? { results: [], truncated: false, error: body.reason } : body;
+  } catch (err) {
+    chatSearchResults = { results: [], truncated: false, error: String(err.message) };
+  }
+  refreshChat();
+}
+
 function chatSidebar() {
   const side = el("div", "chat-side");
   const fresh = el("button", null, "New conversation");
   fresh.type = "button";
   fresh.addEventListener("click", chatNew);
   side.append(fresh);
+
+  // Search over the words in the user's own conversations. Enter runs it;
+  // clearing the box returns to the plain list.
+  const search = el("input", "chat-search");
+  search.type = "search";
+  search.placeholder = "Search conversations…";
+  search.setAttribute("aria-label", "Search conversations");
+  search.value = chatSearchQuery;
+  search.addEventListener("input", function () {
+    chatSearchQuery = search.value;
+    if (search.value.trim() === "" && chatSearchResults) { chatSearchResults = null; refreshChat(); }
+  });
+  search.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); chatRunSearch(); }
+  });
+  side.append(search);
+
   const list = el("div", "chat-list");
-  for (const convo of chatConversations) {
-    const row = el("div", "chat-list-row" + (convo.id === chatActiveId ? " active" : ""));
-    const open = el("button", "chat-list-open", (convo.model || convo.id) + " · " + (convo.messageCount ?? "?") + " msg");
-    open.type = "button";
-    open.title = convo.lastAt ? new Date(convo.lastAt).toLocaleString() : convo.id;
-    open.addEventListener("click", function () { chatOpen(convo.id); });
-    const del = el("button", "icon-button", "✕");
-    del.type = "button";
-    del.setAttribute("aria-label", "Delete conversation");
-    del.addEventListener("click", function () { chatDelete(convo.id); });
-    row.append(open, del);
-    list.append(row);
+  if (chatSearchResults) {
+    if (chatSearchResults.error) list.append(el("p", "bench-error", chatSearchResults.error));
+    else if (!chatSearchResults.results.length) list.append(el("p", "bench-note", "No matches."));
+    for (const hit of chatSearchResults.results || []) {
+      const row = el("div", "chat-list-row" + (hit.id === chatActiveId ? " active" : ""));
+      const open = el("button", "chat-list-open", (hit.model || hit.id) + " · " + hit.matches.length + " match(es)");
+      open.type = "button";
+      open.title = hit.matches[0] ? hit.matches[0].snippet : hit.id;
+      open.addEventListener("click", function () { chatOpen(hit.id); });
+      row.append(open);
+      list.append(row);
+      const snip = el("p", "chat-snippet", hit.matches[0] ? hit.matches[0].snippet : "");
+      list.append(snip);
+    }
+    if (chatSearchResults.truncated) {
+      list.append(el("p", "bench-note", "More matches exist — this shows the first 50."));
+    }
+  } else {
+    for (const convo of chatConversations) {
+      const row = el("div", "chat-list-row" + (convo.id === chatActiveId ? " active" : ""));
+      const open = el("button", "chat-list-open", (convo.model || convo.id) + " · " + (convo.messageCount ?? "?") + " msg");
+      open.type = "button";
+      open.title = convo.lastAt ? new Date(convo.lastAt).toLocaleString() : convo.id;
+      open.addEventListener("click", function () { chatOpen(convo.id); });
+      const del = el("button", "icon-button", "✕");
+      del.type = "button";
+      del.setAttribute("aria-label", "Delete conversation");
+      del.addEventListener("click", function () { chatDelete(convo.id); });
+      row.append(open, del);
+      list.append(row);
+    }
+    if (!chatConversations.length) list.append(el("p", "bench-note", "No saved conversations."));
   }
-  if (!chatConversations.length) list.append(el("p", "bench-note", "No saved conversations."));
   side.append(list);
   return side;
 }
@@ -346,6 +505,17 @@ function chatMessages() {
 
 function chatComposer(d) {
   const wrap = el("div", "chat-composer");
+  // The system prompt is composable only BEFORE the conversation exists —
+  // set at start, shown read-only after (see chatView's header line).
+  if (chatActiveId === null) {
+    const sys = el("textarea", "chat-system");
+    sys.rows = 2;
+    sys.placeholder = "System prompt (optional) — set when the conversation starts, fixed afterwards";
+    sys.setAttribute("aria-label", "System prompt for the new conversation");
+    sys.value = chatSystemPromptDraft;
+    sys.addEventListener("input", function () { chatSystemPromptDraft = sys.value; });
+    wrap.append(sys);
+  }
   const select = el("select");
   select.id = "chat-model";
   select.setAttribute("aria-label", "Model");
@@ -381,21 +551,37 @@ function chatComposer(d) {
   input.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go.click(); }
   });
+  // The first parameter control: a context window in tokens. Empty means
+  // default conditions; a value is sent, applied, AND recorded — the strip
+  // under the reply names it, because it changes KV size and speed.
+  const ctx = el("input", "chat-ctx");
+  ctx.type = "number";
+  ctx.min = "128";
+  ctx.max = "1048576";
+  ctx.step = "1";
+  ctx.placeholder = "ctx (default)";
+  ctx.title = "Requested context window (num_ctx), in tokens. Leave empty for the runtime default. Recorded with the reply's measurements. Ollama only - llama.cpp sets its window at server launch.";
+  ctx.setAttribute("aria-label", "Requested context window in tokens");
+  ctx.value = chatNumCtx;
+  ctx.addEventListener("change", function () { chatNumCtx = ctx.value; });
   const go = el("button", null, "Send");
   go.type = "button";
   go.addEventListener("click", function () {
     const text = input.value;
     input.value = "";
     chatSelectedModel = select.value;
+    chatNumCtx = ctx.value;
     const pick = chatModelIndex.get(select.value);
-    if (pick) chatSend(pick.runtime, pick.model, text);
+    const requested = ctx.value.trim() === "" ? null : Number(ctx.value);
+    const sys = chatActiveId === null && chatSystemPromptDraft.trim() !== "" ? chatSystemPromptDraft : null;
+    if (pick) chatSend(pick.runtime, pick.model, text, requested, sys);
   });
   const stop = el("button", null, "Stop");
   stop.type = "button";
   stop.addEventListener("click", function () { if (chatAbort) chatAbort.abort(); });
   const buttons = chatStreaming ? [stop] : [go];
   const row = el("div", "chat-composer-row");
-  row.append(select);
+  row.append(select, ctx);
   for (const b of buttons) row.append(b);
   wrap.append(input, row);
   // Configured-but-unreachable is a state worth a sentence, not silence: the
@@ -414,6 +600,21 @@ function chatView(d) {
   const layout = el("div", "chat-layout");
   layout.append(chatSidebar());
   const main = el("div", "chat-main");
+  if (chatActiveId && chatEvents.length) {
+    const bar = el("div", "chat-actions");
+    const exportBtn = el("button", null, "Export (.md)");
+    exportBtn.type = "button";
+    exportBtn.title = "Download this conversation as markdown, measurements included - a file on your disk, initiated by you; nothing is transmitted anywhere.";
+    exportBtn.addEventListener("click", chatExport);
+    bar.append(exportBtn);
+    main.append(bar);
+  }
+  if (chatSystemPromptActive) {
+    const sys = el("div", "chat-system-line");
+    sys.append(el("span", "chat-strip-muted", "system prompt: "), document.createTextNode(chatSystemPromptActive));
+    sys.title = "Set when this conversation started; every reply in it was shaped by this prompt.";
+    main.append(sys);
+  }
   const physics = chatPhysicsLine();
   if (physics) main.append(physics);
   main.append(chatMessages(), chatComposer(d));
@@ -484,4 +685,18 @@ export const CHAT_CSS = `
 .chat-input { width: 100%; resize: vertical; }
 .chat-composer-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .chat-composer-row select { max-width: 100%; }
+.chat-ctx { width: 7.5rem; }
+.chat-system { width: 100%; resize: vertical; margin-bottom: var(--space-2); }
+.chat-search { width: 100%; }
+.chat-actions { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }
+.chat-snippet {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  margin: 0 0 var(--space-2) 0.55rem; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-system-line {
+  font-size: var(--fs-overline); color: var(--color-text);
+  border-left: 2px solid var(--color-border); padding-left: 0.6rem;
+  margin-bottom: var(--space-2); white-space: pre-wrap; word-break: break-word;
+}
 `;

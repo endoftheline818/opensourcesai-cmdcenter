@@ -20,7 +20,7 @@ node src/cli.js --capture  # raw capture (for bug reports)
 npm test                   # runs the suite and prints its own test count
 ```
 
-**Status:** Phases 0–2 are complete; Phase 3's measurement layer and inference surface (§4b) have landed — the chat relay measures every generation, against two local runtimes: Ollama, and optionally an OpenAI-compatible server (llama.cpp) via `--llamacpp-port`. `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
+**Status:** Phases 0–3 are complete, 3d included. The chat relay measures every generation against two local runtimes (Ollama, and optionally an OpenAI-compatible server via `--llamacpp-port`), and the conveniences arrived measurement-first: a recorded `num_ctx` control (measurement schema v3's `requested` block), start-fixed system prompts (conversation schema v2), search, and a markdown export that carries each reply's measurements — an explicit user action with no server-side export path. `npm test` prints the current test count; it is deliberately not restated here, because a hand-copied total is stale the next time a PR adds a test — which is exactly what happened across #19–#24 while this line stood still. CI is configured as a 9-way matrix (ubuntu/windows/macos × Node 20/22/24).
 
 ---
 
