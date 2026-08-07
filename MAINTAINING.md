@@ -32,7 +32,8 @@ npm test                   # runs the suite and prints its own test count
 | `src/derive/**` | **Pure** functions over a capture. No I/O, no clock, no randomness. |
 | `src/actions/**` | The **only** Ollama mutation surface. Two actions, nothing else (§4). |
 | `src/serve/**` | HTTP server, security, and the browser bundle. |
-| `src/storage/**` | The **only** code that writes or deletes files, confined to the tool's own data directory. Versioned (`STORAGE_SCHEMA_VERSION`), clock-free like derive, and **not yet reachable from any entry point** — three structural tests assert all of it (§4a). |
+| `src/storage/**` | The **only** code that writes or deletes files, confined to the tool's own data directory. Versioned (`STORAGE_SCHEMA_VERSION`), clock-free like derive, and reachable **only from the chat surface and the CLI wiring seam** — guard-asserted with a positive control (§4a). |
+| `src/chat/**` | The inference surface (§4b): the streaming relay to loopback Ollama, and the only consumer of storage. Prompts carry text HERE and nowhere else. |
 
 This split is not stylistic. It is why `fixtures/*.json` — **real captures from real machines** (RTX 4070 Ti/Windows, RTX 3080/Linux, M1 MacBook Air) — let CI validate all three platforms' reporting on runners with no GPU and no Ollama.
 
@@ -69,13 +70,18 @@ Opened deliberately as a product decision. **Widening it is a maintainer decisio
 
 ## 4a. The storage layer — what this tool may remember, and the rules that bind it
 
-Added 2026-08-07. `src/storage/**` is a versioned local store (platform data
-dir: `%LOCALAPPDATA%\osai-cmdcenter`, `~/Library/Application Support/…`,
-`$XDG_DATA_HOME/…`) holding append-only JSONL. **Nothing invokes it yet** — a
-test asserts that, and wiring it up is a deliberate act that must arrive
-together with the UI that shows the history, the control that deletes it, and
-rewritten user-facing claims. Do not wire it quietly; rewrite that guard to the
-narrower property that replaces it.
+Added 2026-08-07; **wired 2026-08-08**, exactly the package deal this section
+demanded: the chat surface that writes it arrived together with the UI that
+shows retained data, the delete-with-confirm control, and the rewritten claims
+— and the unreachability guard was rewritten (not deleted) to the narrower
+property that replaced it: **only `src/chat/` and the CLI wiring seam may
+reach storage**, asserted with a positive control. `src/storage/**` is a
+versioned local store (platform data dir: `%LOCALAPPDATA%\osai-cmdcenter`,
+`~/Library/Application Support/…`, `$XDG_DATA_HOME/…`) holding append-only
+JSONL: `measurements.jsonl` (counters, NO prose — its closed schema is the
+enforcement) and `conversations/<id>.jsonl` (the prose, deletable through the
+UI's confirm; measurement history deliberately survives a deleted
+conversation, joined only by an opaque id).
 
 Rules, each enforced by a test:
 
@@ -110,9 +116,12 @@ Rules, each enforced by a test:
 Recorded 2026-08-07, the same way Phase 2's boundary was crossed: deliberately,
 with every surface that stated the old guarantee rewritten in one commit —
 badge, trust rail, HUD mode line, CLI help, serve banner, package description,
-README trust properties, and this file — **before any inference code exists**.
-The claims chosen are true both before and after that code lands, which is what
-lets the amendment precede it.
+README trust properties, and this file — **before any inference code existed**.
+The claims chosen were true both before and after that code landed, which is
+what let the amendment precede it. **The code landed 2026-08-08**: `src/chat/`
+(streaming relay + service), the `CHAT_PATHS` allowlist under the same mirror
+discipline as actions and inspection, the storage wiring of §4a, and the chat
+view — every rule below held by construction.
 
 The rules that govern the work when it arrives:
 

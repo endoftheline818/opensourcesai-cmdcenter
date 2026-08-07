@@ -78,6 +78,8 @@ export const TOKENS = {
   content: "1120px",
 };
 
+import { CHAT_CSS, CHAT_JS } from "./ui-chat.js";
+
 export const HTML = (token) => `<!doctype html>
 <html lang="en">
 <head>
@@ -117,7 +119,7 @@ HOST:   <span class="v">LOOPBACK ONLY</span></pre>
 </body>
 </html>`;
 
-export const CSS = `:root {
+const CORE_CSS = `:root {
   /* HUD chrome, from the social-image style guide. */
   --hud-deep: ${HUD.backgroundDeep};
   --hud-navy: ${HUD.backgroundNavy};
@@ -976,7 +978,7 @@ select {
 }
 `;
 
-export const JS = `"use strict";
+const CORE_JS = `"use strict";
 const TOKEN = JSON.parse(document.getElementById("bootstrap").textContent).token;
 const app = document.getElementById("app");
 
@@ -2604,6 +2606,14 @@ const VIEWS = [
     label: "Bench",
     build: (d) => benchView(d),
   },
+  // The inference surface (MAINTAINING §4b), measurement-first. chatView is
+  // defined in the chat UI module, concatenated after this core — function
+  // declarations share the script scope, and nothing calls it until a click.
+  {
+    id: "chat",
+    label: "Chat",
+    build: (d) => chatView(d),
+  },
   {
     id: "tools",
     label: "Tools",
@@ -2740,3 +2750,10 @@ load().catch((err) => {
   app.setAttribute("aria-busy", "false");
 });
 `;
+
+// The served assets, composed from the core plus the chat UI module. The
+// composition point is HERE, once — the browser-bundle guards scan these
+// composed exports, so every rule asserted about the core binds every module
+// concatenated into it, present and future.
+export const CSS = CORE_CSS + CHAT_CSS;
+export const JS = CORE_JS + CHAT_JS;

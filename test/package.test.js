@@ -48,20 +48,25 @@ const NETWORK_CAPABLE = [
   path.join("collect", "ollama.js"),
   path.join("collect", "telemetry.js"),
   path.join("actions", "ollama.js"),
+  // The inference surface (MAINTAINING §4b): the relay streams to Ollama's
+  // /api/chat, the service validates against /api/tags. Loopback like every
+  // other entry — the URL guard below still binds them both.
+  path.join("chat", "ollama.js"),
+  path.join("chat", "service.js"),
 ];
 
 test("network access exists only in the Ollama collectors", async () => {
   const files = await sourceFiles(path.join(root, "src"));
-  const browserBundle = path.join("serve", "ui.js");
 
   for (const file of files) {
     const source = await readFile(file, "utf8");
     if (NETWORK_CAPABLE.some((allowed) => file.endsWith(allowed))) continue;
 
-    // serve/ui.js is BROWSER code carried as a string. Its fetches run in the
+    // serve/ui*.js is BROWSER code carried as strings. Its fetches run in the
     // user's browser against this same server, which is a different thing from
-    // the Node process reaching the network — it has its own stricter rule.
-    if (file.endsWith(browserBundle)) continue;
+    // the Node process reaching the network — it has its own stricter rule,
+    // asserted below over the COMPOSED bundle so every UI module is covered.
+    if (/serve[\\/]ui[^\\/]*\.js$/.test(file)) continue;
 
     assert.doesNotMatch(
       source,
@@ -111,7 +116,12 @@ test("every absolute URL in the package points at loopback", async () => {
 });
 
 test("the browser bundle only ever talks to its own origin", async () => {
-  const source = await readFile(path.join(root, "src", "serve", "ui.js"), "utf8");
+  // Scans the COMPOSED served assets, not a source file (changed when the
+  // first UI module split out of ui.js): everything asserted here binds every
+  // module concatenated into the bundle, present and future, because it is
+  // the exact string a browser receives.
+  const { JS, CSS } = await import("../src/serve/ui.js");
+  const source = JS + CSS;
 
   // No absolute URL of any kind: every request target must be a same-origin
   // relative path. This is the property that makes the browser side incapable
@@ -348,13 +358,19 @@ test("the successor trust boundary is stated where users read it", async () => {
   assert.match(ui, /never to the internet/i, "the dashboard badge must state the guarantee");
 });
 
-test("POST exists only in the action layer and the browser bundle", async () => {
+test("POST exists only in the action, chat, and browser-bundle surfaces", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   for (const file of files) {
     const relative = path.relative(root, file);
-    // serve/ui.js posts to THIS server, not to Ollama, and is constrained by
-    // the same-origin rule asserted above.
-    if (relative.includes(path.join("src", "actions")) || relative.endsWith(path.join("serve", "ui.js"))) continue;
+    // serve/ui*.js posts to THIS server, not to Ollama, and is constrained by
+    // the same-origin rule asserted above. src/chat is the inference surface
+    // opened by MAINTAINING §4b — its POSTs target loopback Ollama, bound by
+    // the URL guard like everything else.
+    if (
+      relative.includes(path.join("src", "actions")) ||
+      relative.includes(path.join("src", "chat")) ||
+      /serve[\\/]ui[^\\/]*\.js$/.test(relative)
+    ) continue;
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, /method:\s*["']POST["']/i, `unexpected POST in ${relative}`);
   }
@@ -445,18 +461,39 @@ test("file writes and deletions exist only in src/storage", async () => {
 // wiring lands, REWRITE this guard to assert the narrower property that
 // replaces it (only the serve layer may reach storage, or whatever the wiring
 // decides) — do not delete it.
-test("nothing outside src/storage imports the storage layer yet", async () => {
+// REWRITTEN, NOT DELETED, when the wiring landed — exactly as the previous
+// version of this guard instructed. Until 2026-08-08 nothing reached storage;
+// the chat surface (MAINTAINING §4b) now does, arriving together with the UI
+// that shows retained data, the delete-with-confirm control, and the rewritten
+// user-facing claims — the package deal §4a demanded. The narrower property
+// that replaces "unreachable": ONLY the chat surface and the CLI's wiring seam
+// may reach storage. Collect must never read what the tool remembers into a
+// capture; derive stays pure; serve touches storage only through the injected
+// chat service, never directly.
+test("only the chat surface and the CLI wiring may reach the storage layer", async () => {
   const files = await sourceFiles(path.join(root, "src"));
+  const allowed = (relative) =>
+    relative.includes(path.join("src", "chat")) || relative.endsWith(path.join("src", "cli.js"));
+  let reached = 0;
+
   for (const file of files) {
     const relative = path.relative(root, file);
     if (relative.includes(path.join("src", "storage"))) continue;
     const source = await readFile(file, "utf8");
+    const imports = /from\s+["'][^"']*\/storage\//.test(source);
+    if (allowed(relative)) {
+      if (imports) reached += 1;
+      continue;
+    }
     assert.doesNotMatch(
       source,
       /from\s+["'][^"']*\/storage\//,
-      `${relative} reaches the storage layer — wiring it is a deliberate act with its own boundary rewrite`,
+      `${relative} reaches the storage layer — only src/chat and the CLI wiring may`,
     );
   }
+  // Positive control: if the allowlisted importers stopped importing, this
+  // guard would pass while guarding a wiring that no longer exists.
+  assert.ok(reached > 0, "expected the chat surface to actually reach storage — otherwise this guard is vacuous");
 });
 
 // HARD REPO BOUNDARY — this package never imports from the website. The two

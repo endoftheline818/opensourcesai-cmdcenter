@@ -142,7 +142,7 @@ const json = (body) => ({ status: 200, type: "application/json; charset=utf-8", 
  * @param {() => Promise<object>} [deps.telemetry] Cheap poll-safe sample.
  * @param {() => number} [deps.monotonic]         Injected elapsed-ms source, for the rate limiter.
  */
-export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now() }) {
+export function createRoutes({ collect, catalog, now, telemetry = null, monotonic = () => Date.now(), chat = null }) {
   // Rate-limiter state. Deliberately per-server rather than per-client: the
   // resource being protected is the machine's CPU, and it does not care which
   // tab asked.
@@ -151,6 +151,16 @@ export function createRoutes({ collect, catalog, now, telemetry = null, monotoni
 
   return {
     "/api/health": async () => json({ ok: true, clientVersion: CLIENT_VERSION }),
+
+    // The conversation LIST — ids and metadata only, no prose by construction
+    // (the shape is enforced and sentinel-tested in src/storage/conversations).
+    // Reading a conversation's words requires POSTing for exactly that
+    // conversation. When chat is not configured (storage failed to open, say),
+    // the reason is reported rather than an empty list pretending health.
+    "/api/chat/conversations": async () =>
+      chat
+        ? json(await chat.list())
+        : json({ ok: false, reason: chat === null ? "chat is not configured" : "chat unavailable" }),
 
     "/api/live": async () => {
       if (!telemetry) return json({ available: false, reason: "telemetry collector not configured" });

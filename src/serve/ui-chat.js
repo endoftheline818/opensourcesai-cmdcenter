@@ -1,0 +1,373 @@
+// The chat view — the first UI module split out of ui.js, as the 3b plan
+// required (the bundle was 2,700 lines inside one template literal with a
+// known backtick trap; growing it another 300 in place was the wrong answer).
+//
+// SAME RULES AS THE CORE BUNDLE, because this string ships into the same
+// browser page: no backticks and no ${} inside the template (the module-scope
+// evaluation trap), textContent everywhere and never innerHTML (a model's
+// output is untrusted content in a token-holding page — the CSP is the
+// backstop, not the defence), fetch only to same-origin paths, no sockets.
+// The composed-bundle guards in test/package.test.js scan the SERVED string,
+// so everything asserted about ui.js binds this file identically.
+//
+// MEASUREMENT RENDERING: the strip under each reply draws exactly what the
+// server's derive layer concluded — value-or-reason pairs — and invents
+// nothing. An unavailable figure renders as its reason, never as zero, and
+// utilization arrives only when a sourced ceiling existed server-side.
+
+export const CHAT_JS = `
+// ---------------------------------------------------------------------------
+// Chat — the inference surface, measurement-first.
+// ---------------------------------------------------------------------------
+
+var chatConversations = [];
+var chatActiveId = null;
+var chatEvents = [];
+var chatStrips = [];
+var chatStreaming = false;
+var chatAbort = null;
+var chatNotice = null;
+// The chosen model survives re-renders. Without this, every refresh reset the
+// select to its first option — found in browser verification when a
+// continuation send silently went to a different model, visible ONLY because
+// the strip's ceiling changed with it. The instrument caught its own UI bug.
+var chatSelectedModel = null;
+
+function refreshChat() {
+  if (activeView === "chat" && dashboardData) renderView("chat");
+}
+
+function stripFigure(figure, unit, digits) {
+  if (!figure || figure.available !== true) return null;
+  return Number(figure.value).toFixed(digits) + unit;
+}
+
+// One line of honest figures under a reply. Only available figures render;
+// what could not be measured is summarised at the end rather than padding the
+// line with reasons — the full reason is in the title attribute.
+function chatStripLine(strip) {
+  const row = el("div", "chat-strip");
+  const parts = [];
+  const add = (label, text, title) => {
+    if (text === null) return;
+    const span = el("span", null, label ? label + " " + text : text);
+    if (title) span.title = title;
+    parts.push(span);
+  };
+  add("", stripFigure(strip.generation, " tok/s", 2));
+  if (strip.utilization && strip.utilization.available) {
+    add("", (strip.utilization.value * 100).toFixed(1) + "% of ceiling",
+      "observed generation rate against this machine's sourced memory-bandwidth ceiling for this model");
+  }
+  add("first token", stripFigure(strip.timeToFirstTokenMs, " ms", 0));
+  if (strip.coldLoad && strip.coldLoad.includedColdLoad === true) {
+    add("", "included cold load (" + strip.coldLoad.value.toFixed(1) + " s)");
+  }
+  const unavailable = ["generation", "utilization", "timeToFirstTokenMs"]
+    .filter(function (k) { return strip[k] && strip[k].available === false; });
+  if (parts.length === 0) {
+    const why = unavailable.map(function (k) { return strip[k].reason; }).join("; ");
+    parts.push(el("span", null, "not measured" + (why ? " — " + why : "")));
+  } else if (unavailable.length) {
+    const span = el("span", "chat-strip-muted", unavailable.length + " unavailable");
+    span.title = unavailable.map(function (k) { return k + ": " + strip[k].reason; }).join("; ");
+    parts.push(span);
+  }
+  for (const part of parts) row.append(part);
+  return row;
+}
+
+async function chatRefreshConversations() {
+  try {
+    const res = await fetch("/api/chat/conversations", { headers: { "x-cmdcenter-token": TOKEN } });
+    const body = await res.json();
+    chatConversations = body.ok === false ? [] : body.conversations || [];
+    chatNotice = body.ok === false ? body.reason : chatNotice;
+  } catch (err) {
+    chatNotice = String(err.message);
+  }
+}
+
+async function chatOpen(id) {
+  try {
+    const res = await fetch("/api/chat/history", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ id: id }),
+    });
+    const body = await res.json();
+    if (!body.ok) { chatNotice = body.reason; refreshChat(); return; }
+    chatActiveId = id;
+    chatEvents = body.events;
+    chatStrips = body.strips || [];
+    chatNotice = null;
+  } catch (err) {
+    chatNotice = String(err.message);
+  }
+  refreshChat();
+}
+
+function chatNew() {
+  chatActiveId = null;
+  chatEvents = [];
+  chatStrips = [];
+  chatNotice = null;
+  refreshChat();
+}
+
+async function chatDelete(id) {
+  // The delete-with-confirm control the storage decision promised: the
+  // conversation's words are the only copy, and there is no undo.
+  if (!window.confirm("Delete this conversation? Its messages are removed permanently. Measurement history (numbers only) is kept.")) return;
+  try {
+    const res = await fetch("/api/chat/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ id: id }),
+    });
+    const body = await res.json();
+    if (!body.ok) chatNotice = body.reason;
+    if (chatActiveId === id) chatNew();
+  } catch (err) {
+    chatNotice = String(err.message);
+  }
+  await chatRefreshConversations();
+  refreshChat();
+}
+
+async function chatSend(model, text) {
+  if (chatStreaming || !text.trim()) return;
+  chatStreaming = true;
+  chatNotice = null;
+  chatEvents.push({ type: "user", at: null, text: text });
+  chatEvents.push({ type: "assistant", at: null, text: "", thinking: null, model: model, streamingNow: true });
+  refreshChat();
+
+  const live = chatEvents[chatEvents.length - 1];
+  const controller = new AbortController();
+  chatAbort = controller;
+  try {
+    const res = await fetch("/api/chat/send", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ conversationId: chatActiveId, model: model, text: text }),
+      signal: controller.signal,
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    var buffer = "";
+    for (;;) {
+      const step = await reader.read();
+      if (step.done) break;
+      buffer += decoder.decode(step.value, { stream: true });
+      const lines = buffer.split("\\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const chunk = JSON.parse(line);
+        if (chunk.refused) { chatNotice = "Refused: " + chunk.refused; live.failed = true; continue; }
+        if (chunk.message) {
+          if (chunk.message.content) live.text += chunk.message.content;
+          if (chunk.message.thinking) live.thinking = (live.thinking || "") + chunk.message.thinking;
+          chatStreamPaint(live);
+        }
+        if (chunk.done === true && chunk.conversationId) {
+          chatActiveId = chunk.conversationId;
+          live.stopped = chunk.stopped === true;
+          if (chunk.failure) chatNotice = chunk.failure;
+          if (chunk.conversationPersisted === false || chunk.measurementRecorded === false) {
+            chatNotice = "the reply happened but saving it " +
+              (chunk.conversationPersisted === false ? "to the conversation " : "to measurement history ") + "failed";
+          }
+          if (chunk.strip) chatStrips.push(chunk.strip);
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") chatNotice = String(err.message);
+    live.stopped = true;
+  }
+  live.streamingNow = false;
+  chatStreaming = false;
+  chatAbort = null;
+  await chatRefreshConversations();
+  refreshChat();
+}
+
+// Paint the live bubble in place while streaming — a full re-render per chunk
+// would fight the input focus and the scroll position.
+function chatStreamPaint(live) {
+  const bubble = document.getElementById("chat-live-bubble");
+  if (bubble) bubble.textContent = live.text.length ? live.text : "…";
+  const thinking = document.getElementById("chat-live-thinking");
+  if (thinking && live.thinking) {
+    thinking.textContent = live.thinking;
+    thinking.hidden = false;
+  }
+  const pane = document.getElementById("chat-messages");
+  if (pane) pane.scrollTop = pane.scrollHeight;
+}
+
+function chatModelLabel(entry, loadedMap) {
+  var label = entry.name;
+  if (entry.grade && entry.grade.fit) label += " · " + entry.grade.fit.replace("_", " ");
+  const resident = loadedMap.get(entry.name);
+  if (resident) label += " · resident " + resident.vramResidentPercent + "%";
+  return label;
+}
+
+function chatSidebar() {
+  const side = el("div", "chat-side");
+  const fresh = el("button", null, "New conversation");
+  fresh.type = "button";
+  fresh.addEventListener("click", chatNew);
+  side.append(fresh);
+  const list = el("div", "chat-list");
+  for (const convo of chatConversations) {
+    const row = el("div", "chat-list-row" + (convo.id === chatActiveId ? " active" : ""));
+    const open = el("button", "chat-list-open", (convo.model || convo.id) + " · " + (convo.messageCount ?? "?") + " msg");
+    open.type = "button";
+    open.title = convo.lastAt ? new Date(convo.lastAt).toLocaleString() : convo.id;
+    open.addEventListener("click", function () { chatOpen(convo.id); });
+    const del = el("button", "icon-button", "✕");
+    del.type = "button";
+    del.setAttribute("aria-label", "Delete conversation");
+    del.addEventListener("click", function () { chatDelete(convo.id); });
+    row.append(open, del);
+    list.append(row);
+  }
+  if (!chatConversations.length) list.append(el("p", "bench-note", "No saved conversations."));
+  side.append(list);
+  return side;
+}
+
+function chatMessages() {
+  const pane = el("div", "chat-messages");
+  pane.id = "chat-messages";
+  var stripIndex = 0;
+  chatEvents.forEach(function (event, index) {
+    const isLast = index === chatEvents.length - 1;
+    const bubble = el("div", "chat-msg " + (event.type === "user" ? "from-user" : "from-model"));
+    if (event.type === "assistant") {
+      const thinking = el("div", "chat-thinking", event.thinking || "");
+      thinking.hidden = !event.thinking;
+      if (isLast && event.streamingNow) thinking.id = "chat-live-thinking";
+      bubble.append(thinking);
+      const text = el("div", null, event.text.length ? event.text : (event.streamingNow ? "…" : ""));
+      if (isLast && event.streamingNow) text.id = "chat-live-bubble";
+      bubble.append(text);
+      if (event.stopped) bubble.append(el("div", "chat-strip-muted", "stopped before completion"));
+      if (!event.streamingNow && !event.failed && chatStrips[stripIndex]) {
+        bubble.append(chatStripLine(chatStrips[stripIndex]));
+      }
+      if (!event.streamingNow && !event.failed) stripIndex += 1;
+    } else {
+      bubble.append(el("div", null, event.text));
+    }
+    pane.append(bubble);
+  });
+  if (!chatEvents.length) {
+    pane.append(el("p", "bench-note", "Every reply arrives with its own measurements: tokens per second against this machine's ceiling, first-token time, residency. Same rules as everywhere else — unavailable is never zero."));
+  }
+  return pane;
+}
+
+function chatComposer(d) {
+  const wrap = el("div", "chat-composer");
+  const select = el("select");
+  select.id = "chat-model";
+  select.setAttribute("aria-label", "Model");
+  const loadedMap = loadedModelMap(lastLive);
+  const runnable = d.installed.filter(function (i) { return !i.grade || i.grade.fit !== "too_large"; });
+  for (const entry of (runnable.length ? runnable : d.installed)) {
+    const option = el("option", null, chatModelLabel(entry, loadedMap));
+    option.value = entry.name;
+    select.append(option);
+  }
+  if (chatSelectedModel && [...select.options].some(function (o) { return o.value === chatSelectedModel; })) {
+    select.value = chatSelectedModel;
+  }
+  select.addEventListener("change", function () { chatSelectedModel = select.value; });
+  const input = el("textarea", "chat-input");
+  input.id = "chat-input";
+  input.rows = 3;
+  input.placeholder = "Message the model on this machine…";
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go.click(); }
+  });
+  const go = el("button", null, "Send");
+  go.type = "button";
+  go.addEventListener("click", function () {
+    const text = input.value;
+    input.value = "";
+    chatSelectedModel = select.value;
+    chatSend(select.value, text);
+  });
+  const stop = el("button", null, "Stop");
+  stop.type = "button";
+  stop.addEventListener("click", function () { if (chatAbort) chatAbort.abort(); });
+  const buttons = chatStreaming ? [stop] : [go];
+  const row = el("div", "chat-composer-row");
+  row.append(select);
+  for (const b of buttons) row.append(b);
+  wrap.append(input, row);
+  return wrap;
+}
+
+function chatView(d) {
+  const p = panel("Chat — measured, local, on this machine");
+  if (chatNotice) p.append(el("p", "bench-error", chatNotice));
+  const layout = el("div", "chat-layout");
+  layout.append(chatSidebar());
+  const main = el("div", "chat-main");
+  main.append(chatMessages(), chatComposer(d));
+  layout.append(main);
+  p.append(layout);
+  // First visit: load the list once without blocking the render.
+  if (!chatConversations.length && !chatView.loadedOnce) {
+    chatView.loadedOnce = true;
+    chatRefreshConversations().then(refreshChat);
+  }
+  return [p];
+}
+`;
+
+/** Styles for the chat view, appended to the served stylesheet. */
+export const CHAT_CSS = `
+.chat-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-4); }
+@media (max-width: 900px) { .chat-layout { grid-template-columns: minmax(0, 1fr); } }
+.chat-side { display: flex; flex-direction: column; gap: var(--space-2); }
+.chat-list { display: flex; flex-direction: column; gap: 2px; }
+.chat-list-row { display: flex; gap: 4px; align-items: center; }
+.chat-list-row.active .chat-list-open { background: var(--accent-wash); color: var(--color-primary); }
+.chat-list-open {
+  flex: 1; text-align: left; background: transparent; border: 1px solid transparent;
+  color: var(--color-text-muted); padding: 0.4rem 0.55rem; border-radius: 0.5rem;
+  font-size: var(--fs-overline); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-messages {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  max-height: 55vh; overflow-y: auto; padding: var(--space-2) 0;
+}
+.chat-msg {
+  max-width: 46rem; padding: 0.65rem 0.9rem; border-radius: 0.75rem;
+  border: 1px solid var(--color-border); white-space: pre-wrap; word-break: break-word;
+}
+.chat-msg.from-user { align-self: flex-end; background: var(--accent-wash); }
+.chat-msg.from-model { align-self: flex-start; background: rgba(6, 9, 19, 0.36); }
+.chat-thinking {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  border-left: 2px solid var(--color-border); padding-left: 0.6rem; margin-bottom: 0.4rem;
+  white-space: pre-wrap;
+}
+.chat-strip {
+  display: flex; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.5rem;
+  font-family: var(--font-mono); font-size: var(--fs-overline);
+  color: var(--hud-cyan); font-variant-numeric: tabular-nums;
+}
+.chat-strip-muted { color: var(--color-text-muted); }
+.chat-composer { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.chat-input { width: 100%; resize: vertical; }
+.chat-composer-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.chat-composer-row select { max-width: 100%; }
+`;

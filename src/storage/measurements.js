@@ -33,15 +33,20 @@ import { MEASUREMENTS_FILE } from "./paths.js";
 import { appendRecord, readRecords } from "./jsonl.js";
 
 /**
- * What can produce a measurement record today. Closed on purpose: a source is
- * a claim about HOW the numbers were obtained, and a reader interprets records
+ * What can produce a measurement record. Closed on purpose: a source is a
+ * claim about HOW the numbers were obtained, and a reader interprets records
  * differently by source — so an unknown source is an unknown meaning, refused.
  * Extending this list is a schema decision (bump MEASUREMENT_SCHEMA_VERSION).
  *
- * The two entries are the two measurable things the tool performs right now:
- * its own load and unload actions, both of which already time themselves.
+ * "chat-generation" was added within v1 on 2026-08-08, together with the
+ * optional conversationId field below. Amending v1 in place rather than
+ * bumping was legitimate for exactly one reason, stated so it is never reused
+ * casually: at the moment of the amendment NO WRITER HAD EVER EXISTED — the
+ * storage layer was structurally unreachable from every entry point, with a
+ * guard proving it — so there was no v1 record anywhere for the amendment to
+ * reinterpret. From the first writer onward, additive changes bump.
  */
-export const MEASUREMENT_SOURCES = ["load-action", "unload-action"];
+export const MEASUREMENT_SOURCES = ["load-action", "unload-action", "chat-generation"];
 
 // --- field validators, each small enough to read as a sentence ---------------
 
@@ -60,6 +65,10 @@ const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2}
 const HEX = /^[0-9a-f]+$/;
 // Ollama digests arrive as "sha256:<hex>" or bare hex, truncated or full.
 const DIGEST = /^(sha256:)?[0-9a-f]{6,64}$/;
+// Matches conversations.js's id pattern: an opaque token, never a title,
+// never an excerpt — the join between numbers and prose that lets measurement
+// history outlive a deleted conversation.
+const CONVERSATION_ID = /^[a-z0-9]{8,64}$/;
 
 // --- the schema, as data ------------------------------------------------------
 //
@@ -120,6 +129,8 @@ export function validateMeasurement(record) {
     measurementSchemaVersion: (v) => v === MEASUREMENT_SCHEMA_VERSION,
     recordedAt: boundedString(40, ISO_8601),
     source: (v) => MEASUREMENT_SOURCES.includes(v),
+    // Null for sources that have no conversation (load/unload actions).
+    conversationId: nullOr(boundedString(64, CONVERSATION_ID)),
     model: () => true, // checked structurally below
     runtime: () => true,
     reported: () => true,
@@ -162,12 +173,13 @@ export function validateMeasurement(record) {
   return { ok: true };
 }
 
-/** Convenience for tests and future producers: a minimal valid record shape. */
-export function emptyMeasurement({ recordedAt, source, modelName }) {
+/** Convenience for tests and producers: a minimal valid record shape. */
+export function emptyMeasurement({ recordedAt, source, modelName, conversationId = null }) {
   return {
     measurementSchemaVersion: MEASUREMENT_SCHEMA_VERSION,
     recordedAt,
     source,
+    conversationId,
     model: { name: modelName, digest: null },
     runtime: { name: "ollama", version: null },
     reported: {

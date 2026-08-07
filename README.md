@@ -48,6 +48,12 @@ This tool closes that gap by reading the machine directly.
 - **Local tools**: MCP server inventory with secret values and local paths
   removed during collection.
 - **A shareable summary** — coarse bands only, safe to paste into a public issue.
+- **Chat with every reply measured.** A minimal chat surface against this
+  machine's Ollama, where each response arrives with its own figures: tokens
+  per second against this machine's sourced bandwidth ceiling, first-token
+  time (thinking-aware), cold loads annotated rather than averaged away, and
+  residency at generation time. The model picker shows each model's fit grade
+  and live residency before you commit to it.
 - **osai-bench results, inspected honestly.** Drop a result file from
   [`@opensourcesai/bench`](https://github.com/endoftheline818/opensourcesai-bench)
   onto the Bench view: medians with their variation and sample counts, the
@@ -205,15 +211,36 @@ no sourced figure exists, both say "unavailable" rather than guessing.
   memory-bandwidth ceiling, vendor-verdict throttle reporting, and a versioned
   local store built for measurement history (no-prose schema, tested from day
   one, not yet wired to any command).
-- **Next: a chat surface, built measurement-first.** Every generation this
-  machine performs is a measurement opportunity, and the instrument comes
-  before the conveniences: each response will carry its own honest figures —
-  tokens per second against this machine's own ceiling, residency at
-  generation time, cold loads annotated rather than averaged away — under the
-  same rules as everything above (unavailable is never zero; comparisons must
-  be earned). Inference lives in its own module, never in the action layer,
-  and only ever against AI runtimes on this machine. Deliberately not planned:
-  cloud endpoints, accounts, or anything that leaves the machine.
+- **Phase 3b (landed): the chat surface, built measurement-first.** Every
+  generation this machine performs is a measurement opportunity, and the
+  instrument came before the conveniences: each reply carries its own honest
+  figures under the same rules as everything above (unavailable is never zero;
+  ceilings are never guessed). Inference lives in its own module, never in the
+  action layer, and only ever against AI runtimes on this machine.
+- **Next:** expectation-versus-observation (what the fit engine predicted
+  beside what the machine did), per-conversation slowdown physics, and a
+  second local runtime. Chat conveniences (parameters, system prompts, search)
+  stay deliberately behind measurement capability. Deliberately not planned,
+  ever: cloud endpoints, accounts, or anything that leaves the machine.
+
+## What it remembers
+
+With the chat surface came this tool's first persistent data, in its own
+platform data directory (`%LOCALAPPDATA%\osai-cmdcenter` on Windows,
+`~/Library/Application Support/osai-cmdcenter` on macOS,
+`~/.local/share/osai-cmdcenter` on Linux) — never inside this checkout:
+
+- **Conversations** — your words and the model's, one file each, deletable
+  from the Chat view behind a confirm. Deletion is contained by construction:
+  the store cannot name a path outside its own directory.
+- **Measurement history** — counters and metadata only, with **no field that
+  can carry prose** (the schema refuses unknown fields at every level, and a
+  test smuggles message-shaped fields at it to prove it). It deliberately
+  survives deleted conversations, joined only by an opaque id.
+
+Nothing in this directory is ever transmitted, exported, or read into a
+diagnostic capture — the same structural guards that keep this tool off the
+internet keep its memory out of everything that leaves the machine.
 
 ## Requirements
 
