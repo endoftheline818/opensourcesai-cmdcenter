@@ -276,6 +276,35 @@ body {
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
+/* Bench results viewer. */
+.bench-drop {
+  border: 1px dashed var(--accent-border); border-radius: var(--radius-card);
+  padding: var(--space-6); text-align: center; color: var(--color-text-muted);
+  cursor: pointer;
+}
+.bench-drop.dragover { background: var(--accent-wash); color: var(--color-text); }
+.bench-drop input { display: none; }
+.bench-note { color: var(--color-text-muted); font-size: var(--fs-small); }
+.bench-error { color: var(--color-error); }
+.bench-cmd {
+  display: inline-block; padding: 0.35rem 0.6rem; border: 1px solid var(--color-border);
+  border-radius: 0.5rem; background: rgba(6, 9, 19, 0.5);
+  font-family: var(--font-mono); font-size: var(--fs-small); word-break: break-all;
+}
+.bench-command-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-top: var(--space-3); }
+.bench-quality { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-4); }
+.bench-quality button { margin-left: auto; }
+.bench-attest { display: block; margin-bottom: var(--space-3); }
+.diag-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.diag-list li { display: flex; gap: 0.6rem; align-items: baseline; }
+.diag-list .status-chip { flex: 0 0 auto; }
+.bench-caveats { margin: var(--space-2) 0 0; padding-left: 1.1rem; color: var(--color-text-muted); font-size: var(--fs-small); }
+.panel h3 {
+  margin: var(--space-4) 0 var(--space-2); font-size: var(--fs-overline);
+  letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--color-text-muted); font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
   .sidenav {
@@ -2250,6 +2279,291 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bench results viewer. Files are read in the browser, but validation and
+// comparison gating run SERVER-SIDE in the pure derive layer, via the two
+// inspection endpoints — re-deriving those rules here would fork them, which
+// is the drift class the generated copies exist to close. This code renders
+// what the server concluded and invents nothing.
+// ---------------------------------------------------------------------------
+
+var benchSlots = [null, null];
+var benchError = null;
+var benchComparison = null;
+
+function refreshBench() {
+  if (activeView === "bench" && dashboardData) renderView("bench");
+}
+
+function pctText(fraction, digits) {
+  return fraction === null || fraction === undefined ? null : (fraction * 100).toFixed(digits) + "%";
+}
+
+// A metric renders with its dispersion and sample count or not at all — a
+// median stripped of CV and n would claim more certainty than the run earned.
+function metricText(m, unit, digits) {
+  if (!m || m.median === null || m.median === undefined) return "unavailable";
+  var out = Number(m.median).toFixed(digits) + " " + unit + " (n=" + m.samples;
+  if (m.coefficientOfVariation !== null && m.coefficientOfVariation !== undefined) {
+    out += ", CV " + (m.coefficientOfVariation * 100).toFixed(1) + "%";
+  }
+  return out + ")";
+}
+
+function benchHandoffPanel(d) {
+  const p = panel("Run a protocol benchmark");
+  p.append(el("p", null,
+    "osai-bench runs the osai-bench/1.3 measurement protocol against this machine's Ollama and writes a result JSON into the directory it is run from."));
+  p.append(el("p", "bench-note",
+    "It is a separate tool, and this dashboard never runs it for you - copy the command, run it in a terminal, then drop the result file below. If preconditions refuse the run, that refusal is the protocol working; an overridden run is permanently marked."));
+
+  const names = d.installed.map(function (i) { return i.name; });
+  if (names.length === 0) {
+    p.append(el("p", "bench-note", "No installed models detected to benchmark."));
+    return p;
+  }
+  const row = el("div", "bench-command-row");
+  const select = el("select");
+  select.setAttribute("aria-label", "Model to benchmark");
+  for (const name of names) {
+    const opt = el("option", null, name);
+    opt.value = name;
+    select.append(opt);
+  }
+  const cmd = el("code", "bench-cmd");
+  const currentCommand = function () { return "npx @opensourcesai/bench --model " + select.value; };
+  const refreshCmd = function () { cmd.textContent = currentCommand(); };
+  select.addEventListener("change", refreshCmd);
+  refreshCmd();
+  const btn = el("button", null, "Copy");
+  btn.type = "button";
+  btn.addEventListener("click", function () {
+    navigator.clipboard.writeText(currentCommand()).then(
+      function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1200); },
+      function () { btn.textContent = "Copy failed"; },
+    );
+  });
+  row.append(select, cmd, btn);
+  p.append(row);
+  return p;
+}
+
+function firstFreeBenchSlot() {
+  if (!benchSlots[0]) return 0;
+  if (!benchSlots[1]) return 1;
+  return -1;
+}
+
+async function loadBenchFile(file) {
+  benchComparison = null;
+  const slot = firstFreeBenchSlot();
+  if (slot === -1) {
+    benchError = "Two results are already loaded - remove one first.";
+    refreshBench();
+    return;
+  }
+  benchError = null;
+  try {
+    const text = await file.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      throw new Error(file.name + " is not valid JSON");
+    }
+    const res = await fetch("/api/bench/inspect", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify(parsed),
+    });
+    const payload = await res.json().catch(function () { return null; });
+    if (!payload || payload.ok !== true) {
+      throw new Error((payload && payload.reason) || "the server refused the file");
+    }
+    benchSlots[slot] = { name: file.name, raw: parsed, view: payload.view, rooflineLimits: payload.rooflineLimits || [] };
+  } catch (err) {
+    benchError = String(err.message);
+  }
+  refreshBench();
+}
+
+async function runBenchCompare(attested) {
+  if (!benchSlots[0] || !benchSlots[1]) return;
+  try {
+    const res = await fetch("/api/bench/compare", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({
+        left: benchSlots[0].raw,
+        right: benchSlots[1].raw,
+        sameMachineAttested: attested === true,
+      }),
+    });
+    const payload = await res.json().catch(function () { return null; });
+    benchComparison = payload && payload.comparison
+      ? payload.comparison
+      : { allowed: false, reason: "the comparison request failed" };
+  } catch (err) {
+    benchComparison = { allowed: false, reason: String(err.message) };
+  }
+  refreshBench();
+}
+
+function benchDropPanel() {
+  const p = panel("Inspect a result");
+  const drop = el("div", "bench-drop");
+  drop.append(el("div", null, "Drop an osai-bench result JSON here, or click to choose a file."));
+  drop.append(el("div", "bench-note", "Up to two results, for a gated same-machine comparison. The file is validated by this dashboard's own local server; nothing leaves the machine."));
+  const input = el("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.addEventListener("change", function () {
+    if (input.files && input.files[0]) loadBenchFile(input.files[0]);
+    input.value = "";
+  });
+  drop.append(input);
+  drop.addEventListener("click", function () { input.click(); });
+  drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("dragover"); });
+  drop.addEventListener("dragleave", function () { drop.classList.remove("dragover"); });
+  drop.addEventListener("drop", function (e) {
+    e.preventDefault();
+    drop.classList.remove("dragover");
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadBenchFile(f);
+  });
+  p.append(drop);
+  if (benchError) p.append(el("p", "bench-error", benchError));
+  return p;
+}
+
+function benchResultPanel(slot, index) {
+  const v = slot.view;
+  const p = panel("Result " + (index + 1) + ": " + (v.model.identifier || "unknown model"));
+
+  // Quality first, and never softened - an overridden run is marked for life.
+  const head = el("div", "bench-quality");
+  if (v.quality.qualityOverride || !v.quality.cohortEligible) {
+    head.append(el("span", "status-chip critical", "quality override - permanently cohort-ineligible"));
+    if (v.quality.conditions.length) {
+      head.append(el("span", "bench-note", "overridden: " + v.quality.conditions.join(", ")));
+    }
+  } else {
+    head.append(el("span", "status-chip ok", "quality preconditions clean"));
+  }
+  const remove = el("button", null, "Remove");
+  remove.type = "button";
+  remove.addEventListener("click", function () {
+    benchSlots[index] = null;
+    benchComparison = null;
+    refreshBench();
+  });
+  head.append(remove);
+  p.append(head);
+
+  const ttft = v.metrics.timeToFirstTokenMs;
+  const grid = el("div", "grid");
+  grid.append(kv("Model", (v.model.identifier || "unknown") + (v.model.quantization ? " (" + v.model.quantization + ")" : "")));
+  grid.append(kv("Runtime", (v.runtime.name || "?") + " " + (v.runtime.version || "")));
+  grid.append(kv("Recorded", v.createdAt ? new Date(v.createdAt).toLocaleString() : "unknown"));
+  grid.append(kv("Generation", metricText(v.metrics.generationTokensPerSecond, "tok/s", 2), true));
+  grid.append(kv("Prefill", metricText(v.metrics.prefillTokensPerSecond, "tok/s", 0)));
+  grid.append(kv("Time to first token", metricText(ttft, "ms", 0) + (ttft.reasoningWithheldPasses > 0 ? " - " + ttft.reasoningWithheldPasses + " pass(es) stayed inside reasoning" : "")));
+  grid.append(kv("Cold load", v.metrics.coldLoadSeconds === null ? "unavailable" : v.metrics.coldLoadSeconds.toFixed(2) + " s"));
+  grid.append(kv("Failed passes", v.metrics.passFailurePercent === null ? "unavailable" : v.metrics.passFailurePercent.toFixed(0) + "%"));
+  grid.append(kv("VRAM residency", v.placement && v.placement.vramResidentFraction !== null ? pctText(v.placement.vramResidentFraction, 0) : "not recorded"));
+  p.append(grid);
+
+  p.append(el("h3", null, "Roofline"));
+  if (v.roofline.utilization === null || v.roofline.theoreticalMaxTokensPerSecond === null) {
+    p.append(el("p", "bench-note",
+      "unavailable - " + (v.roofline.memoryBandwidthGBps === null
+        ? "no memory-bandwidth figure was recorded for this run"
+        : "generation throughput was unavailable, so there is nothing to hold against the ceiling")));
+  } else {
+    const roofGrid = el("div", "grid");
+    roofGrid.append(kv("Utilization of ceiling", pctText(v.roofline.utilization, 1), true));
+    roofGrid.append(kv("Theoretical ceiling", v.roofline.theoreticalMaxTokensPerSecond.toFixed(1) + " tok/s"));
+    roofGrid.append(kv("Bandwidth", v.roofline.memoryBandwidthGBps + " GB/s (" + (v.roofline.bandwidthSource || "unknown source") + ")"));
+    p.append(roofGrid);
+    // The caveats are not decoration: a utilization figure shown without them
+    // overclaims. They render every time the figure does.
+    const caveats = el("ul", "bench-caveats");
+    for (const limit of slot.rooflineLimits) caveats.append(el("li", null, limit));
+    p.append(caveats);
+  }
+
+  p.append(el("h3", null, "Diagnostics"));
+  const list = el("ul", "diag-list");
+  for (const diag of v.diagnostics) {
+    const li = el("li");
+    const cls = diag.status === "detected" ? "status-chip warn"
+      : diag.status === "not-detected" ? "status-chip ok"
+      : "status-chip";
+    li.append(el("span", cls, diag.status || "?"), el("span", null, (diag.id || "") + ": " + (diag.message || "")));
+    list.append(li);
+  }
+  p.append(list);
+
+  p.append(el("h3", null, "Run conditions"));
+  if (!v.environment) {
+    p.append(el("p", "bench-note", "This result predates environment capture - its run conditions are unknown, and it cannot be shown comparable to anything."));
+  } else {
+    const nonDefault = v.environment.declaredNonDefault;
+    p.append(el("p", "bench-note", nonDefault.length === 0
+      ? "All allowlisted Ollama settings at defaults (as declared by the bench client - not authoritative)."
+      : "Declared non-default: " + nonDefault.map(function (name) {
+          const value = v.environment.declared ? v.environment.declared[name] : null;
+          return name + "=" + (value === true ? "(set)" : String(value));
+        }).join(", ") + " (declared by the bench client - not authoritative)."));
+  }
+  return p;
+}
+
+function benchComparePanel() {
+  const p = panel("Compare");
+  const attest = el("label", "bench-attest");
+  const checkbox = el("input");
+  checkbox.type = "checkbox";
+  attest.append(checkbox, document.createTextNode(" Both results came from this machine. Cross-machine comparison does not exist here, by design."));
+  const go = el("button", null, "Compare");
+  go.type = "button";
+  go.addEventListener("click", function () { runBenchCompare(checkbox.checked); });
+  p.append(attest, go);
+
+  if (!benchComparison) return p;
+  if (!benchComparison.allowed) {
+    p.append(el("p", "bench-error", "Refused: " + benchComparison.reason));
+    return p;
+  }
+
+  const { table, body } = dataTable(["Metric", benchSlots[0].name, benchSlots[1].name]);
+  const row = function (label, a, b) {
+    const tr = el("tr");
+    tr.append(dataCell("Metric", null, label), dataCell(benchSlots[0].name, null, a), dataCell(benchSlots[1].name, null, b));
+    body.append(tr);
+  };
+  const L = benchComparison.left, R = benchComparison.right;
+  row("Generation", metricText(L.metrics.generationTokensPerSecond, "tok/s", 2), metricText(R.metrics.generationTokensPerSecond, "tok/s", 2));
+  row("Prefill", metricText(L.metrics.prefillTokensPerSecond, "tok/s", 0), metricText(R.metrics.prefillTokensPerSecond, "tok/s", 0));
+  row("Time to first token", metricText(L.metrics.timeToFirstTokenMs, "ms", 0), metricText(R.metrics.timeToFirstTokenMs, "ms", 0));
+  row("Cold load", L.metrics.coldLoadSeconds === null ? "unavailable" : L.metrics.coldLoadSeconds.toFixed(2) + " s", R.metrics.coldLoadSeconds === null ? "unavailable" : R.metrics.coldLoadSeconds.toFixed(2) + " s");
+  row("Roofline utilization", pctText(L.roofline.utilization, 1) || "unavailable", pctText(R.roofline.utilization, 1) || "unavailable");
+  p.append(table);
+
+  p.append(el("p", "bench-note", "Environment verdict: " + benchComparison.environmentVerdict + " (from the bench protocol's own comparability rules)."));
+  for (const note of benchComparison.notes) p.append(el("p", "bench-note", "Note: " + note));
+  return p;
+}
+
+function benchView(d) {
+  const out = [benchHandoffPanel(d), benchDropPanel()];
+  benchSlots.forEach(function (slot, index) {
+    if (slot) out.push(benchResultPanel(slot, index));
+  });
+  if (benchSlots[0] && benchSlots[1]) out.push(benchComparePanel());
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Views. One section rendered at a time, because the full single-page layout
 // became too long for efficient repeated use. A sidebar that merely jumps
 // between anchors would not have fixed that — it would only be a faster way to
@@ -2282,6 +2596,13 @@ const VIEWS = [
     label: "Catalog",
     count: (d) => d.models.filter((m) => m.fit !== "too_large").length,
     build: (d) => [catalogPanel(d)],
+  },
+  // The Verify leg: protocol-grade results from osai-bench, inspected and
+  // compared under the same rules bench itself enforces.
+  {
+    id: "bench",
+    label: "Bench",
+    build: (d) => benchView(d),
   },
   {
     id: "tools",

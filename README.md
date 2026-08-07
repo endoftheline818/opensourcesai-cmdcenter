@@ -39,6 +39,14 @@ This tool closes that gap by reading the machine directly.
 - **Local tools**: MCP server inventory with secret values and local paths
   removed during collection.
 - **A shareable summary** — coarse bands only, safe to paste into a public issue.
+- **osai-bench results, inspected honestly.** Drop a result file from
+  [`@opensourcesai/bench`](https://github.com/endoftheline818/opensourcesai-bench)
+  onto the Bench view: medians with their variation and sample counts, the
+  roofline with its caveats attached, every diagnostic including the ones that
+  say "unavailable", and quality-override marks rendered loudly. Two results
+  compare side by side only when they earn it — same machine (you attest it),
+  same model and weights, and run conditions the bench protocol itself calls
+  comparable.
 - **What it does not claim.** Every report ends with its own limitations.
 
 ## Running it on a headless machine
