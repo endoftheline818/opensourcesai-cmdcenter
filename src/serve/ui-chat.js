@@ -57,6 +57,10 @@ var chatNumCtx = "";
 // by the prompt that stood when they happened.
 var chatSystemPromptDraft = "";
 var chatSystemPromptActive = null;
+// Search over the user's own conversations: the query text and, when a
+// search ran, its result payload ({results, truncated}); null shows the list.
+var chatSearchQuery = "";
+var chatSearchResults = null;
 
 function refreshChat() {
   if (activeView === "chat" && dashboardData) renderView("chat");
@@ -311,27 +315,79 @@ function chatModelLabel(entry, loadedMap) {
   return label;
 }
 
+async function chatRunSearch() {
+  if (!chatSearchQuery.trim()) { chatSearchResults = null; refreshChat(); return; }
+  try {
+    const res = await fetch("/api/chat/search", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cmdcenter-token": TOKEN },
+      body: JSON.stringify({ query: chatSearchQuery }),
+    });
+    const body = await res.json();
+    chatSearchResults = body.ok === false ? { results: [], truncated: false, error: body.reason } : body;
+  } catch (err) {
+    chatSearchResults = { results: [], truncated: false, error: String(err.message) };
+  }
+  refreshChat();
+}
+
 function chatSidebar() {
   const side = el("div", "chat-side");
   const fresh = el("button", null, "New conversation");
   fresh.type = "button";
   fresh.addEventListener("click", chatNew);
   side.append(fresh);
+
+  // Search over the words in the user's own conversations. Enter runs it;
+  // clearing the box returns to the plain list.
+  const search = el("input", "chat-search");
+  search.type = "search";
+  search.placeholder = "Search conversations…";
+  search.setAttribute("aria-label", "Search conversations");
+  search.value = chatSearchQuery;
+  search.addEventListener("input", function () {
+    chatSearchQuery = search.value;
+    if (search.value.trim() === "" && chatSearchResults) { chatSearchResults = null; refreshChat(); }
+  });
+  search.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); chatRunSearch(); }
+  });
+  side.append(search);
+
   const list = el("div", "chat-list");
-  for (const convo of chatConversations) {
-    const row = el("div", "chat-list-row" + (convo.id === chatActiveId ? " active" : ""));
-    const open = el("button", "chat-list-open", (convo.model || convo.id) + " · " + (convo.messageCount ?? "?") + " msg");
-    open.type = "button";
-    open.title = convo.lastAt ? new Date(convo.lastAt).toLocaleString() : convo.id;
-    open.addEventListener("click", function () { chatOpen(convo.id); });
-    const del = el("button", "icon-button", "✕");
-    del.type = "button";
-    del.setAttribute("aria-label", "Delete conversation");
-    del.addEventListener("click", function () { chatDelete(convo.id); });
-    row.append(open, del);
-    list.append(row);
+  if (chatSearchResults) {
+    if (chatSearchResults.error) list.append(el("p", "bench-error", chatSearchResults.error));
+    else if (!chatSearchResults.results.length) list.append(el("p", "bench-note", "No matches."));
+    for (const hit of chatSearchResults.results || []) {
+      const row = el("div", "chat-list-row" + (hit.id === chatActiveId ? " active" : ""));
+      const open = el("button", "chat-list-open", (hit.model || hit.id) + " · " + hit.matches.length + " match(es)");
+      open.type = "button";
+      open.title = hit.matches[0] ? hit.matches[0].snippet : hit.id;
+      open.addEventListener("click", function () { chatOpen(hit.id); });
+      row.append(open);
+      list.append(row);
+      const snip = el("p", "chat-snippet", hit.matches[0] ? hit.matches[0].snippet : "");
+      list.append(snip);
+    }
+    if (chatSearchResults.truncated) {
+      list.append(el("p", "bench-note", "More matches exist — this shows the first 50."));
+    }
+  } else {
+    for (const convo of chatConversations) {
+      const row = el("div", "chat-list-row" + (convo.id === chatActiveId ? " active" : ""));
+      const open = el("button", "chat-list-open", (convo.model || convo.id) + " · " + (convo.messageCount ?? "?") + " msg");
+      open.type = "button";
+      open.title = convo.lastAt ? new Date(convo.lastAt).toLocaleString() : convo.id;
+      open.addEventListener("click", function () { chatOpen(convo.id); });
+      const del = el("button", "icon-button", "✕");
+      del.type = "button";
+      del.setAttribute("aria-label", "Delete conversation");
+      del.addEventListener("click", function () { chatDelete(convo.id); });
+      row.append(open, del);
+      list.append(row);
+    }
+    if (!chatConversations.length) list.append(el("p", "bench-note", "No saved conversations."));
   }
-  if (!chatConversations.length) list.append(el("p", "bench-note", "No saved conversations."));
   side.append(list);
   return side;
 }
@@ -544,6 +600,12 @@ export const CHAT_CSS = `
 .chat-composer-row select { max-width: 100%; }
 .chat-ctx { width: 7.5rem; }
 .chat-system { width: 100%; resize: vertical; margin-bottom: var(--space-2); }
+.chat-search { width: 100%; }
+.chat-snippet {
+  color: var(--color-text-muted); font-size: var(--fs-overline);
+  margin: 0 0 var(--space-2) 0.55rem; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .chat-system-line {
   font-size: var(--fs-overline); color: var(--color-text);
   border-left: 2px solid var(--color-border); padding-left: 0.6rem;

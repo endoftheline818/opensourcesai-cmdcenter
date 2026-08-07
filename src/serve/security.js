@@ -138,8 +138,15 @@ export const INSPECT_PATHS = new Set([
  * set rather than a widening of the others, so each set's sentence stays
  * exactly true: ACTION_PATHS mutate Ollama residency, INSPECT_PATHS mutate
  * nothing, CHAT_PATHS run inference and manage this tool's own data.
+ * `search` joined 2026-08-10 under the same POST-as-transport rule as
+ * history: a query and its snippets are prose, and prose does not ride URLs.
  */
-export const CHAT_PATHS = new Set(["/api/chat/send", "/api/chat/history", "/api/chat/delete"]);
+export const CHAT_PATHS = new Set([
+  "/api/chat/send",
+  "/api/chat/history",
+  "/api/chat/delete",
+  "/api/chat/search",
+]);
 
 /**
  * The settings pair: exactly ONE recorded setting exists — the manual

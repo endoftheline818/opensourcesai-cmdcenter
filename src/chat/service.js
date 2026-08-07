@@ -343,5 +343,62 @@ export function createChatService({
       const result = await deleteConversation(dataDir, id);
       return result.ok ? { ok: true } : { ok: false, status: 400, reason: result.reason };
     },
+    /**
+     * Search the user's own conversations. Case-insensitive plain substring —
+     * no regex, so a query is only ever text. POST-as-transport like history:
+     * the query and the snippets are prose, and prose does not ride URLs.
+     * Thinking text is deliberately NOT searched — it was the model's scratch
+     * space for one reply, not part of the conversation the user had.
+     */
+    async search(query) {
+      if (typeof query !== "string" || query.trim().length === 0) {
+        return { ok: false, status: 400, reason: "no search text given" };
+      }
+      if (query.length > 256) {
+        return { ok: false, status: 400, reason: "search text is too long" };
+      }
+      const needle = query.toLowerCase();
+      const MAX_MATCHES = 50;
+      const snippetOf = (text, at) => {
+        const start = Math.max(0, at - 60);
+        const end = Math.min(text.length, at + needle.length + 60);
+        return (start > 0 ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
+      };
+
+      const list = await listConversations(dataDir);
+      if (!list.ok) return { ok: false, status: 400, reason: list.reason };
+
+      const results = [];
+      let matchCount = 0;
+      for (const convo of list.conversations) {
+        if (matchCount >= MAX_MATCHES) break;
+        if (convo.unreadable) continue;
+        const read = await readConversation(dataDir, convo.id);
+        if (!read.ok) continue;
+
+        const matches = [];
+        if (read.header.systemPrompt) {
+          const at = read.header.systemPrompt.toLowerCase().indexOf(needle);
+          if (at !== -1 && matchCount < MAX_MATCHES) {
+            matches.push({ where: "system", snippet: snippetOf(read.header.systemPrompt, at) });
+            matchCount += 1;
+          }
+        }
+        read.events.forEach((event, index) => {
+          if (matchCount >= MAX_MATCHES) return;
+          const at = (event.text ?? "").toLowerCase().indexOf(needle);
+          if (at !== -1) {
+            matches.push({ where: event.type, eventIndex: index, snippet: snippetOf(event.text, at) });
+            matchCount += 1;
+          }
+        });
+        if (matches.length > 0) {
+          results.push({ id: convo.id, model: convo.model, lastAt: convo.lastAt, matches });
+        }
+      }
+      // The cap is honest: a truncated search says so instead of presenting
+      // fifty matches as everything there was.
+      return { ok: true, results, truncated: matchCount >= MAX_MATCHES };
+    },
   };
 }

@@ -756,6 +756,53 @@ test("a system prompt shapes every reply in its conversation, and never a measur
   }
 });
 
+test("search finds the user's words across conversations, case-insensitively, capped honestly", async () => {
+  const { server, host } = await stubOllama();
+  try {
+    await withTmpDir(async (dir) => {
+      let tick = 0;
+      let idTick = 0;
+      const chat = createChatService({
+        host, dataDir: dir,
+        now: () => `2026-08-10T12:0${Math.floor(tick / 10)}:0${tick++ % 10}Z`,
+        newId: () => `deadbeef00a${(idTick++).toString(16)}`,
+      });
+      const sink = { writeLine: () => {}, onUpstreamAbort: () => {} };
+      await chat.send({ conversationId: null, model: "stub:1b", text: "the ROOFLINE question" }, sink);
+      await chat.send(
+        { conversationId: null, model: "stub:1b", text: "unrelated words", systemPrompt: "you love rooflines" },
+        sink,
+      );
+      await chat.send({ conversationId: null, model: "stub:1b", text: "nothing relevant here" }, sink);
+
+      const found = await chat.search("roofline");
+      assert.equal(found.ok, true);
+      assert.equal(found.results.length, 2, "a user message and a system prompt match; the third conversation stays out");
+      const wheres = found.results.flatMap((r) => r.matches.map((m) => m.where)).sort();
+      assert.deepEqual(wheres, ["system", "user"]);
+      assert.ok(
+        found.results.every((r) => r.matches.every((m) => m.snippet.toLowerCase().includes("roofline"))),
+        "each match carries a snippet around the hit",
+      );
+      assert.equal(found.truncated, false);
+
+      // The assistant's replies are searchable too (the stub always answers
+      // "Hello there."), and thinking is deliberately NOT (scratch space).
+      const hello = await chat.search("hello there");
+      assert.equal(hello.results.length, 3);
+      const think = await chat.search("let me think");
+      assert.equal(think.results.length, 0, "thinking was one reply's scratch space, not the conversation");
+
+      // Bounds hold at the gate.
+      assert.equal((await chat.search("")).ok, false);
+      assert.equal((await chat.search("x".repeat(257))).ok, false);
+      assert.equal((await chat.search(null)).ok, false);
+    });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
 test("baselines never blend runtimes: same model name, different runtime, no comparison", async () => {
   const modelName = "stub:1b"; // deliberately identical to the Ollama stub's name
   const { server: ollama, host } = await stubOllama({ modelName });

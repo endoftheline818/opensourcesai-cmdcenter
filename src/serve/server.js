@@ -166,6 +166,7 @@ export function createServer({
     ? {
         "/api/chat/history": (body) => chat.history(body?.id ?? null),
         "/api/chat/delete": (body) => chat.remove(body?.id ?? null),
+        "/api/chat/search": (body) => chat.search(body?.query ?? null),
       }
     : {};
   const CHAT_SEND_PATH = "/api/chat/send";
