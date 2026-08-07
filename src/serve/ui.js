@@ -2836,7 +2836,15 @@ const VIEWS = [
   {
     id: "catalog",
     label: "Catalog",
+    // The badge deliberately counts what can RUN HERE, not the snapshot size
+    // the footer states — two true numbers answering different questions,
+    // and the title says which this one is so they cannot read as a
+    // disagreement.
     count: (d) => d.models.filter((m) => m.fit !== "too_large").length,
+    countTitle: (d) =>
+      d.models.filter((m) => m.fit !== "too_large").length +
+      " of the snapshot's " + d.catalog.modelCount +
+      " catalog models can run on this machine (too-large excluded)",
     build: (d) => [catalogPanel(d)],
   },
   // The Verify leg: protocol-grade results from osai-bench, inspected and
@@ -2866,6 +2874,9 @@ const VIEWS = [
     // Surfaced in the nav because an unresolved source disagreement is
     // something the user should know exists without hunting for it.
     count: (d) => (d.report.disagreements.length ? d.report.disagreements.length : null),
+    countTitle: (d) =>
+      d.report.disagreements.length + " unresolved hardware source disagreement" +
+      (d.report.disagreements.length === 1 ? "" : "s") + " to review",
     build: (d) => {
       // First visit: one provenance read, without blocking the render.
       if (!bandwidthPanel.fetchedOnce) {
@@ -2951,6 +2962,10 @@ function buildSideNav(d) {
     b.dataset.view = view.id;
     const n = view.count ? view.count(d) : null;
     if (n !== null && n !== undefined) b.append(el("span", "count", n));
+    // A badge whose number is a FILTERED count explains its filter — two
+    // views can otherwise show numbers that read as contradicting the
+    // footer or each other.
+    if (view.countTitle && n !== null && n !== undefined) b.title = view.countTitle(d);
     b.addEventListener("click", () => {
       // Writing the hash drives the render through hashchange, so a click and
       // a pasted link take exactly the same path.
