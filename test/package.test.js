@@ -18,14 +18,20 @@ async function sourceFiles(directory) {
   return nested.flat().filter((f) => f.endsWith(".js"));
 }
 
-test("package is executable, dependency-free, and version-aligned", async () => {
+test("package is executable, runtime-dependency-free, and version-aligned", async () => {
   const pkg = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
   assert.equal(pkg.name, "@opensourcesai/cmdcenter");
   assert.equal(pkg.version, CLIENT_VERSION);
   assert.equal(pkg.bin["osai-cmdcenter"], "src/cli.js");
   assert.equal(pkg.engines.node, ">=20");
   assert.equal(pkg.dependencies, undefined, "runtime dependencies need explicit justification");
-  assert.equal(pkg.devDependencies, undefined, "node --test needs no test framework");
+  assert.deepEqual(
+    Object.keys(pkg.devDependencies || {}).sort(),
+    ["@tailwindcss/cli", "tailwindcss"],
+    "only the approved local theme compiler may be installed for development",
+  );
+  assert.match(pkg.devDependencies.tailwindcss, /^\^4\./, "the theme compiler must stay on Tailwind v4");
+  assert.match(pkg.devDependencies["@tailwindcss/cli"], /^\^4\./, "the theme CLI must stay on Tailwind v4");
 });
 
 // PUBLISH GUARD, REWRITTEN AT ITS SECOND CROSSING — never deleted. Until
@@ -286,6 +292,7 @@ test("generated sources announce themselves and name their regeneration command"
     [path.join(root, "src", "derive", "checker-engine.generated.js"), /scripts\/sync-from-website\.mjs/],
     [path.join(root, "src", "derive", "bench-environment.generated.js"), /scripts\/sync-from-bench\.mjs/],
     [path.join(root, "src", "derive", "bench-gpu-bandwidth.generated.js"), /scripts\/sync-from-bench\.mjs/],
+    [path.join(root, "src", "serve", "theme.generated.js"), /npm run build:theme/],
     // Not named *.generated.js, deliberately: the matcher imports it by exactly
     // this name, so the name is load-bearing. It still must announce itself —
     // being listed here is what enforces that.

@@ -24,6 +24,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      # No `npm ci`: this package has zero dependencies and ships no lockfile
-      # to install from. Adding one would mean adding a dependency.
+      # No `npm ci` here: this job has zero RUNTIME dependencies and imports
+      # nothing from node_modules — theme.generated.js is a committed, static
+      # string. (See the `theme` job below for what actually needs Tailwind
+      # installed; this comment used to claim that for the whole package,
+      # which stopped being true the day Tailwind became a devDependency.)
       - run: npm test
+
+  theme:
+    # One deterministic build, not multiplied across the matrix above:
+    # theme.css -> theme.generated.js has no platform-specific behaviour, so
+    # running it nine times would only burn nine times the CI minutes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      # theme.generated.js is committed so the served UI never depends on
+      # Tailwind at runtime. Nothing above regenerates it — `npm test` just
+      # imports whatever is already committed — so this is the only step in
+      # either workflow that can catch it drifting from theme.css: edit the
+      # source, forget to rebuild, and every other check here still passes.
+      - name: theme.generated.js must be committed and match theme.css
+        run: |
+          npm run build:theme
+          git ls-files --error-unmatch src/serve/theme.generated.js
+          git diff --exit-code -- src/serve/theme.generated.js
