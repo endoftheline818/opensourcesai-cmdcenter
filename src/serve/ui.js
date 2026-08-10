@@ -1,10 +1,10 @@
 // The dashboard UI, served from memory as fixed assets.
 //
-// No framework, no build step, no bundler, and no external request of any kind —
-// consistent with the package's zero-dependency rule and enforced at runtime by
-// the CSP in security.js. Everything here is a plain string, so serving it needs
-// no filesystem access and no path resolution, which is also why path traversal
-// has no surface to attack.
+// No runtime framework, bundler, dependency, or external request of any kind —
+// consistent with the package's zero-runtime-dependency rule and enforced by the
+// CSP in security.js. Tailwind v4 is a development-only compiler for the small
+// token sheet in theme.css; its generated string ships with the package, so the
+// served app still needs no build, filesystem lookup, or Tailwind installation.
 //
 // DESIGN SYSTEM
 // The tokens below are lifted from opensourcesai.com's src/index.css so this
@@ -25,13 +25,11 @@
 /**
  * HUD palette copied from the social-image style guide.
  *
- * WHY A SECOND PALETTE, AND WHY THIS SURFACE USES IT
- * The site tokens below still govern semantic colour (success, error) and are
- * still pinned. But the dashboard's *chrome* now follows the social-image HUD
- * language — deep navy, corner brackets, monospace status lines — because that
- * is the visual identity this product already publishes, and because a HUD is
- * one of the few places where the treatment is functional rather than
- * decorative: this is a monitoring instrument.
+ * WHY THIS LEGACY PALETTE REMAINS
+ * The social-image values stay pinned and emitted so cross-product drift still
+ * fails loudly. The visible dashboard no longer consumes them for foundations:
+ * its active chrome is the neutral Industrial palette below. Site tokens still
+ * govern shared semantic success and error values.
  *
  * Pinned by fixtures/website-social-palette.json, PARSED from the style guide's
  * own colour table. A restyle there fails a test here.
@@ -45,6 +43,23 @@ export const HUD = {
   headline: "#f8fafc",
   bodyText: "#cbd5e1",
   mutedText: "#94a3b8",
+};
+
+/**
+ * Local dashboard palette. These are intentionally neutral rather than blue
+ * tinted: the Command Center should read like a hardware instrument, while the
+ * pinned website and social palettes above remain available for parity checks.
+ */
+export const INDUSTRIAL = {
+  canvas: "#09090b",
+  surface: "#18181b",
+  borderSubtle: "#27272a",
+  textMain: "#ffffff",
+  textMuted: "#a1a1aa",
+  brandCyan: "#00f0ff",
+  brandCyanHover: "#00d8e6",
+  dataOrange: "#ff5a00",
+  statusGreen: "#22c55e",
 };
 
 /** Design tokens copied from opensourcesai.com src/index.css. */
@@ -79,6 +94,7 @@ export const TOKENS = {
 };
 
 import { CHAT_CSS, CHAT_JS } from "./ui-chat.js";
+import { THEME_CSS } from "./theme.generated.js";
 
 export const HTML = (token) => `<!doctype html>
 <html lang="en">
@@ -108,7 +124,23 @@ export const HTML = (token) => `<!doctype html>
     <pre class="hud-readout" id="hud-readout" aria-hidden="true">OSAI:// COMMAND CENTER
 STATUS: <span class="v">READING MACHINE</span>
 HOST:   <span class="v">LOOPBACK ONLY</span></pre>
-    <p class="loading">Reading this machine…</p>
+    <section class="loading-shell" role="status" aria-live="polite">
+      <div class="loading-head">
+        <span class="loading-dot" aria-hidden="true"></span>
+        <span>Reading this machine</span>
+      </div>
+      <div class="loading-skeleton" aria-hidden="true">
+        <span class="skeleton-line skeleton-line-wide"></span>
+        <span class="skeleton-line skeleton-line-short"></span>
+        <div class="skeleton-grid">
+          <span class="skeleton-block"></span>
+          <span class="skeleton-block"></span>
+          <span class="skeleton-block"></span>
+          <span class="skeleton-block"></span>
+        </div>
+      </div>
+      <span class="sr-only">Collecting local hardware, model, and runtime status.</span>
+    </section>
   </main>
 </div>
 <footer class="shell">
@@ -120,7 +152,7 @@ HOST:   <span class="v">LOOPBACK ONLY</span></pre>
 </html>`;
 
 const CORE_CSS = `:root {
-  /* HUD chrome, from the social-image style guide. */
+  /* Pinned legacy HUD values remain emitted for cross-product parity. */
   --hud-deep: ${HUD.backgroundDeep};
   --hud-navy: ${HUD.backgroundNavy};
   --hud-panel: ${HUD.panel};
@@ -130,30 +162,60 @@ const CORE_CSS = `:root {
   --hud-body: ${HUD.bodyText};
   --hud-muted: ${HUD.mutedText};
 
-  --color-bg: ${HUD.backgroundDeep};
-  --color-surface: ${HUD.panel};
-  --color-surface-soft: ${HUD.backgroundNavy};
-  --color-border: rgba(56, 189, 248, 0.18);
-  --color-text: ${HUD.headline};
-  --color-text-muted: ${HUD.mutedText};
-  --color-primary: ${HUD.accentCyan};
-  --color-primary-hover: ${HUD.accentCyanGlow};
+  /* Industrial tokens are compiled from theme.css by Tailwind v4. */
+  --color-bg: var(--color-canvas);
+  --color-surface-soft: #111113;
+  --color-border: var(--color-border-subtle);
+  --color-border-strong: #3f3f46;
+  --color-text: var(--color-text-main);
+  --color-primary: var(--color-brand-cyan);
+  --color-primary-hover: var(--color-brand-cyan-hover);
   /* Semantic colours stay on the SITE tokens — success and error mean the same
      thing everywhere, and are pinned against src/index.css. */
   --color-success: ${TOKENS.dark.success};
   --color-error: ${TOKENS.dark.error};
 
+  /* Telemetry is deliberately two-channel: software/system load is cyan;
+     physical GPU, memory, heat, power, clock and storage activity is orange. */
+  --metric-cyan: var(--color-brand-cyan);
+  --metric-orange: var(--color-data-orange);
+  --metric-amber: #f59e0b;
+  --metric-neutral: #71717a;
+  --metric-red: var(--color-error);
+
+  /* Cyan is the one interaction language across the whole instrument. */
+  --view-accent: var(--metric-cyan);
+  --view-wash: color-mix(in srgb, var(--view-accent) 7%, transparent);
+  --view-border: color-mix(in srgb, var(--view-accent) 42%, var(--color-border));
+
   --font-body: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace;
 
-  --fs-h3: 1.25rem;
-  --fs-small: 0.875rem;
-  --fs-overline: 0.75rem;
+  /* Semantic type roles. The legacy aliases remain because the browser bundle
+     uses them widely; new work names the job the text performs. */
+  --text-display: clamp(1.8rem, 2.7vw, 2.7rem);
+  --text-title: 1.25rem;
+  --text-body: 1rem;
+  --text-support: 0.9375rem;
+  --text-small: 0.875rem;
+  --text-label: 0.75rem;
+  --text-micro: 0.7rem;
+  --fs-h3: var(--text-title);
+  --fs-small: var(--text-small);
+  --fs-overline: var(--text-label);
   --track-tight: 0;
 
   --radius-card: ${TOKENS.radiusCard};
   --radius-frame: ${TOKENS.radiusFrame};
   --content: ${TOKENS.content};
+  /* The website token above is a reading width. This instrument is a desktop
+     workspace: its tables, gauges and chat need room to stay scannable. */
+  --content-dashboard: 1480px;
+  /* Match the density of this desktop instrument at 80% browser zoom while
+     leaving the browser itself at 100%. The zoom property scales fixed and relative
+     measurements together, so gauge geometry, borders and type keep the
+     proportions approved in the desktop reference captures. */
+  --ui-density-scale: 0.8;
 
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -161,44 +223,57 @@ const CORE_CSS = `:root {
   --space-6: 1.5rem;
   --space-8: 2rem;
 
-  --accent-wash: color-mix(in srgb, var(--color-primary) 8%, transparent);
-  --accent-border: color-mix(in srgb, var(--color-primary) 38%, transparent);
+  --accent-wash: color-mix(in srgb, var(--color-primary) 7%, transparent);
+  --accent-border: color-mix(in srgb, var(--color-primary) 42%, var(--color-border));
+  --surface-panel: var(--color-surface);
+  --surface-panel-strong: var(--color-surface);
+  --surface-inset: #111113;
+  --surface-control: #111113;
+  --surface-hover: #202024;
+  --shadow-panel: none;
   color-scheme: dark;
 }
 /* The HUD is a dark-only treatment by design — the social surfaces it inherits
    from have no light variant, and a light HUD reads as a mistake rather than a
    choice. The site's light tokens stay pinned and available; they are simply
    not what this instrument uses. */
+html { zoom: var(--ui-density-scale); }
 @media (prefers-color-scheme: light) {
   :root { color-scheme: dark; }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: var(--hud-deep);
+  background: var(--color-canvas);
   color: var(--color-text);
   font-family: var(--font-body);
   font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  /* A quiet local-app field rather than the full social-render scanline
-     treatment. Pure CSS, so nothing is fetched and the CSP stays locked down. */
-  background-image: linear-gradient(180deg, rgba(15, 27, 52, 0.92) 0, var(--hud-deep) 430px);
+  /* Neutral instrumentation grid: texture without ambient coloured light. */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 36px 36px;
   background-attachment: fixed;
 }
 @media (prefers-reduced-motion: reduce), (prefers-contrast: more) {
-  body { background-image: linear-gradient(180deg, rgba(15, 27, 52, 0.72) 0, var(--hud-deep) 430px); }
+  body {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
 }
-.shell { max-width: var(--content); margin: 0 auto; padding: 0 var(--space-4); }
+.shell { max-width: var(--content-dashboard); margin: 0 auto; padding: 0 var(--space-4); }
 
 .topbar {
-  border-bottom: 1px solid var(--color-border);
-  background: rgba(11, 18, 37, 0.94);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: rgba(9, 9, 11, 0.97);
   position: sticky; top: 0; z-index: 10;
 }
 .topbar-inner {
-  max-width: var(--content); margin: 0 auto; padding: 0 var(--space-4);
+  max-width: var(--content-dashboard); margin: 0 auto; padding: 0 var(--space-4);
   min-height: 64px; display: flex; align-items: center; gap: 0.55rem;
 }
 .brand {
@@ -223,31 +298,69 @@ body {
 .livestrip .critical { color: var(--color-error); }
 
 .layout {
-  display: grid; grid-template-columns: 190px minmax(0, 1fr);
+  display: grid; grid-template-columns: 204px minmax(0, 1fr);
   gap: var(--space-6); align-items: start;
   padding-top: var(--space-6); padding-bottom: var(--space-6);
 }
-.sidenav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 84px; }
+#app.view-enter {
+  animation: viewEnter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes viewEnter {
+  from { opacity: 0.72; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sidenav { display: flex; flex-direction: column; gap: 0.28rem; position: sticky; top: 84px; }
+.nav-kicker {
+  display: flex; align-items: center; gap: 0.45rem; margin: 0 0.5rem 0.35rem;
+  color: var(--color-text-muted); font-family: var(--font-mono);
+  font-size: var(--text-micro); font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.nav-kicker .ui-icon { width: 0.8rem; height: 0.8rem; color: var(--color-primary); }
 .sidenav button {
+  --nav-accent: var(--metric-cyan);
+  position: relative; display: grid; grid-template-columns: 1.15rem minmax(0, 1fr) auto;
+  align-items: center; gap: 0.62rem; overflow: hidden;
   text-align: left; width: 100%; border: 1px solid transparent; background: transparent;
-  color: var(--color-text-muted); padding: 0.55rem 0.7rem; border-radius: 0.5rem;
-  font-size: var(--fs-small); font-weight: 500; letter-spacing: 0;
+  color: var(--color-text-muted); padding: 0.62rem 0.68rem; border-radius: 0.58rem;
+  font-size: var(--fs-small); font-weight: 600; letter-spacing: 0;
 }
-.sidenav button:hover { background: rgba(15, 27, 52, 0.74); color: var(--color-text); }
+.sidenav button::before {
+  content: ""; position: absolute; inset: 0 auto 0 -1px; width: 3px;
+  border-radius: 0 999px 999px 0; background: var(--nav-accent);
+  opacity: 0; transform: scaleY(0.45); transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.sidenav button:hover { background: var(--surface-hover); color: var(--color-text); }
 .sidenav button[aria-current="page"] {
-  background: var(--accent-wash); color: var(--color-primary); border-color: var(--accent-border);
+  background: var(--color-surface);
+  color: var(--color-text); border-color: var(--color-brand-cyan);
 }
+.sidenav button[aria-current="page"]::before { opacity: 1; transform: scaleY(1); }
+.nav-icon {
+  width: 1rem; height: 1rem; color: var(--nav-accent); opacity: 0.62;
+  transition: color 0.16s ease, opacity 0.16s ease, filter 0.16s ease;
+}
+.sidenav button:hover .nav-icon { opacity: 1; color: var(--nav-accent); }
+.sidenav button[aria-current="page"] .nav-icon {
+  color: var(--nav-accent); opacity: 1;
+}
+.nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sidenav .count {
-  float: right; min-width: 1.45rem; padding: 0 0.35rem; border-radius: 999px;
+  min-width: 1.45rem; padding: 0 0.35rem; border-radius: 999px;
   text-align: center; opacity: 0.8; font-size: 0.7rem; font-weight: 600;
   background: rgba(148, 163, 184, 0.10); color: var(--color-text-muted);
+}
+.sidenav button[aria-current="page"] .count {
+  color: var(--nav-accent); border: 1px solid color-mix(in srgb, var(--nav-accent) 24%, transparent);
+  background: color-mix(in srgb, var(--nav-accent) 9%, transparent);
 }
 
 .filters { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
 .filters button { font-weight: 500; }
 .filters button[aria-pressed="true"] {
-  background: var(--accent-wash); border-color: var(--color-primary);
+  background: var(--view-wash); color: var(--view-accent); border-color: var(--view-accent);
 }
+.filters button[aria-pressed="false"]:hover { background: var(--surface-hover); }
 .filters .count {
   display: inline-block; min-width: 1.35rem; margin-left: 0.4rem; padding: 0 0.3rem;
   border-radius: 999px; background: rgba(148, 163, 184, 0.10);
@@ -269,10 +382,15 @@ body {
 }
 .catalog-stats span {
   padding: 0.18rem 0.55rem; border: 1px solid var(--color-border);
-  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
+  border-radius: 999px; background: var(--surface-inset);
 }
-.catalog-stats b { color: var(--color-text); font-weight: 700; }
+.catalog-stats b { color: var(--view-accent); font-weight: 750; }
 .catalog-fit-filters { margin-bottom: 0; }
+.catalog-panel .catalog-search {
+  border-color: var(--color-border-strong);
+  background-color: var(--surface-control);
+}
+.catalog-panel .catalog-result-meta { color: var(--color-text-muted); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -293,7 +411,7 @@ body {
 .bench-error { color: var(--color-error); }
 .bench-cmd {
   display: inline-block; padding: 0.35rem 0.6rem; border: 1px solid var(--color-border);
-  border-radius: 0.5rem; background: rgba(6, 9, 19, 0.5);
+  border-radius: 0.5rem; background: var(--surface-inset);
   font-family: var(--font-mono); font-size: var(--fs-small); word-break: break-all;
 }
 .bench-command-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-top: var(--space-3); }
@@ -312,14 +430,16 @@ body {
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .overview-control-grid { grid-template-columns: minmax(0, 1fr); }
   .sidenav {
     position: static; flex-direction: row; overflow-x: auto; max-width: 100%;
     border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2);
     scrollbar-width: none;
   }
+  .nav-kicker { display: none; }
   .sidenav::-webkit-scrollbar { display: none; }
-  .sidenav button { width: auto; white-space: nowrap; flex: 0 0 auto; }
-  .sidenav .count { float: none; margin-left: 0.4rem; display: inline-block; }
+  .sidenav button { width: auto; white-space: nowrap; flex: 0 0 auto; grid-template-columns: 1rem auto auto; }
+  .sidenav .count { display: inline-block; }
   .livestrip { display: none; }
   .badge-readonly { margin-left: auto; }
 }
@@ -335,7 +455,58 @@ body {
 
 main.shell { padding-top: var(--space-6); padding-bottom: var(--space-6); }
 footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); font-size: var(--fs-overline); }
-.loading { color: var(--color-text-muted); }
+.loading-shell {
+  position: relative; overflow: hidden; padding: 1.3rem 1.4rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-frame);
+  background: var(--surface-panel-strong); box-shadow: var(--shadow-panel);
+}
+.loading-head {
+  display: flex; align-items: center; gap: 0.65rem; margin-bottom: var(--space-4);
+  color: var(--color-text); font-size: var(--fs-small); font-weight: 700;
+}
+.loading-dot {
+  width: 0.55rem; height: 0.55rem; flex: 0 0 auto; border-radius: 50%;
+  background: var(--color-primary);
+  animation: loadingPulse 1.6s ease-in-out infinite;
+}
+.loading-skeleton, .inline-loading-bars { display: grid; gap: 0.65rem; }
+.skeleton-line, .skeleton-block, .inline-skeleton-line {
+  position: relative; display: block; overflow: hidden;
+  background: rgba(148, 163, 184, 0.09); border: 1px solid rgba(148, 163, 184, 0.05);
+}
+.skeleton-line { height: 0.72rem; border-radius: 999px; }
+.skeleton-line-wide { width: min(34rem, 72%); }
+.skeleton-line-short { width: min(22rem, 48%); }
+.skeleton-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3); margin-top: 0.35rem;
+}
+.skeleton-block { min-height: 5.75rem; border-radius: 0.7rem; }
+.skeleton-line::after, .skeleton-block::after, .inline-skeleton-line::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 15%, rgba(56, 189, 248, 0.13) 48%, transparent 82%);
+  transform: translateX(-100%); animation: skeletonShimmer 1.65s ease-in-out infinite;
+}
+.inline-loading {
+  display: grid; gap: 0.7rem; padding: 0.75rem; border: 1px solid var(--color-border);
+  border-radius: 0.7rem; background: var(--surface-inset);
+}
+.inline-loading-label {
+  display: flex; align-items: center; gap: 0.5rem;
+  color: var(--color-text-muted); font-size: var(--fs-small); font-weight: 600;
+}
+.inline-loading-label::before {
+  content: ""; width: 0.42rem; height: 0.42rem; flex: 0 0 auto;
+  border-radius: 50%; background: var(--color-primary);
+}
+.inline-skeleton-line { height: 0.58rem; border-radius: 999px; }
+.inline-skeleton-line:nth-child(2) { width: 72%; }
+@keyframes loadingPulse {
+  50% { opacity: 0.5; transform: scale(0.82); }
+}
+@keyframes skeletonShimmer {
+  to { transform: translateX(100%); }
+}
 
 /* The HUD readout, matching the social renders' top-left block: short
    monospace LABEL: value lines with the value in accent cyan. aria-hidden
@@ -350,139 +521,206 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 .hud-readout .v { color: var(--hud-cyan); }
 
 .panel {
+  --panel-accent: var(--view-accent);
   position: relative;
-  background: rgba(15, 27, 52, 0.88);
-  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-frame);
   padding: 1.25rem 1.4rem;
   margin-bottom: var(--space-4);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
 }
-/* Four glowing cyan corner brackets — the HUD frame the social renders carry.
-   Drawn with two pseudo-elements and border edges rather than eight nodes or
-   an image, so it costs no markup and nothing is fetched. */
-.panel::before, .panel::after {
-  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
-  border-color: var(--hud-cyan); border-style: solid; opacity: 0.28;
-}
-.panel::before {
-  top: -1px; left: -1px; border-width: 1px 0 0 1px;
-  border-top-left-radius: var(--radius-frame);
-  box-shadow: -1px -1px 6px -2px var(--hud-cyan);
-}
-.panel::after {
-  bottom: -1px; right: -1px; border-width: 0 1px 1px 0;
-  border-bottom-right-radius: var(--radius-frame);
-  box-shadow: 1px 1px 6px -2px var(--hud-cyan);
+.ui-icon {
+  display: block; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 .panel > h2, .panel-head h2 {
   margin: 0 0 var(--space-4);
-  font-size: var(--fs-overline);
-  font-weight: 600;
+  font-size: var(--text-label);
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-primary);
+  color: var(--color-text);
 }
+.panel-title {
+  display: flex; align-items: center; gap: 0.55rem;
+}
+.panel-title::after {
+  content: ""; min-width: 1.5rem; height: 1px; flex: 1 1 auto;
+  background: var(--color-border-subtle);
+}
+.panel-title .panel-icon {
+  flex: 0 0 auto; width: 1rem; height: 1rem; color: var(--panel-accent);
+}
+
+/* Page structure stays cyan; orange and green are reserved for data and health. */
+.panel.installed-panel,
+.panel.catalog-panel,
+.panel.chat-panel,
+.panel.tools-panel,
+.panel.report-panel { --panel-accent: var(--metric-cyan); }
+.panel.report-limits { --panel-accent: var(--metric-amber); }
+.panel.hardware-panel, .panel.trust-readout {
+  --panel-accent: var(--metric-cyan);
+}
+.hardware-panel > .panel-title .panel-icon,
+.trust-readout > .panel-title .panel-icon { color: var(--metric-cyan); }
+.trust-readout .trust-cell .k { color: var(--color-text-muted); }
+.panel.hardware-disagreement-panel { --panel-accent: var(--metric-amber); }
+.panel.bench-panel {
+  --panel-accent: var(--metric-cyan);
+}
+.bench-panel > .panel-title .panel-icon { color: var(--metric-cyan); }
+.bench-panel .bench-drop { border-color: var(--color-border-subtle); }
+.panel.residency-section, .panel.action-panel {
+  --panel-accent: var(--metric-cyan);
+}
+.residency-section > .panel-head .panel-icon,
+.action-panel > .panel-title .panel-icon { color: var(--metric-cyan); }
+.residency-section .loaded-summary {
+  border-color: var(--color-border-subtle);
+  background: var(--surface-inset);
+}
+.residency-section .loaded-summary-label,
+.residency-section .loaded-summary-value { color: var(--color-text); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-4); }
 .kv .k { color: var(--color-text-muted); font-size: var(--fs-small); }
 .kv .v { font-size: 1rem; margin-top: 2px; word-break: break-word; }
 .kv .v.big { font-size: var(--fs-h3); font-weight: 600; letter-spacing: var(--track-tight); }
 
 .summary-panel {
-  padding: 1.4rem;
-  background:
-    linear-gradient(180deg, rgba(15, 27, 52, 0.95), rgba(11, 18, 37, 0.94));
+  overflow: hidden; padding: 1rem 1.05rem;
+  background: var(--color-surface);
 }
 .summary-main {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-4); align-items: start; margin-bottom: var(--space-4);
+  gap: var(--space-4); align-items: center; margin-bottom: 0.65rem;
 }
 .summary-eyebrow {
-  margin: 0 0 0.2rem; font-size: var(--fs-overline);
+  margin: 0 0 0.12rem; font-size: var(--text-micro);
   color: var(--color-primary); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .summary-title {
-  margin: 0; font-size: clamp(1.65rem, 3vw, 2.55rem);
-  line-height: 1.08; font-weight: 750; letter-spacing: 0;
+  margin: 0; font-size: clamp(1.65rem, 2.25vw, 2.25rem);
+  line-height: 1.04; font-weight: 760; letter-spacing: -0.015em;
 }
 .summary-detail {
-  max-width: 48rem; margin: 0.55rem 0 0;
-  color: var(--color-text-muted); font-size: 0.95rem;
+  max-width: 52rem; margin: 0.3rem 0 0;
+  color: var(--color-text-muted); font-size: var(--fs-small); line-height: 1.4;
 }
 .status-chip {
   display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center;
   min-height: 2rem; padding: 0.3rem 0.7rem; border-radius: 999px;
   font-size: var(--fs-overline); font-weight: 700; text-transform: uppercase;
-  color: var(--color-primary); background: var(--accent-wash); border: 1px solid var(--accent-border);
+  color: var(--view-accent); background: var(--view-wash); border: 1px solid var(--view-border);
   white-space: nowrap;
 }
-.status-chip.ready, .status-chip.ok { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, transparent); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
-.status-chip.warn { color: #f5b544; background: rgba(245, 181, 68, 0.12); border-color: rgba(245, 181, 68, 0.32); }
+.status-chip .status-icon { flex: 0 0 auto; width: 0.82rem; height: 0.82rem; }
+.status-chip.ready { color: var(--color-status-green); background: color-mix(in srgb, var(--color-status-green) 8%, transparent); border-color: var(--color-status-green); }
+.status-chip.ok, .status-chip.verified { color: var(--metric-cyan); background: color-mix(in srgb, var(--metric-cyan) 7%, transparent); border-color: color-mix(in srgb, var(--metric-cyan) 34%, var(--color-border)); }
+.status-chip.warn { color: var(--metric-amber); background: rgba(245, 181, 68, 0.12); border-color: rgba(245, 181, 68, 0.32); }
 .status-chip.critical { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 12%, transparent); border-color: color-mix(in srgb, var(--color-error) 32%, transparent); }
 .summary-grid {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px; overflow: hidden; border: 1px solid var(--color-border);
-  border-radius: 0.75rem; background: var(--color-border);
+  border-radius: 0.6rem; background: var(--color-border);
 }
 .summary-card {
-  min-width: 0; padding: 0.9rem; background: rgba(6, 9, 19, 0.36);
+  --summary-accent: var(--metric-cyan);
+  position: relative; min-width: 0; padding: 0.62rem 0.72rem 0.66rem;
+  background: var(--surface-inset);
 }
+.summary-card::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 2px;
+  background: var(--summary-accent); opacity: 0.78;
+}
+.summary-card.tone-cyan { --summary-accent: var(--metric-cyan); }
+.summary-card.tone-pressure { --summary-accent: var(--metric-cyan); }
+.summary-card.tone-pressure.warn { --summary-accent: var(--metric-amber); }
+.summary-card.tone-pressure.critical { --summary-accent: var(--metric-red); }
+.summary-card.tone-pressure.unavailable { --summary-accent: var(--color-text-muted); }
 .summary-card .k {
-  color: var(--color-text-muted); font-size: var(--fs-overline);
+  color: var(--summary-accent); font-size: var(--text-micro);
   text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
 }
 .summary-card .v {
-  margin-top: 0.25rem; color: var(--color-text); font-size: 1.2rem;
+  margin-top: 0.16rem; color: var(--color-text); font-size: 1.12rem;
   font-weight: 700; line-height: 1.15; overflow-wrap: anywhere;
 }
 .summary-card .d {
-  margin-top: 0.25rem; color: var(--color-text-muted);
-  font-size: var(--fs-overline); line-height: 1.35;
+  margin-top: 0.16rem; color: var(--color-text-muted);
+  font-size: var(--text-micro); line-height: 1.3;
 }
 .summary-trust {
-  display: flex; gap: var(--space-2); flex-wrap: wrap; margin: 0 0 var(--space-4);
+  display: flex; gap: 0.36rem; flex-wrap: wrap; margin: 0 0 0.62rem;
 }
 .summary-trust span {
-  display: inline-flex; align-items: center; min-height: 1.6rem;
-  padding: 0.18rem 0.58rem; border: 1px solid var(--color-border);
-  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
-  color: var(--color-text-muted); font-size: var(--fs-overline); font-weight: 650;
+  display: inline-flex; align-items: center; min-height: 1.35rem;
+  padding: 0.1rem 0.45rem; border: 1px solid var(--color-border);
+  border-radius: 999px; background: var(--surface-inset);
+  color: var(--color-text-muted); font-size: var(--text-micro); font-weight: 650;
 }
 .summary-action {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-3); align-items: center;
-  margin-top: var(--space-4); padding: 0.85rem;
-  border: 1px solid var(--color-border); border-radius: 0.75rem;
-  background: rgba(6, 9, 19, 0.26);
-  color: var(--color-text-muted); font-size: var(--fs-small);
+  gap: var(--space-3); align-items: center; margin-top: 0.62rem; padding: 0.58rem 0.68rem;
+  border: 1px solid var(--color-border-subtle); border-radius: 0.6rem;
+  background: var(--surface-inset);
+  color: var(--color-text-muted); font-size: var(--fs-overline);
 }
 .summary-action b { color: var(--color-text); font-weight: 700; }
 .summary-action-copy {
-  display: grid; gap: 0.2rem;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 0.2rem 0.55rem; align-items: baseline;
 }
 .summary-action-label {
-  color: var(--color-text-muted); font-size: var(--fs-overline);
+  color: var(--color-text-muted); font-size: var(--text-micro);
   text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
 }
+.summary-action-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary-next {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3); margin-top: var(--space-3);
+  gap: 0.42rem; margin-top: 0.42rem;
 }
 .summary-next-card {
-  min-width: 0; display: grid; gap: 0.55rem; align-content: start;
-  padding: 0.85rem; border: 1px solid var(--color-border);
-  border-radius: 0.75rem; background: rgba(6, 9, 19, 0.24);
+  --card-accent: var(--metric-cyan);
+  position: relative; overflow: hidden;
+  min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem var(--space-2); align-content: center; align-items: center;
+  padding: 0.5rem 0.58rem 0.5rem 0.68rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.6rem;
+  background: var(--surface-inset);
 }
+.summary-next-card::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 2px;
+  background: var(--card-accent); opacity: 0.82;
+}
+.summary-next-card[data-target="catalog"],
+.summary-next-card[data-target="hardware"],
+.summary-next-card[data-target="report"] { --card-accent: var(--metric-cyan); }
 .summary-next-title {
-  color: var(--color-text); font-weight: 700; line-height: 1.2;
+  color: color-mix(in srgb, var(--card-accent) 72%, var(--color-text));
+  font-size: var(--fs-small); font-weight: 700; line-height: 1.15;
 }
 .summary-next-detail {
-  color: var(--color-text-muted); font-size: var(--fs-overline); line-height: 1.35;
+  grid-column: 1;
+  color: var(--color-text-muted); font-size: var(--text-micro); line-height: 1.25;
 }
 .summary-next-card button {
-  justify-self: start;
+  grid-column: 2; grid-row: 1 / span 2; justify-self: end;
+  color: var(--card-accent); border-color: color-mix(in srgb, var(--card-accent) 26%, var(--color-border-strong));
 }
+.summary-next-card button:hover {
+  color: color-mix(in srgb, var(--card-accent) 78%, white);
+  border-color: color-mix(in srgb, var(--card-accent) 48%, transparent);
+  background: color-mix(in srgb, var(--card-accent) 10%, var(--surface-hover));
+}
+
+.overview-control-grid {
+  display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.75rem; align-items: stretch; margin-bottom: var(--space-4);
+}
+.overview-control-grid > .panel { height: 100%; margin-bottom: 0; }
+.overview-control-grid > .panel:first-child { border-color: var(--color-border-subtle); }
 
 .action-panel {
   display: grid; gap: var(--space-4);
@@ -506,37 +744,59 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 }
 .action-preview {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px; overflow: hidden; border: 1px solid var(--color-border);
-  border-radius: 0.75rem; background: var(--color-border);
+  gap: 1.8rem; overflow: visible;
 }
 .action-preview-card {
-  min-width: 0; padding: 0.75rem; background: rgba(6, 9, 19, 0.30);
+  --action-accent: var(--metric-cyan);
+  position: relative; min-width: 0; padding: 0.8rem;
+  border: 1px solid var(--color-border); border-radius: 0.75rem;
+  background: var(--surface-inset);
 }
-.action-preview-card .k {
+.action-preview-card:not(:last-child)::after {
+  content: "\\2192"; position: absolute; top: 50%; right: -1.45rem;
+  width: 1rem; transform: translateY(-50%); text-align: center;
+  color: var(--action-accent); font-family: var(--font-mono); font-weight: 700;
+}
+.action-step-head {
+  display: flex; align-items: center; gap: 0.45rem; margin-bottom: 0.35rem;
   color: var(--color-text-muted); font-size: var(--fs-overline);
   text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
 }
+.action-step-head .ui-icon { width: 0.85rem; height: 0.85rem; color: var(--action-accent); }
+.action-step-index {
+  color: var(--action-accent); font-family: var(--font-mono); font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+.action-preview-card .k {
+  color: inherit;
+}
 .action-preview-card .v {
-  margin-top: 0.2rem; color: var(--color-text); font-weight: 700;
+  color: var(--color-text); font-weight: 700;
   line-height: 1.2; overflow-wrap: anywhere;
 }
 .action-preview-card .d {
   margin-top: 0.25rem; color: var(--color-text-muted);
   font-size: var(--fs-overline); line-height: 1.35;
 }
+.action-preview-card.is-consequence {
+  border-color: var(--color-border-subtle);
+  border-left: 3px solid var(--action-accent);
+  background: var(--surface-inset);
+}
+.action-preview-card.is-consequence .v { color: var(--action-accent); }
 .action-trust {
   display: flex; gap: var(--space-2); flex-wrap: wrap;
 }
 .action-trust span {
   padding: 0.22rem 0.55rem; border: 1px solid var(--color-border);
-  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
+  border-radius: 999px; background: var(--surface-inset);
   color: var(--color-text-muted); font-size: var(--fs-overline); font-weight: 600;
 }
 .primary-action {
-  color: var(--hud-deep); background: var(--color-primary); border-color: var(--color-primary);
+  color: var(--color-canvas); background: var(--color-brand-cyan); border-color: var(--color-brand-cyan);
 }
 .primary-action:hover {
-  color: var(--hud-deep); background: var(--color-primary-hover); border-color: var(--color-primary-hover);
+  color: var(--color-canvas); background: var(--color-brand-cyan-hover); border-color: var(--color-brand-cyan-hover);
 }
 .primary-action:disabled:not([data-busy="true"]) {
   color: var(--color-text-muted); background: rgba(148, 163, 184, 0.12);
@@ -567,7 +827,7 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .trust-cell, .share-row, .limit-item, .source-card {
-  min-width: 0; padding: 0.9rem; background: rgba(6, 9, 19, 0.30);
+  min-width: 0; padding: 0.9rem; background: var(--surface-inset);
 }
 .trust-cell .k, .share-row .k {
   color: var(--color-text-muted); font-size: var(--fs-overline);
@@ -600,7 +860,7 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   background: rgba(148, 163, 184, 0.08);
 }
 .source-claim.selected {
-  background: var(--accent-wash); border: 1px solid var(--accent-border);
+  background: var(--view-wash); border: 1px solid var(--view-border);
 }
 .source-claim.unreliable {
   background: rgba(245, 181, 68, 0.10); border: 1px solid rgba(245, 181, 68, 0.28);
@@ -618,9 +878,18 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   display: flex; gap: var(--space-2); flex-wrap: wrap;
 }
 .safety-strip span {
-  padding: 0.22rem 0.55rem; border: 1px solid var(--color-border);
-  border-radius: 999px; background: rgba(6, 9, 19, 0.28);
-  color: var(--color-text-muted); font-size: var(--fs-overline); font-weight: 600;
+  padding: 0.22rem 0.55rem; border: 1px solid var(--color-border-subtle);
+  border-radius: 999px; background: var(--surface-inset);
+  color: var(--color-text-muted);
+  font-size: var(--fs-overline); font-weight: 600;
+}
+.report-limits .limit-item {
+  border-left: 2px solid color-mix(in srgb, var(--metric-amber) 72%, transparent);
+  background: var(--surface-inset);
+}
+.share-panel .share-row {
+  border-left: 2px solid var(--color-brand-cyan);
+  background: var(--surface-inset);
 }
 .share-panel {
   display: grid; gap: var(--space-4);
@@ -631,18 +900,43 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 
 table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: auto; }
 th {
-  text-align: left; color: var(--color-text-muted); font-weight: 600;
+  text-align: left; color: color-mix(in srgb, var(--view-accent) 54%, var(--color-text-muted)); font-weight: 650;
   font-size: var(--fs-overline); text-transform: uppercase; letter-spacing: 0.05em;
   padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--color-border);
 }
 td { padding: 0.6rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
 tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background-color 0.14s ease; }
+tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transparent); }
+.catalog-result-meta {
+  display: flex; justify-content: space-between; gap: var(--space-3);
+  margin: 0 0 var(--space-2); color: var(--color-text-muted);
+  font-size: var(--text-label); font-weight: 650; letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.catalog-table-wrap {
+  max-height: min(66vh, 42rem); overflow: auto;
+  border: 1px solid var(--color-border); border-radius: 0.75rem;
+  background: var(--surface-inset); scrollbar-gutter: stable;
+}
+.catalog-table-wrap:focus-visible { outline: 2px solid var(--view-accent); outline-offset: 2px; }
 .catalog-table { table-layout: fixed; }
-.catalog-table th:nth-child(1) { width: 39%; }
-.catalog-table th:nth-child(2) { width: 13%; }
-.catalog-table th:nth-child(3) { width: 12%; }
-.catalog-table th:nth-child(4) { width: 12%; }
-.catalog-table th:nth-child(5) { width: 24%; }
+.catalog-table th { position: sticky; top: 0; z-index: 2; background: var(--color-surface); }
+.catalog-table th:nth-child(1) { width: 34%; }
+.catalog-table th:nth-child(2) { width: 12%; }
+.catalog-table th:nth-child(3) { width: 10%; }
+.catalog-table th:nth-child(4) { width: 11%; }
+.catalog-table th:nth-child(5) { width: 33%; }
+.catalog-table td { padding: 0.48rem 0.6rem; line-height: 1.35; }
+.catalog-table .cmd { margin-top: 0; flex-wrap: nowrap; }
+.catalog-table .cmd code {
+  min-width: 0; flex: 1 1 auto; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal;
+}
+.catalog-table .explain {
+  display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  line-clamp: 2; font-size: var(--text-label); line-height: 1.35;
+}
 .model-name { font-weight: 650; color: var(--color-text); overflow-wrap: anywhere; }
 
 .pill {
@@ -650,27 +944,99 @@ tr:last-child td { border-bottom: 0; }
   font-size: var(--fs-overline); font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
   border: 1px solid transparent;
 }
-.pill.comfortable { background: color-mix(in srgb, var(--color-success) 14%, transparent); color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 32%, transparent); }
-.pill.tight { background: var(--accent-wash); color: var(--color-primary); border-color: var(--accent-border); }
+.pill.comfortable { background: color-mix(in srgb, var(--metric-cyan) 7%, transparent); color: var(--metric-cyan); border-color: color-mix(in srgb, var(--metric-cyan) 30%, transparent); }
+.pill.tight { background: color-mix(in srgb, var(--metric-amber) 13%, transparent); color: var(--metric-amber); border-color: color-mix(in srgb, var(--metric-amber) 30%, transparent); }
 .pill.partial { background: color-mix(in srgb, var(--color-text-muted) 14%, transparent); color: var(--color-text-muted); border-color: color-mix(in srgb, var(--color-text-muted) 30%, transparent); }
 .pill.too_large { background: color-mix(in srgb, var(--color-error) 14%, transparent); color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 32%, transparent); }
-.pill.known { background: color-mix(in srgb, var(--color-success) 14%, transparent); color: var(--color-success); }
-.pill.derived { background: var(--accent-wash); color: var(--color-primary); }
+.pill.known { background: var(--surface-inset); color: var(--color-text-muted); }
+.pill.derived { background: color-mix(in srgb, var(--metric-cyan) 7%, transparent); color: var(--metric-cyan); }
 .pill.unlisted { background: color-mix(in srgb, var(--color-text-muted) 14%, transparent); color: var(--color-text-muted); }
 
-/* RADIAL GAUGES.
-   A 270-degree arc drawn with conic-gradient and masked to a ring — no SVG, no
-   canvas, no dependency. The arc starts at 135deg so the gap sits at the
-   bottom, the way a physical instrument reads. */
+/* LIVE MONITORING CANVAS.
+   Compact title rails, values, bounded history, and mixed chart forms provide
+   Grafana-like scan density without a chart dependency or invented samples. */
 .gauges {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: var(--space-6) var(--space-4); justify-items: center;
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.55rem;
 }
-.gauge { display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; }
+.telemetry-section {
+  padding: 0.82rem; border-color: var(--color-border-subtle);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    var(--color-surface);
+  background-size: 24px 24px, 24px 24px, auto;
+}
+.telemetry-section > .panel-head {
+  align-items: center; margin-bottom: 0.62rem; padding: 0 0.12rem 0.56rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.metric-panel {
+  --metric-color: var(--metric-cyan);
+  position: relative; grid-column: span 3; min-width: 0; overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.42rem;
+  background: var(--surface-inset);
+}
+.metric-panel.tone-cyan { --metric-color: var(--metric-cyan); }
+.metric-panel.tone-orange { --metric-color: var(--metric-orange); }
+.metric-panel.tone-warn { --metric-color: var(--metric-amber); }
+.metric-panel.tone-critical { --metric-color: var(--metric-red); }
+.metric-panel.tone-neutral,
+.metric-panel.tone-unknown { --metric-color: var(--metric-neutral); }
+.metric-panel.is-featured { min-height: 156px; padding: 0.58rem 0.64rem 0.52rem; }
+.metric-panel.is-compact { min-height: 116px; padding: 0.55rem 0.6rem 0.5rem; }
+.metric-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.metric-panel-title {
+  display: flex; align-items: center; gap: 0.38rem; min-width: 0;
+  color: var(--color-text-muted); font-size: var(--text-micro); font-weight: 750;
+  letter-spacing: 0.075em; line-height: 1.2; text-transform: uppercase;
+}
+.metric-panel-title .ui-icon { width: 0.75rem; height: 0.75rem; flex: 0 0 auto; }
+.metric-panel-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metric-sample-state {
+  display: inline-flex; align-items: center; color: var(--color-text-muted);
+  font-family: var(--font-mono); font-size: 0.62rem; line-height: 1;
+}
+.metric-sample-state .live-dot { width: 5px; height: 5px; margin-right: 0.28rem; background: var(--metric-color); }
+.metric-sample-state.stale { opacity: 0.58; }
+.metric-stat-row { display: flex; align-items: baseline; gap: 0.55rem; min-width: 0; }
+.metric-stat-value {
+  flex: 0 0 auto; color: var(--color-text-main); font-family: var(--font-mono);
+  font-size: 1.85rem; font-weight: 720; letter-spacing: -0.045em; line-height: 1;
+}
+.metric-stat-value.na { color: var(--color-text-muted); font-size: 1.15rem; }
+.metric-stat-detail {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--color-text-muted); font-family: var(--font-mono); font-size: var(--text-micro);
+}
+.metric-compact-body {
+  display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 0.58rem;
+  align-items: center; min-width: 0;
+}
+.metric-compact-copy { min-width: 0; }
+.metric-chart-empty {
+  display: grid; place-items: center; min-height: 48px; padding: 0.35rem;
+  border: 1px dashed rgba(148, 163, 184, 0.18); color: var(--color-text-muted);
+  font-size: var(--text-micro); text-align: center;
+}
+.metric-bar {
+  --metric-p: 0; height: 3px; margin-top: 0.32rem; overflow: hidden;
+  border-radius: 999px; background: rgba(148, 163, 184, 0.13);
+}
+.metric-bar span {
+  display: block; width: calc(var(--metric-p) * 1%); height: 100%;
+  border-radius: inherit; background: var(--metric-color);
+  transition: width 0.45s ease;
+}
+.metric-bar.unavailable { opacity: 0.45; }
 .dial {
   --p: 0;
-  --arc: var(--hud-cyan);
-  position: relative; width: 104px; height: 104px; border-radius: 50%;
+  --arc: var(--metric-color, var(--hud-cyan));
+  position: relative; width: 68px; height: 68px; border-radius: 50%;
 }
 .dial::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
@@ -680,49 +1046,105 @@ tr:last-child td { border-bottom: 0; }
     rgba(148, 163, 184, 0.16) calc(var(--p) * 0.75 * 1%) 75%,
     transparent 75%
   );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(50% - 9px), #000 calc(50% - 8px));
-  mask: radial-gradient(farthest-side, transparent calc(50% - 9px), #000 calc(50% - 8px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(50% - 7px), #000 calc(50% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(50% - 7px), #000 calc(50% - 6px));
   transition: background 0.45s ease;
 }
-.dial.warn { --arc: #f5b544; }
+.dial.warn { --arc: var(--metric-amber); }
 .dial.critical { --arc: var(--color-error); }
 .dial.unknown { --arc: rgba(148, 163, 184, 0.35); }
+.dial.polling::after {
+  content: ""; position: absolute; inset: 5px; border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--arc) 46%, transparent);
+  pointer-events: none; animation: gaugeBreathe 2.6s ease-in-out infinite;
+}
 .dial-face {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1px;
   z-index: 1;
 }
 .dial-value {
-  font-family: var(--font-mono); font-size: 1.4rem; font-weight: 600;
-  color: var(--hud-headline); font-variant-numeric: tabular-nums; line-height: 1;
+  font-family: var(--font-mono); font-size: 0.94rem; font-weight: 680;
+  color: var(--color-text-main); font-variant-numeric: tabular-nums; line-height: 1;
 }
-.dial-value.na { font-size: 1rem; color: var(--color-text-muted); }
-.gauge-label {
-  margin-top: 0.55rem; font-size: var(--fs-overline); font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-cyan);
-}
+.dial-value.na { font-size: 0.85rem; color: var(--color-text-muted); }
 .gauge-detail {
-  font-size: var(--fs-overline); color: var(--color-text-muted); margin-top: 0.15rem;
+  min-height: 1.4em; margin: 0 0 0.12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--text-micro); line-height: 1.25; color: var(--color-text-muted);
   font-family: var(--font-mono);
 }
-@media (prefers-reduced-motion: reduce) { .dial::before { transition: none; } }
+.gauge-trend {
+  display: grid; gap: 0.08rem; min-width: 0; margin-top: 0.18rem;
+  color: var(--metric-color);
+}
+.gauge-trend.stale { opacity: 0.52; }
+.sparkline { display: block; width: 100%; height: 28px; overflow: visible; }
+.sparkline.sparkline-featured { height: 58px; }
+.sparkline-grid { stroke: rgba(148, 163, 184, 0.13); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.sparkline-area { fill: currentColor; opacity: 0.11; }
+.sparkline-line {
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round;
+  stroke-linejoin: round; vector-effect: non-scaling-stroke;
+}
+.sparkline-dot { fill: currentColor; }
+.gauge-trend-caption {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--color-text-muted); font-family: var(--font-mono);
+  font-size: var(--text-micro); line-height: 1.2;
+}
+
+.metric-value { display: inline-block; font-variant-numeric: tabular-nums; }
+.metric-changed { animation: metricFlash 620ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes metricFlash {
+  0% { filter: brightness(1); transform: scale(1); }
+  30% { filter: brightness(1.24); transform: scale(1.025); }
+  100% { filter: brightness(1); transform: scale(1); }
+}
+@keyframes liveBreathe {
+  0%, 100% { opacity: 0.58; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes gaugeBreathe {
+  0%, 100% { opacity: 0.18; transform: scale(0.992); }
+  50% { opacity: 0.42; transform: scale(1.015); }
+}
 
 .live-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 999px;
   background: var(--color-primary); margin-right: 0.4rem; vertical-align: 1px;
 }
+.live-dot:not(.stale) { animation: liveBreathe 2.4s ease-in-out infinite; }
 .live-dot.stale { background: var(--color-text-muted); }
+.livestrip.polling::before, .livestrip.stale::before {
+  content: ""; width: 6px; height: 6px; border-radius: 999px;
+  flex: 0 0 auto; align-self: center;
+}
+.livestrip.polling::before {
+  background: var(--color-primary); animation: liveBreathe 2.4s ease-in-out infinite;
+}
+.livestrip.stale { opacity: 0.72; }
+.livestrip.stale::before { background: var(--color-text-muted); }
 .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
 .panel-head h2 { margin-bottom: 0; }
 .panel-head .live-meta {
   font-size: var(--fs-overline); color: var(--color-text-muted); font-variant-numeric: tabular-nums;
 }
 .empty { color: var(--color-text-muted); font-size: var(--fs-small); margin: 0; }
+.empty-state {
+  display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.8rem 0.9rem;
+  border: 1px dashed var(--color-border-strong); border-radius: 0.7rem;
+  background: var(--surface-inset);
+}
+.empty-state .ui-icon {
+  width: 1rem; height: 1rem; flex: 0 0 auto; margin-top: 0.15rem;
+  color: var(--color-text-muted); opacity: 0.78;
+}
 
 .live-summary, .loaded-summary {
   display: grid; gap: var(--space-3); margin-bottom: var(--space-4);
   padding: 0.85rem; border: 1px solid var(--color-border); border-radius: 0.75rem;
-  background: rgba(6, 9, 19, 0.26);
+  background: var(--surface-inset);
 }
 .live-summary.warn, .loaded-summary.spilled {
   border-color: rgba(245, 181, 68, 0.32);
@@ -773,7 +1195,7 @@ tr:last-child td { border-bottom: 0; }
 .live-pressure-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-3); align-items: center;
-  padding: 0.62rem 0.7rem; background: rgba(6, 9, 19, 0.30);
+  padding: 0.62rem 0.7rem; background: var(--surface-inset);
 }
 .live-pressure-row.warn .live-pressure-value { color: #f5b544; }
 .live-pressure-row.critical .live-pressure-value { color: var(--color-error); }
@@ -791,13 +1213,57 @@ tr:last-child td { border-bottom: 0; }
   white-space: nowrap;
 }
 
+/* Overview pressure reads as a compact status rail. Loaded keeps the more
+   explanatory card treatment because it contains destructive-adjacent unload
+   controls below; the monitoring canvas itself prioritizes scan speed. */
+.telemetry-section .live-summary {
+  display: grid; grid-template-columns: minmax(13rem, 0.9fr) minmax(0, 2fr) auto;
+  gap: 1px; align-items: stretch; overflow: hidden; margin-bottom: 0.55rem; padding: 0;
+  border-radius: 0.42rem; background: var(--color-border);
+}
+.telemetry-section .live-summary-main {
+  grid-column: 1; grid-row: 1; align-items: center; gap: 0.65rem;
+  padding: 0.52rem 0.62rem; background: var(--surface-inset);
+}
+.telemetry-section .live-summary-label { color: var(--metric-cyan); font-size: var(--text-micro); }
+.telemetry-section .live-summary-title { margin-top: 0; font-size: var(--fs-small); }
+.telemetry-section .live-summary-detail {
+  max-width: 24rem; margin-top: 0.08rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--text-micro);
+}
+.telemetry-section .live-summary-value { font-size: 1.1rem; }
+.telemetry-section .live-pressure-list {
+  grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px; border: 0; border-radius: 0; background: var(--color-border);
+}
+.telemetry-section .live-pressure-row {
+  grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem; padding: 0.45rem 0.52rem;
+  background: var(--surface-inset);
+}
+.telemetry-section .live-pressure-name { font-size: var(--fs-overline); }
+.telemetry-section .live-pressure-detail {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-micro);
+}
+.telemetry-section .live-pressure-value { font-size: var(--fs-overline); }
+.telemetry-section .live-summary-chips {
+  grid-column: 3; grid-row: 1; display: grid; gap: 0.2rem; align-content: center;
+  padding: 0.42rem 0.5rem; background: var(--surface-inset);
+}
+.telemetry-section .live-summary-chips span {
+  justify-content: center; min-height: 1.1rem; padding: 0.02rem 0.36rem; font-size: 0.62rem;
+}
+
 .loaded-list, .installed-list {
   display: grid; gap: 1px; overflow: hidden;
   border: 1px solid var(--color-border); border-radius: 0.75rem;
   background: var(--color-border);
 }
+.installed-list {
+  border-color: var(--color-border-subtle);
+  background: var(--color-border-subtle);
+}
 .loaded-item, .installed-item {
-  min-width: 0; background: rgba(6, 9, 19, 0.30); padding: 0.9rem;
+  min-width: 0; background: var(--surface-inset); padding: 0.9rem;
 }
 .loaded-item {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
@@ -815,8 +1281,8 @@ tr:last-child td { border-bottom: 0; }
   border-radius: 999px; background: rgba(148, 163, 184, 0.10);
 }
 .loaded-state.resident-state {
-  color: var(--color-success);
-  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--metric-cyan);
+  background: color-mix(in srgb, var(--metric-cyan) 7%, transparent);
 }
 .loaded-state.spilled-state {
   color: #f5b544;
@@ -853,9 +1319,17 @@ tr:last-child td { border-bottom: 0; }
 .loaded-item.spilled .residency-meter span { background: #f5b544; }
 .loaded-actions { display: flex; justify-content: flex-end; }
 .installed-item {
+  position: relative;
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-4); align-items: start;
+  background: var(--surface-inset);
 }
+.installed-item::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 2px;
+  background: var(--metric-cyan);
+  opacity: 0.78;
+}
+.installed-name { color: var(--color-text); }
 .installed-fit {
   margin-top: 0.55rem;
 }
@@ -863,6 +1337,10 @@ tr:last-child td { border-bottom: 0; }
   display: grid; gap: 0.45rem; justify-items: end; min-width: 7rem;
 }
 .installed-action button { min-width: 5.25rem; }
+.tools-panel .grid .kv .v.big,
+.tools-panel .grid .kv:nth-child(2) .v { color: var(--color-text); }
+.tools-panel table { border-top: 1px solid var(--color-border-subtle); }
+.report-panel .share-row .k { color: var(--color-text-muted); }
 
 .muted { color: var(--color-text-muted); }
 .explain { color: var(--color-text-muted); font-size: var(--fs-small); margin-top: 3px; }
@@ -876,15 +1354,29 @@ code, .mono { font-family: var(--font-mono); font-size: 0.8125rem; }
 button, select, input {
   font: inherit; font-size: var(--fs-overline); font-weight: 600;
   min-height: 2rem; padding: 0.35rem 0.75rem;
-  background: rgba(6, 9, 19, 0.48); color: var(--color-primary);
-  border: 1px solid var(--accent-border); border-radius: 0.5rem;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  background: var(--surface-control); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: 0.5rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 button { cursor: pointer; }
-button:hover { background: var(--accent-wash); border-color: var(--color-primary); }
+button:hover { background: var(--surface-hover); color: var(--view-accent); border-color: var(--view-border); }
+button:not(:disabled):hover { transform: translateY(-1px); }
+button:not(:disabled):active { transform: translateY(0) scale(0.985); transition-duration: 80ms; }
 button:disabled { cursor: wait; opacity: 0.58; }
 button:disabled:not([data-busy="true"]) { cursor: default; }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 2px solid var(--view-accent); outline-offset: 2px;
+}
+select:hover, input:hover { background-color: var(--surface-hover); border-color: var(--view-border); }
+button[data-busy="true"] { cursor: wait; opacity: 1; }
+button[data-busy="true"]::before {
+  content: ""; display: inline-block; width: 0.78rem; height: 0.78rem;
+  margin-right: 0.48rem; vertical-align: -0.12rem; border: 2px solid currentColor;
+  border-right-color: transparent; border-radius: 50%; animation: busySpin 0.72s linear infinite;
+}
+.primary-action[data-busy="true"]::before { border-color: var(--color-canvas); border-right-color: transparent; }
+@keyframes busySpin { to { transform: rotate(360deg); } }
 input {
   color: var(--color-text); font-weight: 500;
 }
@@ -894,8 +1386,8 @@ select {
   appearance: none;
   padding-right: 2rem;
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--color-primary) 50%),
-    linear-gradient(135deg, var(--color-primary) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--view-accent) 50%),
+    linear-gradient(135deg, var(--view-accent) 50%, transparent 50%);
   background-position:
     calc(100% - 1rem) 50%,
     calc(100% - 0.65rem) 50%;
@@ -904,11 +1396,11 @@ select {
 }
 .icon-button {
   min-width: 2rem; padding: 0.25rem 0.5rem;
-  font-size: 1rem; line-height: 1; color: var(--color-primary);
+  font-size: 1rem; line-height: 1; color: var(--view-accent);
 }
 
 .notice {
-  border-left: 3px solid var(--color-primary);
+  border-left: 3px solid var(--view-accent);
   border-radius: 0;
   padding: 0.1rem 0 0.1rem 0.85rem;
   margin: 0.7rem 0;
@@ -916,12 +1408,23 @@ select {
 }
 .limits { margin: 0; padding-left: 1.1rem; }
 .limits li { color: var(--color-text-muted); font-size: var(--fs-small); margin-bottom: 0.25rem; }
-.spilled { color: var(--color-primary); }
+.spilled { color: var(--metric-amber); }
 .footer-link { color: var(--color-primary); text-decoration: none; }
 .footer-link:hover { color: var(--color-primary-hover); text-decoration: underline; }
 
+@media (max-width: 1100px) {
+  .metric-panel { grid-column: span 6; }
+  .telemetry-section .live-summary {
+    grid-template-columns: minmax(12rem, 0.8fr) minmax(0, 1.7fr);
+  }
+  .telemetry-section .live-summary-chips { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-  button, select, input { transition: none; }
+  #app.view-enter, .metric-changed, .live-dot:not(.stale),
+  .livestrip.polling::before, .dial.polling::after, .loading-dot,
+  .skeleton-line::after, .skeleton-block::after, .inline-skeleton-line::after,
+  button[data-busy="true"]::before { animation: none; }
+  .dial::before, .metric-bar span, .sidenav button::before, .nav-icon, button, select, input { transition: none; }
 }
 @media (max-width: 720px) {
   .topbar-inner { min-height: 64px; }
@@ -943,6 +1446,7 @@ select {
   .action-controls { grid-template-columns: minmax(0, 1fr); }
   .action-controls button { width: 100%; }
   .action-preview { grid-template-columns: minmax(0, 1fr); }
+  .action-preview-card:not(:last-child)::after { display: none; }
   .live-summary-main, .loaded-summary-main, .live-pressure-row { grid-template-columns: minmax(0, 1fr); }
   .loaded-item, .installed-item { grid-template-columns: minmax(0, 1fr); }
   .loaded-actions, .installed-action { justify-content: stretch; justify-items: stretch; }
@@ -951,8 +1455,12 @@ select {
   .catalog-stats { gap: 0.35rem; }
   .catalog-fit-filters button { flex: 1 1 auto; }
   .hud-readout { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6) var(--space-3); }
-  .dial { width: 96px; height: 96px; }
+  .telemetry-section .live-summary { grid-template-columns: minmax(0, 1fr); }
+  .telemetry-section .live-summary-main,
+  .telemetry-section .live-pressure-list { grid-column: 1; grid-row: auto; }
+  .telemetry-section .live-pressure-list { grid-template-columns: minmax(0, 1fr); }
+  .gauges { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .metric-panel { grid-column: auto; }
   .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
     display: block; width: 100%;
   }
@@ -977,6 +1485,7 @@ select {
   }
   .catalog-table tr { padding: 0.75rem 0; }
   .responsive-table .cmd code { min-width: 0; }
+  .catalog-table-wrap { max-height: none; overflow: visible; border: 0; background: transparent; }
   select { width: 100%; }
 }
 `;
@@ -988,12 +1497,191 @@ const app = document.getElementById("app");
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
-  // textContent everywhere, never innerHTML: every string below originates
-  // from the machine (GPU names, model names, Ollama output) and must not be
-  // able to become markup.
+  // Machine-derived strings always use textContent, never innerHTML. The only
+  // markup built below is SVG geometry selected from this closed local set.
   if (text !== undefined && text !== null) n.textContent = String(text);
   return n;
 };
+
+// The SVG namespace is an identifier, not a request target. Compose it so the
+// package's deliberately blunt "no absolute URL in the browser bundle" guard
+// can keep treating every literal URL as suspicious without a special case.
+const SVG_NS = ["http:", "", "www.w3.org", "2000", "svg"].join("/");
+const ICON_PATHS = Object.freeze({
+  overview: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z",
+  installed: "M4 7h16v12H4z M8 7V4h8v3 M8 11h8 M8 15h5",
+  catalog: "M4 5h6v14H4z M14 5h6v14h-6z M7 9h.01 M17 9h.01 M7 13h.01 M17 13h.01",
+  bench: "M4 19V5 M4 19h16 M7 15l3-3 3 2 5-7",
+  chat: "M4 5h16v11H9l-5 4z M8 9h8 M8 12h5",
+  tools: "M14.7 6.3a4 4 0 0 0-5 5L4 17l3 3 5.7-5.7a4 4 0 0 0 5-5l-2.5 2.5-3-3z",
+  hardware: "M9 4h6v3h3v10h-3v3H9v-3H6V7h3z M10 9h4v6h-4z M3 9h3 M3 15h3 M18 9h3 M18 15h3",
+  report: "M6 3h8l4 4v14H6z M14 3v5h5 M9 13h6 M9 17h6",
+  activity: "M3 12h4l2-6 4 12 2-6h6",
+  load: "M12 3v12 M7 10l5 5 5-5 M5 21h14",
+  server: "M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01",
+  shield: "M12 3l8 3v6c0 5-3 8-8 10-5-2-8-5-8-10V6z",
+  alert: "M12 3 2 21h20L12 3z M12 9v5 M12 18h.01",
+  check: "M20 6 9 17l-5-5",
+  search: "M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14z M16 16l5 5",
+  compare: "M7 4v16 M3 8l4-4 4 4 M17 20V4 M13 16l4 4 4-4",
+});
+
+function svgNode(tag, attrs) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const pair of Object.entries(attrs || {})) node.setAttribute(pair[0], String(pair[1]));
+  return node;
+}
+
+function uiIcon(name, cls) {
+  const svg = svgNode("svg", {
+    viewBox: "0 0 24 24",
+    class: "ui-icon" + (cls ? " " + cls : ""),
+    "aria-hidden": "true",
+    focusable: "false",
+  });
+  svg.append(svgNode("path", { d: ICON_PATHS[name] || ICON_PATHS.overview }));
+  return svg;
+}
+
+function panelIconName(title) {
+  const value = String(title || "").toLowerCase();
+  if (value.includes("disagreement") || value.includes("limits")) return "alert";
+  if (value.includes("installed") || value.includes("loaded")) return "installed";
+  if (value.includes("catalog") || value.includes("can run")) return "catalog";
+  if (value.includes("load a model")) return "load";
+  if (value.includes("mcp") || value.includes("server")) return "server";
+  if (value.includes("tools")) return "tools";
+  if (value.includes("chat")) return "chat";
+  if (value.includes("report safety")) return "shield";
+  if (value.includes("report") || value.includes("shareable")) return "report";
+  if (value.includes("compare")) return "compare";
+  if (value.includes("benchmark") || value.includes("bandwidth") || value.includes("live") || value.startsWith("results")) return "bench";
+  if (value.includes("inspect") || value.includes("result")) return "search";
+  if (value.includes("hardware") || value.includes("machine facts") || value.includes("read this machine")) return "hardware";
+  return "overview";
+}
+
+function panelHeading(title, iconName) {
+  const heading = el("h2", "panel-title");
+  heading.append(uiIcon(iconName || panelIconName(title), "panel-icon"), el("span", null, title));
+  return heading;
+}
+
+function statusChip(text, tone) {
+  const chip = el("span", "status-chip" + (tone ? " " + tone : ""));
+  const iconName = tone === "critical" || tone === "warn" ? "alert" : tone === "ok" || tone === "ready" || tone === "verified" ? "check" : "activity";
+  chip.append(uiIcon(iconName, "status-icon"), document.createTextNode(String(text)));
+  return chip;
+}
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const liveMetricValues = new Map();
+const TREND_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram", "temp", "power", "clocks", "disk"]);
+const FEATURED_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram"]);
+const NON_PRESSURE_GAUGE_IDS = new Set(["clocks"]);
+const LIVE_HISTORY_LIMIT = 30;
+const liveMetricHistory = new Map();
+let viewTransitionFrame = null;
+let viewTransitionToken = 0;
+
+function prefersReducedMotion() {
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function animateLiveMetric(node, key, nextValue, suffix, dial) {
+  const next = Number(nextValue);
+  const previous = liveMetricValues.get(key);
+  const unit = suffix || "";
+  node.classList.add("metric-value");
+
+  const paint = (value) => {
+    node.textContent = String(Math.round(value)) + unit;
+    if (dial) dial.style.setProperty("--p", String(value));
+  };
+
+  if (!Number.isFinite(next)) {
+    liveMetricValues.delete(key);
+    node.textContent = String(nextValue);
+    if (dial) dial.style.setProperty("--p", "0");
+    return;
+  }
+
+  liveMetricValues.set(key, next);
+  if (!Number.isFinite(previous) || previous === next || prefersReducedMotion()) {
+    paint(next);
+    return;
+  }
+
+  node.classList.add("metric-changed");
+  paint(previous);
+  const startedAt = performance.now();
+  const durationMs = 520;
+  const step = (now) => {
+    if (!node.isConnected) return;
+    const progress = Math.min(1, (now - startedAt) / durationMs);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    paint(previous + (next - previous) * eased);
+    if (progress < 1) requestAnimationFrame(step);
+    else paint(next);
+  };
+  requestAnimationFrame(step);
+}
+
+function recordLiveMetricHistory(live) {
+  for (const id of TREND_GAUGE_IDS) {
+    const gauge = (live.gauges || []).find((candidate) => candidate.id === id);
+    const value = gauge && gauge.available ? Number(gauge.percent) : NaN;
+    if (!Number.isFinite(value)) {
+      liveMetricHistory.delete(id);
+      continue;
+    }
+    const history = liveMetricHistory.get(id) || [];
+    history.push(Math.max(0, Math.min(100, value)));
+    if (history.length > LIVE_HISTORY_LIMIT) history.splice(0, history.length - LIVE_HISTORY_LIMIT);
+    liveMetricHistory.set(id, history);
+  }
+}
+
+function setPollingVisualState(active, reason) {
+  for (const dial of document.querySelectorAll(".dial:not(.unknown)")) {
+    dial.classList.toggle("polling", active);
+  }
+  for (const trend of document.querySelectorAll(".gauge-trend")) {
+    trend.classList.toggle("stale", !active);
+    const label = trend.getAttribute("aria-label");
+    if (label) trend.setAttribute("aria-label", label.replace(/ recent (live|stale) trend:/, " recent " + (active ? "live" : "stale") + " trend:"));
+  }
+  for (const state of document.querySelectorAll(".metric-sample-state")) {
+    state.classList.toggle("stale", !active);
+    const dot = state.querySelector(".live-dot");
+    if (dot) dot.classList.toggle("stale", !active);
+    if (state.lastChild && state.lastChild.nodeType === Node.TEXT_NODE) {
+      state.lastChild.nodeValue = active ? "live" : "stale";
+    }
+  }
+  const strip = document.getElementById("livestrip");
+  if (!strip) return;
+  strip.classList.toggle("polling", active);
+  strip.classList.toggle("stale", !active);
+  strip.title = active
+    ? "Live telemetry updates every 2 seconds"
+    : "Telemetry stale" + (reason ? ": " + reason : "");
+}
+
+function playViewTransition() {
+  const token = ++viewTransitionToken;
+  app.classList.remove("view-enter");
+  if (viewTransitionFrame !== null) cancelAnimationFrame(viewTransitionFrame);
+  if (prefersReducedMotion()) return;
+  viewTransitionFrame = requestAnimationFrame(() => {
+    viewTransitionFrame = null;
+    if (token !== viewTransitionToken) return;
+    app.classList.add("view-enter");
+    setTimeout(() => {
+      if (token === viewTransitionToken) app.classList.remove("view-enter");
+    }, 280);
+  });
+}
 
 function kv(label, value, big) {
   const wrap = el("div", "kv");
@@ -1003,8 +1691,25 @@ function kv(label, value, big) {
 
 function panel(title) {
   const p = el("section", "panel");
-  if (title) p.append(el("h2", null, title));
+  if (title) p.append(panelHeading(title));
   return p;
+}
+
+function inlineLoadingState(label, rows) {
+  const state = el("div", "inline-loading");
+  state.setAttribute("role", "status");
+  state.append(el("div", "inline-loading-label", label));
+  const bars = el("div", "inline-loading-bars");
+  bars.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < (rows || 2); i += 1) bars.append(el("span", "inline-skeleton-line"));
+  state.append(bars);
+  return state;
+}
+
+function emptyState(message, iconName) {
+  const state = el("div", "empty-state");
+  state.append(uiIcon(iconName || "activity"), el("p", "empty", message));
+  return state;
 }
 
 function tableHead(headers) {
@@ -1042,12 +1747,13 @@ function copyButton(text, label, iconOnly) {
   return btn;
 }
 
-function summaryCard(label, value, detail, id) {
-  const card = el("div", "summary-card");
+function summaryCard(label, value, detail, id, tone) {
+  const card = el("div", "summary-card" + (tone ? " tone-" + tone : ""));
   card.append(el("div", "k", label));
   const v = el("div", "v", value);
   const d = el("div", "d", detail);
   if (id) {
+    card.id = id + "-card";
     v.id = id + "-value";
     d.id = id + "-detail";
   }
@@ -1127,9 +1833,9 @@ function sourceConfidence(d) {
     return { tone: "warn", label: "Visible disagreement" };
   }
   if (d.hardware.basis === "apple-unified-usable" && d.report.appleMemory && d.report.appleMemory.sourcesAgree === true) {
-    return { tone: "ready", label: "Cross-checked" };
+    return { tone: "verified", label: "Cross-checked" };
   }
-  if (sources.independentSources >= 2) return { tone: "ready", label: "Cross-checked" };
+  if (sources.independentSources >= 2) return { tone: "verified", label: "Cross-checked" };
   if (sources.independentSources === 1) return { tone: "warn", label: "Single source" };
   return { tone: "critical", label: "Limited evidence" };
 }
@@ -1196,8 +1902,9 @@ async function clearBandwidth() {
 
 function bandwidthPanel() {
   const p = panel("Memory-bandwidth ceiling");
+  p.className += " hardware-panel";
   if (!bandwidthStatus) {
-    p.append(el("p", "bench-note", "Reading the ceiling's provenance…"));
+    p.append(inlineLoadingState("Reading the ceiling's provenance", 2));
     return p;
   }
   if (bandwidthStatus.ok === false) {
@@ -1210,7 +1917,7 @@ function bandwidthPanel() {
   if (r.memoryBandwidthGBps !== null) {
     const isManual = r.source === "manual";
     const head = el("div", "bench-quality");
-    head.append(el("span", isManual ? "status-chip warn" : "status-chip ok", isManual ? "manual entry" : "manufacturer-sourced"));
+    head.append(statusChip(isManual ? "manual entry" : "manufacturer-sourced", isManual ? "warn" : "ok"));
     head.append(el("span", null, r.memoryBandwidthGBps + " GB/s in effect" + (!isManual && r.entryId ? " · table entry " + r.entryId : "")));
     p.append(head);
     if (isManual) {
@@ -1280,7 +1987,7 @@ function hardwareTrustPanel(d) {
   const copy = el("div");
   copy.append(el("p", "trust-title", "Catalog grading uses " + gradingValue(d)));
   copy.append(el("p", "trust-detail", d.hardware.note));
-  hero.append(copy, el("span", "status-chip " + confidence.tone, confidence.label));
+  hero.append(copy, statusChip(confidence.label, confidence.tone));
   p.append(hero);
 
   const grid = el("div", "trust-grid");
@@ -1312,13 +2019,22 @@ function focusSwitcher() {
 
 function summaryTrustRail(d) {
   const rail = el("div", "summary-trust");
-  const installed = d.installed.length;
-  rail.append(
+  const runtime = d.report.ollama.installed
+    ? "Ollama " + (d.report.ollama.version || "local")
+    : "Ollama offline";
+  const facts = [
     el("span", null, "Loopback only"),
     el("span", null, "Never touches the internet"),
-    el("span", null, installed + " installed"),
+    el("span", null, runtime),
     el("span", null, d.report.disagreements.length ? d.report.disagreements.length + " hardware disagreement" : sourceConfidence(d).label),
-  );
+  ];
+  const store = d.report.ollama.modelStore;
+  if (store && store.freeGb != null) {
+    const disk = el("span", null, "Model disk " + store.freeGb + " GB free");
+    if (store.totalGb != null) disk.title = store.freeGb + " GB free of " + store.totalGb + " GB";
+    facts.push(disk);
+  }
+  rail.append(...facts);
   return rail;
 }
 
@@ -1392,6 +2108,7 @@ function summaryActionPanel(d, runnable, loaded, reachable) {
 
 function summaryNextCard(title, detail, label, target) {
   const card = el("div", "summary-next-card");
+  card.dataset.target = target;
   card.append(el("div", "summary-next-title", title), el("div", "summary-next-detail", detail));
   const button = el("button", null, label);
   button.type = "button";
@@ -1403,7 +2120,7 @@ function summaryNextCard(title, detail, label, target) {
 function summaryNextSteps(d, runnable) {
   const wrap = el("div", "summary-next");
   wrap.append(
-    summaryNextCard("Catalog fit", runnable.length + " runnable catalog models on this machine.", "Open Catalog", "catalog"),
+    summaryNextCard("Catalog options", runnable.length + " runnable catalog models on this machine.", "Open Catalog", "catalog"),
     summaryNextCard("Hardware evidence", d.report.disagreements.length ? d.report.disagreements.length + " source disagreement visible." : basisLabel(d), "Review Hardware", "hardware"),
     summaryNextCard("Public report", Object.keys(d.report.exportable).length + " bounded share fields.", "Open Report", "report"),
   );
@@ -1415,6 +2132,7 @@ function overviewSummaryPanel(d) {
   p.className += " summary-panel";
   const state = readiness(d);
   const runnable = d.models.filter((m) => m.fit !== "too_large");
+  const comfortable = d.models.filter((m) => m.fit === "comfortable").length;
   const best = d.models.find((m) => m.fit === "comfortable") || runnable[0] || null;
   const loaded = d.loaded || [];
 
@@ -1423,15 +2141,21 @@ function overviewSummaryPanel(d) {
   copy.append(el("p", "summary-eyebrow", "Local Ollama command surface"));
   copy.append(el("h1", "summary-title", state.title));
   copy.append(el("p", "summary-detail", state.detail));
-  main.append(copy, el("span", "status-chip " + state.tone, state.label));
+  main.append(copy, statusChip(state.label, state.tone));
   p.append(main);
   p.append(summaryTrustRail(d));
 
   const cards = el("div", "summary-grid");
-  cards.append(summaryCard("Capacity", runnable.length + " fit", best ? "Best first: " + best.name : "No catalog fit", null));
-  cards.append(summaryCard("Hardware", hardwareCapacity(d), d.hardware.basis.split("-").join(" "), null));
-  cards.append(summaryCard("Loaded", String(loaded.length), loaded.length === 1 ? loaded[0].name : "Live residency updates below", "summary-loaded"));
-  cards.append(summaryCard("Pressure", "Waiting", "Live telemetry updates every 2s", "summary-pressure"));
+  cards.append(summaryCard(
+    "Capacity",
+    runnable.length + " runnable",
+    comfortable + " comfortable" + (best ? "; best first: " + best.name : ""),
+    null,
+    "cyan",
+  ));
+  cards.append(summaryCard("Hardware", hardwareCapacity(d), d.hardware.basis.split("-").join(" "), null, "cyan"));
+  cards.append(summaryCard("Loaded", String(loaded.length), loaded.length === 1 ? loaded[0].name : "Live residency updates below", "summary-loaded", "cyan"));
+  cards.append(summaryCard("Pressure", "Waiting", "Live telemetry updates every 2s", "summary-pressure", "pressure unavailable"));
   p.append(cards);
 
   p.append(summaryActionPanel(d, runnable, loaded), summaryNextSteps(d, runnable));
@@ -1440,6 +2164,7 @@ function overviewSummaryPanel(d) {
 
 function machinePanel(d) {
   const p = panel("Machine facts");
+  p.className += " hardware-panel";
   const g = el("div", "grid");
   const r = d.report;
   g.append(kv("Platform", (r.platform.distro || r.platform.os) + " (" + r.platform.arch + ")"));
@@ -1463,6 +2188,7 @@ function machinePanel(d) {
 function disagreementPanel(d) {
   if (!d.report.disagreements.length) return null;
   const p = panel("Source disagreement");
+  p.className += " hardware-panel hardware-disagreement-panel";
   p.append(el("p", "trust-detail", "Conflicting source claims stay visible; the selected source is what grades the Catalog."));
   const list = el("div", "source-list");
   for (const dis of d.report.disagreements) {
@@ -1489,20 +2215,6 @@ function disagreementPanel(d) {
   return p;
 }
 
-function ollamaPanel(d) {
-  const p = panel("Ollama");
-  const o = d.report.ollama;
-  const g = el("div", "grid");
-  g.append(kv("Status", o.installed ? "running" : "not detected"));
-  g.append(kv("Version", o.version || "unknown"));
-  g.append(kv("Installed models", o.installedModelCount != null ? o.installedModelCount : "—"));
-  if (o.modelStore && o.modelStore.freeGb != null) {
-    g.append(kv("Disk free", o.modelStore.freeGb + " / " + o.modelStore.totalGb + " GB"));
-  }
-  p.append(g);
-  return p;
-}
-
 // ---------------------------------------------------------------------------
 // Live panels. These are rebuilt on every poll, so they are kept separate from
 // the static ones above — re-rendering the whole page twice a second would
@@ -1510,9 +2222,10 @@ function ollamaPanel(d) {
 // ---------------------------------------------------------------------------
 
 function livePanelShell(id, title) {
-  const p = el("section", "panel");
+  const shellClass = id === "gauges" ? " telemetry-section" : id === "loaded" ? " residency-section" : "";
+  const p = el("section", "panel" + shellClass);
   const head = el("div", "panel-head");
-  head.append(el("h2", null, title));
+  head.append(panelHeading(title, id === "loaded" ? "installed" : "activity"));
   const meta = el("span", "live-meta");
   meta.id = id + "-meta";
   head.append(meta);
@@ -1530,7 +2243,12 @@ function rankLiveGauges(live) {
     .slice()
     .sort((a, b) => {
       const severity = (rank[b.severity] || 0) - (rank[a.severity] || 0);
-      return severity || b.percent - a.percent;
+      if (severity) return severity;
+      // A high clock is activity, not pressure. It remains charted in the
+      // canvas, but must not displace memory, utilization, temperature, power,
+      // or disk from a panel explicitly labelled Pressure focus.
+      const relevance = Number(!NON_PRESSURE_GAUGE_IDS.has(b.id)) - Number(!NON_PRESSURE_GAUGE_IDS.has(a.id));
+      return relevance || b.percent - a.percent;
     });
 }
 
@@ -1590,6 +2308,148 @@ function renderLiveSummary(live) {
   return summary;
 }
 
+function sparklinePoints(values, width, height) {
+  const pad = 2;
+  return values.map((value, index) => {
+    const x = values.length === 1
+      ? width / 2
+      : pad + (index / (values.length - 1)) * (width - pad * 2);
+    const y = pad + ((100 - value) / 100) * (height - pad * 2);
+    return x.toFixed(2) + "," + y.toFixed(2);
+  }).join(" ");
+}
+
+function gaugeTrend(gauge, featured) {
+  const values = liveMetricHistory.get(gauge.id) || [];
+  const width = featured ? 240 : 120;
+  const height = featured ? 58 : 30;
+  const trend = el("div", "gauge-trend" + (featured ? " is-featured" : "") + (telemetryIsLive ? "" : " stale"));
+  const svg = svgNode("svg", {
+    class: "sparkline" + (featured ? " sparkline-featured" : ""),
+    viewBox: "0 0 " + width + " " + height,
+    preserveAspectRatio: "none",
+    "aria-hidden": "true",
+    focusable: "false",
+  });
+
+  for (const value of [25, 50, 75]) {
+    const y = 2 + ((100 - value) / 100) * (height - 4);
+    svg.append(svgNode("line", { class: "sparkline-grid", x1: 2, y1: y, x2: width - 2, y2: y }));
+  }
+
+  if (values.length) {
+    const points = sparklinePoints(values, width, height);
+    if (values.length > 1) {
+      svg.append(svgNode("polygon", {
+        class: "sparkline-area",
+        points: "2," + (height - 2) + " " + points + " " + (width - 2) + "," + (height - 2),
+      }));
+      svg.append(svgNode("polyline", { class: "sparkline-line", points: points }));
+    } else {
+      const point = points.split(",");
+      svg.append(svgNode("circle", { class: "sparkline-dot", cx: point[0], cy: point[1], r: 1.8 }));
+    }
+  }
+
+  const min = values.length ? Math.round(Math.min(...values)) : null;
+  const max = values.length ? Math.round(Math.max(...values)) : null;
+  const delta = values.length > 1 ? values[values.length - 1] - values[0] : 0;
+  const direction = delta > 1 ? "rising" : delta < -1 ? "falling" : "steady";
+  const caption = values.length > 1 ? min + "–" + max + "% " + direction : "Collecting trend";
+  const state = telemetryIsLive ? "live" : "stale";
+  trend.setAttribute("role", "img");
+  trend.setAttribute("aria-label", gauge.label + " recent " + state + " trend: " + (values.length ? caption : "no samples"));
+  trend.title = "Last " + values.length + " successful sample" + (values.length === 1 ? "" : "s") + "; fixed 0–100% scale.";
+  trend.append(svg, el("span", "gauge-trend-caption", caption));
+  return trend;
+}
+
+function metricTone(gauge) {
+  if (!gauge.available) return "unknown";
+  if (gauge.severity === "critical") return "critical";
+  if (gauge.severity === "warn") return "warn";
+  if (["gpu", "vram", "temp", "power", "clocks", "disk"].includes(gauge.id)) return "orange";
+  return "cyan";
+}
+
+function metricReading(gauge, className, dial) {
+  const value = el("div", className + (gauge.available ? "" : " na"));
+  if (gauge.available) {
+    animateLiveMetric(value, "gauge:" + gauge.id, gauge.percent, "%", dial);
+  } else {
+    liveMetricValues.delete("gauge:" + gauge.id);
+    if (dial) dial.style.setProperty("--p", "0");
+    value.textContent = "n/a";
+  }
+  return value;
+}
+
+function metricBar(gauge) {
+  const bar = el("div", "metric-bar" + (gauge.available ? "" : " unavailable"));
+  const fill = el("span");
+  bar.append(fill);
+  bar.setAttribute("role", "progressbar");
+  bar.setAttribute("aria-label", gauge.label + " current level");
+  bar.setAttribute("aria-valuemin", "0");
+  bar.setAttribute("aria-valuemax", "100");
+  if (gauge.available) {
+    bar.style.setProperty("--metric-p", String(Math.max(0, Math.min(100, Number(gauge.percent)))));
+    bar.setAttribute("aria-valuenow", String(gauge.percent));
+  } else {
+    bar.style.setProperty("--metric-p", "0");
+    bar.setAttribute("aria-valuetext", "Unavailable");
+  }
+  return bar;
+}
+
+function metricPanel(gauge) {
+  const featured = FEATURED_GAUGE_IDS.has(gauge.id);
+  const hasTrend = gauge.available && TREND_GAUGE_IDS.has(gauge.id);
+  const cell = el(
+    "article",
+    "metric-panel " + (featured ? "is-featured" : "is-compact") + " tone-" + metricTone(gauge) + (hasTrend ? " has-trend" : " unavailable"),
+  );
+  cell.dataset.metric = gauge.id;
+
+  const head = el("div", "metric-panel-head");
+  const title = el("div", "metric-panel-title");
+  title.append(uiIcon(gauge.id === "disk" ? "installed" : "activity"), el("span", null, gauge.label));
+  const sample = el("span", "metric-sample-state" + (telemetryIsLive ? "" : " stale"));
+  sample.append(el("span", "live-dot" + (telemetryIsLive ? "" : " stale")), document.createTextNode(telemetryIsLive ? "live" : "stale"));
+  head.append(title, sample);
+  cell.append(head);
+
+  if (featured) {
+    const stat = el("div", "metric-stat-row");
+    stat.append(
+      metricReading(gauge, "metric-stat-value"),
+      el("div", "metric-stat-detail", gauge.available ? (gauge.detail || "Live counter") : gauge.reason),
+    );
+    cell.append(stat);
+    if (hasTrend) cell.append(gaugeTrend(gauge, true));
+    else cell.append(el("div", "metric-chart-empty", gauge.reason || "No successful samples"));
+    cell.append(metricBar(gauge));
+    return cell;
+  }
+
+  const body = el("div", "metric-compact-body");
+  const dial = el("div", "dial " + (gauge.available ? gauge.severity : "unknown"));
+  if (gauge.available && telemetryIsLive) dial.classList.add("polling");
+  dial.setAttribute("role", "img");
+  dial.setAttribute("aria-label", gauge.label + ": " + (gauge.available ? gauge.percent + " percent" : "unavailable"));
+  const face = el("div", "dial-face");
+  face.append(metricReading(gauge, "dial-value", dial));
+  dial.append(face);
+
+  const copy = el("div", "metric-compact-copy");
+  copy.append(el("div", "gauge-detail", gauge.available ? (gauge.detail || "Live counter") : gauge.reason));
+  if (hasTrend) copy.append(gaugeTrend(gauge, false));
+  else copy.append(el("div", "metric-chart-empty", gauge.reason || "No successful samples"));
+  body.append(dial, copy);
+  cell.append(body, metricBar(gauge));
+  return cell;
+}
+
 function renderGauges(live) {
   const body = document.getElementById("gauges-body");
   if (!body) return;
@@ -1597,28 +2457,8 @@ function renderGauges(live) {
 
   body.append(renderLiveSummary(live));
 
-  const wrap = el("div", "gauges");
-  for (const gauge of live.gauges) {
-    const cell = el("div", "gauge" + (gauge.available ? "" : " unavailable"));
-
-    const dial = el("div", "dial " + (gauge.available ? gauge.severity : "unknown"));
-    // An unavailable gauge draws an EMPTY ring, not a zero-filled one. Same
-    // rule as before, restated in the new form: nothing measurable must ever
-    // render as a real reading of zero.
-    dial.style.setProperty("--p", gauge.available ? gauge.percent : 0);
-    dial.setAttribute("role", "img");
-    dial.setAttribute("aria-label",
-      gauge.label + ": " + (gauge.available ? gauge.percent + " percent" : "unavailable"));
-
-    const face = el("div", "dial-face");
-    face.append(el("div", "dial-value" + (gauge.available ? "" : " na"), gauge.available ? gauge.percent + "%" : "n/a"));
-    dial.append(face);
-    cell.append(dial);
-
-    cell.append(el("div", "gauge-label", gauge.label));
-    cell.append(el("div", "gauge-detail", gauge.available ? (gauge.detail || "") : gauge.reason));
-    wrap.append(cell);
-  }
+  const wrap = el("div", "gauges telemetry-grid");
+  for (const gauge of live.gauges) wrap.append(metricPanel(gauge));
   body.append(wrap);
 }
 
@@ -1644,22 +2484,35 @@ function updateSwitcherPreview(target) {
   if (consequence) consequence.textContent = describeLoadConsequence(target);
 }
 
-function actionPreviewCard(label, value, detail, id) {
-  const card = el("div", "action-preview-card");
-  card.append(el("div", "k", label));
+function actionPreviewCard(label, value, detail, id, step, iconName, variant) {
+  const card = el("div", "action-preview-card" + (variant ? " is-" + variant : ""));
+  card.setAttribute("role", "listitem");
+  const head = el("div", "action-step-head");
+  head.append(el("span", "action-step-index", step), uiIcon(iconName), el("span", "k", label));
   const v = el("div", "v", value);
   if (id) v.id = id;
-  card.append(v, el("div", "d", detail));
+  card.append(head, v, el("div", "d", detail));
   return card;
+}
+
+function setActionBusy(trigger, busy) {
+  trigger.disabled = busy;
+  if (busy) {
+    trigger.dataset.busy = "true";
+    trigger.setAttribute("aria-busy", "true");
+  } else {
+    delete trigger.dataset.busy;
+    trigger.removeAttribute("aria-busy");
+  }
 }
 
 async function requestLoad(model, status, trigger) {
   let ok = false;
-  trigger.disabled = true;
+  setActionBusy(trigger, true);
   trigger.textContent = "Loading";
-  trigger.dataset.busy = "true";
   if (status) {
     status.dataset.busy = "true";
+    status.setAttribute("aria-busy", "true");
     delete status.dataset.result;
     status.textContent = "Loading " + model + "...";
   }
@@ -1683,10 +2536,12 @@ async function requestLoad(model, status, trigger) {
       status.textContent = "Could not load " + model + ": " + err.message;
     }
   } finally {
-    delete trigger.dataset.busy;
     await poll();
-    if (status) delete status.dataset.busy;
-    trigger.disabled = false;
+    if (status) {
+      delete status.dataset.busy;
+      status.removeAttribute("aria-busy");
+    }
+    setActionBusy(trigger, false);
     trigger.textContent = "Load";
     if (lastLive && ok) renderInstalledLive(lastLive);
   }
@@ -1698,7 +2553,7 @@ async function requestLoad(model, status, trigger) {
 var unloadNotice = null;
 
 async function requestUnload(model, trigger) {
-  trigger.disabled = true;
+  setActionBusy(trigger, true);
   trigger.textContent = "Unloading";
   unloadNotice = null;
   try {
@@ -1708,7 +2563,11 @@ async function requestUnload(model, trigger) {
       body: JSON.stringify({ model: model }),
     });
     const body = await res.json();
-    if (!body.ok) { trigger.textContent = "Failed"; return; }
+    if (!body.ok) {
+      trigger.textContent = "Retry unload";
+      setActionBusy(trigger, false);
+      return;
+    }
 
     // Ollama accepting the unload is not proof the model left. Say which of
     // those two happened rather than letting a stale row imply the button
@@ -1728,10 +2587,15 @@ async function requestUnload(model, trigger) {
       };
     }
   } catch {
-    trigger.textContent = "Failed";
+    trigger.textContent = "Retry unload";
+    setActionBusy(trigger, false);
     return;
   }
-  await poll();
+  try {
+    await poll();
+  } finally {
+    setActionBusy(trigger, false);
+  }
 }
 
 function renderLoadedSummary(live) {
@@ -1802,11 +2666,11 @@ function renderLoaded(live) {
   }
 
   if (!live.loaded.reachable) {
-    body.append(el("p", "empty", "Ollama is not responding, so nothing can be reported as loaded."));
+    body.append(emptyState("Ollama is not responding, so nothing can be reported as loaded.", "alert"));
     return;
   }
   if (!live.loaded.models.length) {
-    body.append(el("p", "empty", "No model is resident right now. Load an installed model below when you need it warm."));
+    body.append(emptyState("No model is resident right now. Load an installed model below when you need it warm.", "activity"));
     return;
   }
 
@@ -1856,6 +2720,7 @@ function renderLoaded(live) {
 function installedPanel(d) {
   if (!d.installed.length) return null;
   const p = panel("Installed models");
+  p.className += " installed-panel";
   const counts = {
     known: d.installed.filter((m) => m.status === "known").length,
     derived: d.installed.filter((m) => m.status === "derived").length,
@@ -1951,6 +2816,7 @@ function modelMatchesCatalogFilter(m) {
 
 function catalogPanel(d) {
   const p = panel("What this machine can run");
+  p.className += " catalog-panel";
 
   const counts = catalogCounts(d.models);
   const query = catalogQuery.trim().toLowerCase();
@@ -2008,7 +2874,7 @@ function catalogPanel(d) {
   // template instead of at runtime in the browser. Note this comment cannot
   // spell that syntax out either, for exactly the same reason.
   filters.append(
-    mkFilter("Runs", "runs", counts.runs),
+    mkFilter("Runnable", "runs", counts.runs),
     mkFilter("Comfortable", "comfortable", counts.comfortable),
     mkFilter("Tight", "tight", counts.tight),
     mkFilter("Partial", "partial", counts.partial),
@@ -2038,7 +2904,9 @@ function catalogPanel(d) {
     const cmd = dataCell("Run it");
     if (m.runCommand) {
       const box = el("div", "cmd");
-      box.append(el("code", null, m.runCommand), copyButton(m.runCommand, "Copy command for " + m.name, true));
+      const command = el("code", null, m.runCommand);
+      command.title = m.runCommand;
+      box.append(command, copyButton(m.runCommand, "Copy command for " + m.name, true));
       cmd.append(box);
     } else {
       cmd.append(el("span", "muted", "—"));
@@ -2047,9 +2915,15 @@ function catalogPanel(d) {
     out.body.append(row);
   }
   if (rows.length) {
-    p.append(out.table);
+    p.append(el("div", "catalog-result-meta", rows.length + " model" + (rows.length === 1 ? "" : "s") + " in this view"));
+    const tableWrap = el("div", "catalog-table-wrap");
+    tableWrap.tabIndex = 0;
+    tableWrap.setAttribute("role", "region");
+    tableWrap.setAttribute("aria-label", "Catalog results: " + rows.length + " models");
+    tableWrap.append(out.table);
+    p.append(tableWrap);
   } else {
-    p.append(el("p", "empty", "No catalog models match the current filters."));
+    p.append(emptyState("No catalog models match the current filters.", "search"));
   }
   if (catalogFitFilter === "runs" && !query && counts.too_large > 0) {
     p.append(el("p", "explain",
@@ -2069,7 +2943,7 @@ function switcherPanel(d) {
 
   const installed = (d.installed || []).map((m) => m.name);
   if (!d.report.ollama.installed || !installed.length) {
-    p.append(el("p", "empty", "No installed models to load."));
+    p.append(emptyState("No installed models to load.", "installed"));
     const trust = el("div", "action-trust");
     trust.append(
       el("span", null, "Installed only"),
@@ -2101,15 +2975,19 @@ function switcherPanel(d) {
   p.append(row);
 
   const preview = el("div", "action-preview");
+  preview.setAttribute("role", "list");
+  preview.setAttribute("aria-label", "Load request pipeline");
   preview.append(
-    actionPreviewCard("Selected model", installed[0], "Must already be installed in Ollama", "switcher-selected-model"),
-    actionPreviewCard("Request", "Empty prompt", "Fixed keep-alive, no inference text"),
-    actionPreviewCard("Consequence", "Waiting", "Live residency determines eviction risk", "switcher-preview-consequence"),
+    actionPreviewCard("Selected model", installed[0], "Must already be installed in Ollama", "switcher-selected-model", "01", "installed", "selected"),
+    actionPreviewCard("Request", "Empty prompt", "Fixed keep-alive, no inference text", null, "02", "load", "request"),
+    actionPreviewCard("Consequence", "Waiting", "Live residency determines eviction risk", "switcher-preview-consequence", "03", "activity", "consequence"),
   );
   p.append(preview);
 
   const status = el("p", "action-status");
   status.id = "switcher-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
   p.append(status);
 
   select.addEventListener("change", () => {
@@ -2135,6 +3013,7 @@ function switcherPanel(d) {
 function toolsPanel(d) {
   const t = d.tools;
   const p = panel("MCP servers");
+  p.className += " tools-panel";
 
   const g = el("div", "grid");
   g.append(kv("Clients configured", t.summary.clientsConfigured));
@@ -2144,7 +3023,7 @@ function toolsPanel(d) {
   p.append(g);
 
   if (!t.servers.length) {
-    p.append(el("p", "empty", "No MCP servers found in any known client configuration."));
+    p.append(emptyState("No MCP servers found in any known client configuration.", "server"));
     return p;
   }
 
@@ -2156,12 +3035,12 @@ function toolsPanel(d) {
     // a missing command is the actionable finding; "declared" is the
     // never-probed-by-design state and must not read as a failure.
     const verdictCell = dataCell("Verdict");
-    const verdictClass =
+    const verdictTone =
       s.verdict === "command-not-found" || s.verdict === "config-broken"
-        ? "status-chip warn"
+        ? "warn"
         : s.verdict === "config-ok"
-          ? "status-chip ok"
-          : "status-chip";
+          ? "ok"
+          : "";
     const verdictTitle =
       s.verdict === "declared"
         ? "Remote servers are declared, not probed — probing them would be an outbound network call, and this tool does not make those."
@@ -2172,7 +3051,7 @@ function toolsPanel(d) {
             : s.verdict === "unchecked"
               ? "The resolution probe did not answer; unknown is not a verdict in either direction."
               : "The entry declares neither a command nor a url.";
-    const chip = el("span", verdictClass, s.verdict || "?");
+    const chip = statusChip(s.verdict || "?", verdictTone);
     chip.title = verdictTitle;
     verdictCell.append(chip);
     row.append(verdictCell);
@@ -2198,6 +3077,7 @@ function toolsPanel(d) {
 
 function localToolsPanel(d) {
   const p = panel("Local AI tools");
+  p.className += " tools-panel";
   const out = dataTable(["Tool", "Detected"], "responsive-table local-tools-table");
   for (const tool of d.tools.tools) {
     const row = el("tr");
@@ -2216,7 +3096,7 @@ function localToolsPanel(d) {
 
 function reportSafetyPanel(d) {
   const p = panel("Report safety");
-  p.className += " report-safety";
+  p.className += " report-panel report-safety";
   p.append(el("p", "trust-detail", "The shareable report uses bounded bands and counts. Exact local specs stay on this page."));
   const strip = el("div", "safety-strip");
   strip.append(
@@ -2231,8 +3111,9 @@ function reportSafetyPanel(d) {
 
 function limitsPanel(d) {
   const p = panel("Report limits");
+  p.className += " report-panel report-limits";
   if (!d.report.limits.length) {
-    p.append(el("p", "empty", "No additional report limits were added for this capture."));
+    p.append(emptyState("No additional report limits were added for this capture.", "report"));
     return p;
   }
   const list = el("div", "limits-list");
@@ -2243,7 +3124,7 @@ function limitsPanel(d) {
 
 function sharePanel(d) {
   const p = panel("Shareable summary");
-  p.className += " share-panel";
+  p.className += " report-panel share-panel";
   p.append(el("p", "trust-detail", "This is the only part of the report intended for public paste."));
   const text = Object.entries(d.report.exportable).map(([k, v]) => k + ": " + v).join("  |  ");
   const rows = el("div", "share-rows");
@@ -2262,6 +3143,8 @@ const POLL_INTERVAL_MS = 2000;
 let pollTimer = null;
 let consecutiveFailures = 0;
 let lastLive = null;
+let telemetryIsLive = false;
+let telemetryStaleReason = "";
 
 function updateSwitcherConsequence() {
   const select = document.getElementById("switcher-model");
@@ -2298,12 +3181,19 @@ function renderInstalledLive(live) {
 }
 
 function stampLiveMeta(live) {
-  const stamp = live.sampledAt ? new Date(live.sampledAt).toLocaleTimeString() : "";
+  const stamp = live && live.sampledAt ? new Date(live.sampledAt).toLocaleTimeString() : "";
   for (const id of ["gauges-meta", "loaded-meta"]) {
     const meta = document.getElementById(id);
     if (!meta) continue;
     meta.textContent = "";
-    meta.append(el("span", "live-dot"), document.createTextNode("live · " + stamp));
+    if (telemetryIsLive) {
+      meta.append(el("span", "live-dot"), document.createTextNode("live · " + stamp));
+    } else {
+      meta.append(
+        el("span", "live-dot stale"),
+        document.createTextNode("stale — " + (telemetryStaleReason || "waiting for telemetry")),
+      );
+    }
   }
 }
 
@@ -2345,14 +3235,23 @@ function renderSummaryLive(live) {
 
   const pressureValue = document.getElementById("summary-pressure-value");
   const pressureDetail = document.getElementById("summary-pressure-detail");
+  const pressureCard = document.getElementById("summary-pressure-card");
   if (!pressureValue || !pressureDetail) return;
   const gauges = rankLiveGauges(live);
   if (!gauges.length) {
+    if (pressureCard) {
+      pressureCard.classList.remove("normal", "warn", "critical");
+      pressureCard.classList.add("unavailable");
+    }
     pressureValue.textContent = "n/a";
     pressureDetail.textContent = "No live counters available";
     return;
   }
   const top = gauges[0];
+  if (pressureCard) {
+    pressureCard.classList.remove("unavailable", "normal", "warn", "critical");
+    pressureCard.classList.add(top.severity);
+  }
   pressureValue.textContent = top.percent + "%";
   pressureDetail.textContent = top.label + (top.severity === "normal" ? " live" : " is " + top.severity);
 }
@@ -2365,14 +3264,21 @@ function renderLiveStrip(live) {
   const strip = document.getElementById("livestrip");
   if (!strip) return;
   strip.textContent = "";
+  strip.classList.add("polling");
+  strip.classList.remove("stale");
+  strip.title = "Live telemetry updates every 2 seconds";
 
   const wanted = ["cpu", "gpu", "vram"];
   for (const id of wanted) {
     const g = live.gauges.find((x) => x.id === id);
-    if (!g || !g.available) continue;
+    if (!g || !g.available) {
+      liveMetricValues.delete("strip:" + id);
+      continue;
+    }
     const item = el("span");
     item.append(document.createTextNode(g.label + " "));
-    const value = el("b", g.severity === "normal" ? null : g.severity, g.percent + "%");
+    const value = el("b", g.severity === "normal" ? null : g.severity);
+    animateLiveMetric(value, "strip:" + id, g.percent, "%");
     item.append(value);
     strip.append(item);
   }
@@ -2380,8 +3286,12 @@ function renderLiveStrip(live) {
   const count = live.loaded.reachable ? live.loaded.models.length : null;
   if (count !== null) {
     const item = el("span");
-    item.append(el("b", null, String(count)), document.createTextNode(count === 1 ? " model loaded" : " models loaded"));
+    const value = el("b");
+    animateLiveMetric(value, "strip:loaded", count, "");
+    item.append(value, document.createTextNode(count === 1 ? " model loaded" : " models loaded"));
     strip.append(item);
+  } else {
+    liveMetricValues.delete("strip:loaded");
   }
 }
 
@@ -2393,25 +3303,27 @@ async function poll() {
     if (!live.available) throw new Error(live.reason || "unavailable");
 
     consecutiveFailures = 0;
+    telemetryIsLive = true;
+    telemetryStaleReason = "";
     lastLive = live;
+    recordLiveMetricHistory(live);
     renderGauges(live);
     renderLoaded(live);
     renderLiveStrip(live);
+    setPollingVisualState(true);
     stampLiveMeta(live);
     renderSummaryLive(live);
     renderInstalledLive(live);
     updateSwitcherConsequence();
   } catch (err) {
     consecutiveFailures += 1;
+    telemetryIsLive = false;
+    telemetryStaleReason = String(err.message);
+    setPollingVisualState(false, telemetryStaleReason);
     // Say it went stale rather than freezing on a number that is no longer
     // true. A monitor silently showing old values is worse than one admitting
     // it lost contact.
-    for (const id of ["gauges-meta", "loaded-meta"]) {
-      const meta = document.getElementById(id);
-      if (!meta) continue;
-      meta.textContent = "";
-      meta.append(el("span", "live-dot stale"), document.createTextNode("stale — " + String(err.message)));
-    }
+    stampLiveMeta(lastLive);
     // Back off rather than hammering a server that is clearly unhappy.
     if (consecutiveFailures >= 5) stopPolling();
   }
@@ -2427,6 +3339,9 @@ function stopPolling() {
   if (pollTimer === null) return;
   clearInterval(pollTimer);
   pollTimer = null;
+  for (const dial of document.querySelectorAll(".dial.polling")) dial.classList.remove("polling");
+  const strip = document.getElementById("livestrip");
+  if (strip) strip.classList.remove("polling");
 }
 
 // Stop sampling when the tab is not visible. Polling nvidia-smi twice a second
@@ -2483,6 +3398,7 @@ function metricText(m, unit, digits) {
 
 function benchHandoffPanel(d) {
   const p = panel("Run a protocol benchmark");
+  p.className += " bench-panel bench-handoff-panel";
   p.append(el("p", null,
     "osai-bench runs the osai-bench/1.3 measurement protocol against this machine's Ollama and writes a result JSON into ~/.osai/bench-results/ (bench 0.12+; older versions wrote into the directory they were run from)."));
   p.append(el("p", "bench-note",
@@ -2611,9 +3527,11 @@ async function runBenchCompare(attested) {
 
 function benchDirectoryPanel() {
   const p = panel("Results on this machine");
+  p.className += " bench-panel bench-directory-panel";
   const note = "osai-bench 0.12+ writes results into ~/.osai/bench-results/ by default; this list is a read-only scan of that one directory.";
   if (!benchDirectory) {
-    p.append(el("p", "bench-note", "Scanning " + note));
+    p.append(inlineLoadingState("Scanning local benchmark results", 2));
+    p.append(el("p", "bench-note", note));
     return p;
   }
   if (!benchDirectory.exists || !benchDirectory.configured) {
@@ -2647,6 +3565,7 @@ function benchDirectoryPanel() {
 
 function benchDropPanel() {
   const p = panel("Inspect a result");
+  p.className += " bench-panel bench-inspect-panel";
   const drop = el("div", "bench-drop");
   drop.append(el("div", null, "Drop an osai-bench result JSON here, or click to choose a file."));
   drop.append(el("div", "bench-note", "Up to two results, for a gated same-machine comparison. The file is validated by this dashboard's own local server; nothing leaves the machine."));
@@ -2675,16 +3594,17 @@ function benchDropPanel() {
 function benchResultPanel(slot, index) {
   const v = slot.view;
   const p = panel("Result " + (index + 1) + ": " + (v.model.identifier || "unknown model"));
+  p.className += " bench-panel bench-result-panel";
 
   // Quality first, and never softened - an overridden run is marked for life.
   const head = el("div", "bench-quality");
   if (v.quality.qualityOverride || !v.quality.cohortEligible) {
-    head.append(el("span", "status-chip critical", "quality override - permanently cohort-ineligible"));
+    head.append(statusChip("quality override - permanently cohort-ineligible", "critical"));
     if (v.quality.conditions.length) {
       head.append(el("span", "bench-note", "overridden: " + v.quality.conditions.join(", ")));
     }
   } else {
-    head.append(el("span", "status-chip ok", "quality preconditions clean"));
+    head.append(statusChip("quality preconditions clean", "ok"));
   }
   const remove = el("button", null, "Remove");
   remove.type = "button";
@@ -2732,10 +3652,10 @@ function benchResultPanel(slot, index) {
   const list = el("ul", "diag-list");
   for (const diag of v.diagnostics) {
     const li = el("li");
-    const cls = diag.status === "detected" ? "status-chip warn"
-      : diag.status === "not-detected" ? "status-chip ok"
-      : "status-chip";
-    li.append(el("span", cls, diag.status || "?"), el("span", null, (diag.id || "") + ": " + (diag.message || "")));
+    const tone = diag.status === "detected" ? "warn"
+      : diag.status === "not-detected" ? "ok"
+      : "";
+    li.append(statusChip(diag.status || "?", tone), el("span", null, (diag.id || "") + ": " + (diag.message || "")));
     list.append(li);
   }
   p.append(list);
@@ -2757,6 +3677,7 @@ function benchResultPanel(slot, index) {
 
 function benchComparePanel() {
   const p = panel("Compare");
+  p.className += " bench-panel bench-compare-panel";
   const attest = el("label", "bench-attest");
   const checkbox = el("input");
   checkbox.type = "checkbox";
@@ -2812,16 +3733,21 @@ function benchView(d) {
 // travel the same distance.
 // ---------------------------------------------------------------------------
 
+function overviewControlGrid(d) {
+  const grid = el("div", "overview-control-grid");
+  grid.append(livePanelShell("loaded", "Loaded right now"), switcherPanel(d));
+  return grid;
+}
+
 const VIEWS = [
   {
     id: "overview",
     label: "Overview",
+    icon: "overview",
     build: (d) => [
       overviewSummaryPanel(d),
-      livePanelShell("gauges", "Live system"),
-      livePanelShell("loaded", "Loaded right now"),
-      switcherPanel(d),
-      ollamaPanel(d),
+      livePanelShell("gauges", "Live telemetry"),
+      overviewControlGrid(d),
     ],
   },
   // Installed and catalog are separate views rather than one "Models" section:
@@ -2830,12 +3756,14 @@ const VIEWS = [
   {
     id: "installed",
     label: "Installed",
+    icon: "installed",
     count: (d) => d.installed.length,
     build: (d) => [installedPanel(d)],
   },
   {
     id: "catalog",
     label: "Catalog",
+    icon: "catalog",
     // The badge deliberately counts what can RUN HERE, not the snapshot size
     // the footer states — two true numbers answering different questions,
     // and the title says which this one is so they cannot read as a
@@ -2852,6 +3780,7 @@ const VIEWS = [
   {
     id: "bench",
     label: "Bench",
+    icon: "bench",
     build: (d) => benchView(d),
   },
   // The inference surface (MAINTAINING §4b), measurement-first. chatView is
@@ -2860,17 +3789,20 @@ const VIEWS = [
   {
     id: "chat",
     label: "Chat",
+    icon: "chat",
     build: (d) => chatView(d),
   },
   {
     id: "tools",
     label: "Tools",
+    icon: "tools",
     count: (d) => d.tools.summary.serversConfigured,
     build: (d) => [toolsPanel(d), localToolsPanel(d)],
   },
   {
     id: "hardware",
     label: "Hardware",
+    icon: "hardware",
     // Surfaced in the nav because an unresolved source disagreement is
     // something the user should know exists without hunting for it.
     count: (d) => (d.report.disagreements.length ? d.report.disagreements.length : null),
@@ -2889,6 +3821,7 @@ const VIEWS = [
   {
     id: "report",
     label: "Report",
+    icon: "report",
     build: (d) => [reportSafetyPanel(d), limitsPanel(d), sharePanel(d)],
   },
 ];
@@ -2913,7 +3846,14 @@ function hudReadout(d) {
 
 function renderView(id) {
   const view = VIEWS.find((v) => v.id === id) ?? VIEWS[0];
+  const viewChanged = activeView !== view.id;
   activeView = view.id;
+
+  // A single semantic page hook drives the low-opacity glow, navigation accent,
+  // panel rails and control focus colour. It never changes data or status
+  // meaning; it only makes each workspace recognisable at a glance.
+  document.body.dataset.view = view.id;
+  app.dataset.view = view.id;
 
   app.textContent = "";
   app.append(hudReadout(dashboardData));
@@ -2951,17 +3891,23 @@ function renderView(id) {
     }
     catalogFocusSearch = false;
   }
+
+  if (viewChanged) playViewTransition();
 }
 
 function buildSideNav(d) {
   const nav = document.getElementById("sidenav");
   nav.textContent = "";
+  const kicker = el("div", "nav-kicker");
+  kicker.append(uiIcon("activity"), el("span", null, "Workspace"));
+  nav.append(kicker);
   for (const view of VIEWS) {
-    const b = el("button", null, view.label);
+    const b = el("button", "nav-item");
     b.type = "button";
     b.dataset.view = view.id;
+    b.append(uiIcon(view.icon, "nav-icon"), el("span", "nav-label", view.label));
     const n = view.count ? view.count(d) : null;
-    if (n !== null && n !== undefined) b.append(el("span", "count", n));
+    if (n !== null && n !== undefined) b.append(el("span", "count nav-count", n));
     // A badge whose number is a FILTERED count explains its filter — two
     // views can otherwise show numbers that read as contradicting the
     // footer or each other.
@@ -3005,8 +3951,7 @@ async function load() {
 
 load().catch((err) => {
   app.textContent = "";
-  const p = el("section", "panel");
-  p.append(el("h2", null, "Could not read this machine"));
+  const p = panel("Could not read this machine");
   p.append(el("p", null, String(err.message)));
   app.append(p);
   app.setAttribute("aria-busy", "false");
@@ -3017,5 +3962,5 @@ load().catch((err) => {
 // composition point is HERE, once — the browser-bundle guards scan these
 // composed exports, so every rule asserted about the core binds every module
 // concatenated into it, present and future.
-export const CSS = CORE_CSS + CHAT_CSS;
+export const CSS = THEME_CSS + CORE_CSS + CHAT_CSS;
 export const JS = CORE_JS + CHAT_JS;

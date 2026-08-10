@@ -1,0 +1,18 @@
+/*
+ * Tailwind v4 source for the Command Center's industrial palette.
+ *
+ * `static` guarantees that every token is emitted even though the dashboard's
+ * existing component CSS consumes the variables directly instead of through
+ * utility classes.
+ */
+@theme static {
+  --color-canvas: #09090b;
+  --color-surface: #18181b;
+  --color-border-subtle: #27272a;
+  --color-text-main: #ffffff;
+  --color-text-muted: #a1a1aa;
+  --color-brand-cyan: #00f0ff;
+  --color-brand-cyan-hover: #00d8e6;
+  --color-data-orange: #ff5a00;
+  --color-status-green: #22c55e;
+}

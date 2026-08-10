@@ -40,7 +40,8 @@ jobs:
         run: npm install -g npm@11
 
       # A tag that disagrees with package.json publishes a version nobody
-      # chose; refuse loudly instead.
+      # chose; refuse loudly instead. Cheap and dependency-free, so it runs
+      # before paying for an install.
       - name: tag must match package.json version
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -49,6 +50,14 @@ jobs:
             echo "tag v$TAG_VERSION does not match package.json version $PKG_VERSION" >&2
             exit 1
           fi
+
+      # npm run check below rebuilds the Tailwind theme (build:theme), which
+      # execs straight out of node_modules/@tailwindcss/cli/dist/index.mjs.
+      # Without this, that step — and prepack's repeat of it during npm
+      # publish — abort the release itself, not just a PR check. Same gap
+      # test.yml's `theme` job exists to catch; this is the other place it
+      # bites.
+      - run: npm ci
 
       # The same full check every PR runs (prepack re-runs it at pack time —
       # belt and suspenders, since a green suite is the only release gate).

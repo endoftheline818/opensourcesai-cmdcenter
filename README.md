@@ -24,8 +24,9 @@ npx @opensourcesai/cmdcenter --json   # the full report as JSON
 npx @opensourcesai/cmdcenter --capture # raw machine capture, for bug reports
 ```
 
-From a clone, the same commands are `node src/cli.js …` — there is no build
-step and there are no dependencies to install.
+The published CLI has no runtime dependencies or build step. From a source
+clone, run `npm install` once when working on the dashboard theme; Tailwind v4
+is used only to compile its local design tokens with `npm run build:theme`.
 
 ## Why this exists
 
@@ -293,7 +294,8 @@ exports itself.
 
 ## Requirements
 
-Node.js 20 or newer. No dependencies, and none are planned.
+Node.js 20 or newer. The published package has no runtime dependencies.
+Tailwind v4 and its CLI are development-only theme compilers.
 
 ## License
 

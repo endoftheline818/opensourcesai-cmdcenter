@@ -17,8 +17,9 @@
     "README.md"
   ],
   "scripts": {
+    "build:theme": "node scripts/build-theme.mjs",
     "test": "node --test",
-    "check": "node --check src/cli.js && node --test",
+    "check": "npm run build:theme && node --check src/cli.js && node --test",
     "prepack": "npm run check"
   },
   "engines": {
@@ -38,5 +39,9 @@
     "local-llm",
     "diagnostics",
     "hardware-detection"
-  ]
+  ],
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
 }
