@@ -15,8 +15,8 @@
     "color-border": "#dbe3ef",
     "color-text": "#0f172a",
     "color-text-muted": "#475569",
-    "color-primary": "#0f766e",
-    "color-primary-hover": "#115e59",
+    "color-primary": "#0e7a8a",
+    "color-primary-hover": "#0b5f6c",
     "color-success": "#166634",
     "color-error": "#991b1b"
   },
@@ -27,8 +27,8 @@
     "color-border": "#2e2d30",
     "color-text": "#e2e1de",
     "color-text-muted": "#a8a29e",
-    "color-primary": "#22d3ee",
-    "color-primary-hover": "#67e8f9",
+    "color-primary": "#00e6f0",
+    "color-primary-hover": "#5ff4fa",
     "color-success": "#86efac",
     "color-error": "#fca5a5"
   },
