@@ -102,12 +102,21 @@ Each is a trust property, not a preference, and each is enforced by a test in
 
 ## Dependency policy
 
-**Zero runtime dependencies, and zero dev dependencies.** Node's built-ins cover
-HTTP, filesystem, subprocesses, argument parsing and testing (`node --test`).
-A dependency is something a security-conscious user has to audit before trusting
-a tool whose entire value is that it can be trusted. Adding one needs a
-justification in the commit that adds it — and `test/package.test.js` asserts
-there are none, so it is a deliberate act.
+**Zero runtime dependencies.** Node's built-ins cover HTTP, filesystem,
+subprocesses, argument parsing and testing (`node --test`). A dependency is
+something a security-conscious user has to audit before trusting a tool whose
+entire value is that it can be trusted, so `dependencies` stays absent —
+`test/package.test.js` asserts it, which makes adding one a deliberate act
+needing justification in the commit that adds it.
+
+**Dev dependencies are exactly two, and the list is closed:** `tailwindcss` and
+`@tailwindcss/cli`, both v4 — the local theme compiler behind
+`npm run build:theme`. They never reach a user: `theme.generated.js` is
+committed, so the published package and the runtime import nothing from
+`node_modules`. The same test pins the allowlist to exactly those two names,
+so widening it is equally deliberate. (This section claimed "zero dev
+dependencies" until 0.2.1; the compiler arrived with the locally-built theme
+in 0.2.0 and the policy text lagged the enforced reality.)
 
 ## Architecture
 
