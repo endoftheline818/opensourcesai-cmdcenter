@@ -16,7 +16,7 @@ import {
   readBenchResult,
 } from "../src/collect/bench-results.js";
 import { INSPECT_PATHS, TOKEN_HEADER, authorize } from "../src/serve/security.js";
-import { createInspect, loadRooflineLimits } from "../src/cli.js";
+import { createInspect, loadRooflineLimits } from "../src/program.js";
 import { createServer } from "../src/serve/server.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

@@ -15,7 +15,7 @@ import { __test } from "../src/derive/bench-gpu-bandwidth.generated.js";
 import { rooflineUtilization } from "../src/derive/measurements.js";
 import { readManualBandwidth } from "../src/storage/bandwidth.js";
 import { SETTINGS_PATHS, TOKEN_HEADER, authorize } from "../src/serve/security.js";
-import { createBandwidthSettings } from "../src/cli.js";
+import { createBandwidthSettings } from "../src/program.js";
 import { createServer } from "../src/serve/server.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
