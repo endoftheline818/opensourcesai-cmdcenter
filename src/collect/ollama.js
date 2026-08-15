@@ -120,6 +120,11 @@ export async function collectOllama(host = resolveHost()) {
         name: m.name,
         sizeBytes: m.size,
         sizeVramBytes: m.size_vram ?? 0,
+        // The context this model was loaded with — the lever behind that fact.
+        // The same weights load as very different allocations at different
+        // context lengths, because the KV cache scales with it. Null where an
+        // older Ollama omits the field: unknown, never 0.
+        contextLength: m.context_length ?? null,
         expiresAt: m.expires_at ?? null,
       }))
     : null;

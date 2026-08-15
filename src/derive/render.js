@@ -57,13 +57,30 @@ export function renderReport(report) {
 
   lines.push("\nOLLAMA");
   if (!report.ollama.installed) {
-    lines.push(label("status", "not detected (API unreachable)"));
+    // Two different absences. A dead endpoint is "not detected"; an endpoint
+    // that DEMANDS CREDENTIALS is running something — just not bare Ollama,
+    // which has no authentication. Conflating them reports a working machine
+    // as broken. The limits section carries the full explanation.
+    lines.push(
+      label(
+        "status",
+        report.ollama.apiAuthRequired
+          ? "endpoint demands authentication — not bare Ollama (a gateway or proxy?)"
+          : "not detected (API unreachable)",
+      ),
+    );
   } else {
     lines.push(label("version", report.ollama.version ?? "unknown"));
     lines.push(label("installed models", report.ollama.installedModelCount ?? "unknown"));
     lines.push(label("loaded models", report.ollama.loadedModels.length));
     for (const m of report.ollama.loadedModels) {
-      lines.push(label(`  ${m.name}`, `${m.sizeVramGb}/${m.sizeGb} GB in VRAM (${m.vramResidentPercent}% resident)`));
+      // Context rides beside residency because it is the lever: the same
+      // weights load as a different allocation at a different context length.
+      const ctx = m.contextLength === null || m.contextLength === undefined ? "" : `, ${m.contextLength} ctx`;
+      const spill = m.spilledGb === null || m.spilledGb === undefined ? "" : `, ${m.spilledGb} GB on CPU`;
+      lines.push(
+        label(`  ${m.name}`, `${m.sizeVramGb}/${m.sizeGb} GB in VRAM (${m.vramResidentPercent}% resident${ctx}${spill})`),
+      );
     }
     if (report.ollama.modelStore) {
       lines.push(label("model store", report.ollama.modelStore.path));

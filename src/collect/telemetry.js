@@ -236,7 +236,11 @@ async function diskFor(storePath) {
 async function loadedModels(host) {
   try {
     const res = await fetch(`${host}/api/ps`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return { reachable: false };
+    // The status rides along on refusal. Ollama's local API never demands
+    // credentials, so an auth-shaped status here is a specific finding — the
+    // configured endpoint is something standing IN FRONT of Ollama — and the
+    // derive layer can only name it if the raw number survives collection.
+    if (!res.ok) return { reachable: false, httpStatus: res.status };
     const body = await res.json();
     return {
       reachable: true,
@@ -244,11 +248,17 @@ async function loadedModels(host) {
         name: m.name,
         sizeBytes: m.size,
         sizeVramBytes: m.size_vram ?? 0,
+        // The context this model was LOADED with. It is a memory decision, not
+        // a detail: the same qwen3:8b Q4_K_M is an 11.0 GB allocation at
+        // 36,864 ctx (spilling 2 GB to CPU on a 10 GB card) and a fully
+        // resident 6.3 GB at 8,192. Null where an older Ollama omits the
+        // field — unknown, never 0.
+        contextLength: m.context_length ?? null,
         expiresAt: m.expires_at ?? null,
       })),
     };
   } catch {
-    return { reachable: false };
+    return { reachable: false, httpStatus: null };
   }
 }
 
