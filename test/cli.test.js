@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TOKEN_HEADER } from "../src/serve/server.js";
-import { loadCatalog, main, startDashboard } from "../src/cli.js";
+import { loadCatalog, main, startDashboard } from "../src/program.js";
 
 const capture = () => {
   const chunks = [];

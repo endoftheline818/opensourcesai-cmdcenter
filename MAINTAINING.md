@@ -34,6 +34,22 @@ npm test                   # runs the suite and prints its own test count
 | `src/serve/**` | HTTP server, security, and the browser bundle. |
 | `src/storage/**` | The **only** code that writes or deletes files, confined to the tool's own data directory. Versioned (`STORAGE_SCHEMA_VERSION`), clock-free like derive, and reachable **only from the chat surface and the CLI wiring seam** — guard-asserted with a positive control (§4a). |
 | `src/chat/**` | The inference surface (§4b): the streaming relays to the loopback runtimes (Ollama; optionally an OpenAI-compatible server via `--llamacpp-port`), and the only consumer of storage. Prompts carry text HERE and nowhere else. |
+| `src/program.js` | The command line's implementation — argument parsing, the commands, and the dashboard wiring seam. Imports with **no side effects**, which is what lets the suite call `main()` directly. |
+| `src/cli.js` | The executable npm installs, and nothing else: it imports `main` and calls it, unconditionally. **Keep it trivial** — a guard in `test/package.test.js` holds it to one import and no inspection of `process.argv`. |
+
+**Why those last two are separate files** (0.2.1, and the reason 0.2.0 was
+unusable for every `npx` user on Linux and macOS): they used to be one, ending
+in a guard that compared `pathToFileURL(process.argv[1]).href` against
+`import.meta.url` to decide whether it had been run or imported. npm links a
+POSIX bin by **symlink**, and Node resolves an ESM main through its realpath
+while `process.argv[1]` keeps the link path — so the two never matched, the
+guard concluded "imported", and `npx @opensourcesai/cmdcenter serve` exited 0
+having printed nothing at all. The same guard had already been wrong once on
+Windows, for a different reason, with the identical no-output symptom. Two
+silent failures of one question is the question's fault, so the question is
+gone rather than fixed a third time. Do not reintroduce an is-this-the-entry-
+point check in either file; if the CLI needs to be importable, import
+`src/program.js`.
 
 This split is not stylistic. It is why `fixtures/*.json` — **real captures from real machines** (RTX 4070 Ti/Windows, RTX 3080/Linux, M1 MacBook Air) — let CI validate all three platforms' reporting on runners with no GPU and no Ollama.
 
@@ -171,7 +187,7 @@ Each cost real debugging. The tests exist so you don't repeat them.
 
 ---
 
-## 6. Test-quality rules — learned the hard way, five times
+## 6. Test-quality rules — learned the hard way, six times
 
 These are the highest-value lessons in this document.
 
@@ -181,6 +197,7 @@ These are the highest-value lessons in this document.
 - **`fetch()` silently strips forbidden headers** (`Host`, etc.). A DNS-rebinding test passed while never sending the attack. Use `node:http` when you must control those headers, and include a **positive control** so a blanket-reject bug can't masquerade as a pass.
 - **The browser bundle is inside a template literal.** A nested backtick closes it early; a nested interpolation is evaluated at module scope. `node --check` on the server file will not catch either. Use string concatenation in `src/serve/ui.js`'s `JS` export. A test parses the served payload.
 - **A test can only protect a property someone remembered to restate when it changed.** The `READ-ONLY` badge stayed false through an entire phase *with two tests enforcing it*. It was caught by looking at the screen. When you change a boundary, **audit every surface that ever stated it** — it was in five places.
+- **Calling `main()` is not running the program.** 0.2.0 shipped a binary that printed nothing and exited 0 on every Linux and macOS install, behind a green suite on nine CI jobs, because every test reached the code by `import`. Nothing was wrong with `main()`; *getting to* `main()` was broken, and no import-based test can see that. `test/executable.test.js` now packs the real tarball, installs it, and spawns the bin npm generates — and asserts the POSIX bin is a **symlink**, because that shape is the whole bug and a test that stopped exercising it would keep passing. The general rule: **whatever the distribution mechanism is, one test must go through it**, however slow and awkward that is.
 
 ---
 

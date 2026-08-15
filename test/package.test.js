@@ -34,6 +34,48 @@ test("package is executable, runtime-dependency-free, and version-aligned", asyn
   assert.match(pkg.devDependencies["@tailwindcss/cli"], /^\^4\./, "the theme CLI must stay on Tailwind v4");
 });
 
+// THE ENTRY POINT MUST NOT TRY TO WORK OUT THAT IT IS THE ENTRY POINT.
+//
+// src/cli.js used to end with a guard comparing `process.argv[1]` against
+// `import.meta.url` to decide whether it had been run or imported. It got the
+// answer wrong on Windows once (a hand-built file:// string), and wrong on
+// Linux and macOS once (npm links a POSIX bin as a SYMLINK, and Node realpaths
+// the ESM main while argv[1] keeps the link path). Both times the symptom was
+// a CLI that printed nothing and exited 0 — the failure with the fewest
+// possible clues. The fix was to delete the question: the executable delegates
+// to ./program.js unconditionally. This guard is what stops the question
+// coming back the next time someone wants an importable CLI file.
+//
+// codeOnly(), not the raw text: the file explains this history at length and
+// names both strings while doing so. A guard that flags its own rationale is
+// how a guard gets deleted. Eighth instance of this repo's prose-versus-code
+// trap.
+test("the installed executable runs unconditionally and implements nothing", async () => {
+  const source = await readFile(path.join(root, "src", "cli.js"), "utf8");
+  const code = codeOnly(source);
+
+  assert.match(source, /^#!\/usr\/bin\/env node\r?\n/, "a POSIX bin symlink is exec'd directly and needs the shebang");
+  assert.doesNotMatch(code, /process\.argv\[1\]/, "the executable must not inspect how it was invoked");
+  assert.doesNotMatch(code, /import\.meta\.url/, "the executable must not compare its own module URL");
+  assert.doesNotMatch(code, /\bpathToFileURL\b|\bfileURLToPath\b/, "no path/URL conversion belongs in the executable");
+
+  // It may import exactly one thing, and that thing is the program. Anything
+  // else means logic is accumulating in the one file the suite can only reach
+  // by spawning a process.
+  //
+  // withoutComments() here rather than codeOnly(), because an import specifier
+  // IS a string literal and codeOnly() blanks those — the first draft of this
+  // assertion read zero specifiers out of a file with one, and would have gone
+  // on passing after someone added a second.
+  const specifiers = [...withoutComments(source).matchAll(/from\s*["']([^"']+)["']/g)].map((m) => m[1]);
+  assert.deepEqual(specifiers, ["./program.js"], "the executable must delegate, not implement");
+
+  // Positive control: if the call ever disappeared, every assertion above
+  // would still pass over a file that does nothing — which is precisely the
+  // bug this guard exists to prevent.
+  assert.match(code, /\bmain\(\)/, "the executable must actually call main()");
+});
+
 // PUBLISH GUARD, REWRITTEN AT ITS SECOND CROSSING — never deleted. Until
 // 2026-08-10 this test asserted `private: true` (the deliberate-unpublished
 // state the discovery spec chose); the publish decision was taken that day
@@ -492,10 +534,14 @@ test("file writes and deletions exist only in src/storage", async () => {
 // may reach storage. Collect must never read what the tool remembers into a
 // capture; derive stays pure; serve touches storage only through the injected
 // chat service, never directly.
+//
+// The wiring seam is src/program.js since the entry-point split; src/cli.js is
+// now four lines that run it. The property is unchanged — one named file, not
+// a directory — only the file's name moved.
 test("only the chat surface and the CLI wiring may reach the storage layer", async () => {
   const files = await sourceFiles(path.join(root, "src"));
   const allowed = (relative) =>
-    relative.includes(path.join("src", "chat")) || relative.endsWith(path.join("src", "cli.js"));
+    relative.includes(path.join("src", "chat")) || relative.endsWith(path.join("src", "program.js"));
   let reached = 0;
 
   for (const file of files) {
