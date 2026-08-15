@@ -271,24 +271,46 @@ export function buildGauges(telemetry) {
 }
 
 /**
+ * Auth-shaped HTTP refusals. Ollama's local API has no authentication at all,
+ * so any of these from the configured endpoint means the thing answering is
+ * NOT bare Ollama — a gateway or reverse proxy standing in front of it.
+ * Gateways hand their clients configs that set OLLAMA_HOST to the proxy port,
+ * so on a machine running one this is a likely misconfiguration, not an
+ * exotic one — and "your endpoint demands credentials" is an actionable
+ * finding where "Ollama offline" would be a false claim about a running
+ * server. The same dual-purpose-variable trap as OLLAMA_HOST=0.0.0.0
+ * (finding 4), wearing a different value.
+ */
+const AUTH_STATUSES = new Set([401, 403, 407]);
+
+/**
  * Loaded models, with the one runtime fact that matters most: whether the model
  * actually fits. Below 100% residency it is running partly on CPU, typically at
- * a small fraction of the speed.
+ * a small fraction of the speed — and the context length it was loaded with is
+ * the lever, because the KV cache scales with it.
  */
 export function buildLoaded(telemetry) {
   const ollama = telemetry.ollama;
-  if (!ollama?.reachable) return { reachable: false, models: [] };
+  if (!ollama?.reachable) {
+    return { reachable: false, authRequired: AUTH_STATUSES.has(ollama?.httpStatus), models: [] };
+  }
 
   return {
     reachable: true,
     models: (ollama.models ?? []).map((m) => {
       const residency = m.sizeBytes ? Math.round((m.sizeVramBytes / m.sizeBytes) * 100) : null;
+      const spilled = residency !== null && residency < 100;
       return {
         name: m.name,
         sizeGb: toGb(m.sizeBytes),
         sizeVramGb: toGb(m.sizeVramBytes),
         vramResidentPercent: residency,
-        spilled: residency !== null && residency < 100,
+        spilled,
+        // How much of the runtime allocation is NOT in VRAM — named in GB
+        // because "partly on CPU" undersells a 2 GB spill and oversells a
+        // 40 MB one.
+        spilledGb: spilled ? toGb(m.sizeBytes - m.sizeVramBytes) : null,
+        contextLength: m.contextLength ?? null,
         expiresAt: m.expiresAt,
       };
     }),

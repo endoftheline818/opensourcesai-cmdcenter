@@ -273,11 +273,79 @@ test("a partially resident model is flagged as spilled", () => {
   assert.equal(loaded.models[1].spilled, true, "below 100% means it is partly on CPU");
 });
 
+// REAL CAPTURES, not invented numbers: the same qwen3:8b Q4_K_M loaded twice
+// on a 10 GB RTX 3080, differing ONLY in requested context length. At 36,864
+// it is an 11.0 GB runtime allocation with 2.05 GB forced off the GPU; at
+// 8,192 the identical weights are 6.3 GB and fully resident. Context is a
+// memory decision, and these two rows are the controlled experiment that
+// proves it — which is why the loaded payload must carry contextLength and
+// the spill quantity, not just a boolean.
+test("context length and quantified spill ride the loaded payload", () => {
+  const loaded = buildLoaded(sample({
+    ollama: {
+      reachable: true,
+      models: [
+        { name: "qwen3:8b", sizeBytes: 10_999_792_925, sizeVramBytes: 8_949_166_243, contextLength: 36_864, expiresAt: null },
+        { name: "qwen3:8b", sizeBytes: 6_295_440_588, sizeVramBytes: 6_295_440_588, contextLength: 8_192, expiresAt: null },
+      ],
+    },
+  }));
+
+  const [large, small] = loaded.models;
+  assert.equal(large.contextLength, 36_864);
+  assert.equal(large.spilled, true);
+  assert.equal(large.spilledGb, 2.05, "the spill is quantified, not just flagged");
+  assert.equal(large.vramResidentPercent, 81);
+
+  assert.equal(small.contextLength, 8_192);
+  assert.equal(small.spilled, false);
+  assert.equal(small.spilledGb, null, "a fully resident model spills nothing — null, not 0");
+  assert.equal(small.vramResidentPercent, 100);
+});
+
+test("a missing context length is unknown, never zero", () => {
+  // Older Ollama versions omit context_length from /api/ps. "Loaded at 0
+  // context" would be a lie; absent must survive as null all the way to the
+  // screen, where the UI says nothing rather than something false.
+  const loaded = buildLoaded(sample({
+    ollama: {
+      reachable: true,
+      models: [{ name: "old:7b", sizeBytes: 5_000_000_000, sizeVramBytes: 5_000_000_000, expiresAt: null }],
+    },
+  }));
+  assert.equal(loaded.models[0].contextLength, null);
+  assert.notEqual(loaded.models[0].contextLength, 0);
+});
+
 test("an unreachable Ollama reports unreachable, not empty", () => {
   // "No models loaded" and "cannot tell" are different claims.
   const loaded = buildLoaded(sample({ ollama: { reachable: false } }));
   assert.equal(loaded.reachable, false);
   assert.deepEqual(loaded.models, []);
+});
+
+// AUTH-SHAPED REFUSAL IS ITS OWN STATE. Bare Ollama's local API never demands
+// credentials, so a 401/403/407 means the configured endpoint is NOT bare
+// Ollama — a gateway or reverse proxy in front of it. Gateways hand clients
+// configs that set OLLAMA_HOST to the proxy port, so on a machine running one
+// this is the LIKELY misconfiguration. Reporting it as "Ollama offline" would
+// be a false claim about a running machine; the finding is "wrong endpoint".
+test("an auth-demanding endpoint is distinguished from a dead one", () => {
+  const auth = buildLoaded(sample({ ollama: { reachable: false, httpStatus: 401 } }));
+  assert.equal(auth.reachable, false);
+  assert.equal(auth.authRequired, true, "401 must be named, not folded into 'offline'");
+
+  const forbidden = buildLoaded(sample({ ollama: { reachable: false, httpStatus: 403 } }));
+  assert.equal(forbidden.authRequired, true);
+
+  const dead = buildLoaded(sample({ ollama: { reachable: false, httpStatus: null } }));
+  assert.equal(dead.authRequired, false, "a connection failure carries no status and makes no auth claim");
+
+  const legacy = buildLoaded(sample({ ollama: { reachable: false } }));
+  assert.equal(legacy.authRequired, false, "an absent status (older capture shape) is not an auth claim");
+
+  const serverError = buildLoaded(sample({ ollama: { reachable: false, httpStatus: 500 } }));
+  assert.equal(serverError.authRequired, false, "a 500 is a broken endpoint, not an authenticating one");
 });
 
 test("the live payload is deterministic for a given sample", () => {
@@ -349,5 +417,52 @@ test("load average is null on Windows rather than three convincing zeros", async
     assert.equal(result.cpu.loadAverage, null);
   } else {
     assert.ok(Array.isArray(result.cpu.loadAverage));
+  }
+});
+
+// The collector against a live (loopback, in-suite) endpoint: context_length
+// must survive collection, and an auth refusal must be captured as the raw
+// status rather than flattened into a generic failure — derive can only name
+// what collect kept.
+test("the collector carries context_length through and keeps an auth refusal's status", async () => {
+  const http = await import("node:http");
+  const serve = (handler) =>
+    new Promise((resolve) => {
+      const server = http.createServer(handler);
+      server.listen(0, "127.0.0.1", () => resolve(server));
+    });
+
+  const ollamaLike = await serve((req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    // The real 36k-context capture from a 10 GB RTX 3080, verbatim fields.
+    res.end(JSON.stringify({
+      models: [{
+        name: "qwen3:8b",
+        model: "qwen3:8b",
+        size: 10_999_792_925,
+        size_vram: 8_949_166_243,
+        context_length: 36_864,
+        expires_at: "2026-08-14T00:05:00Z",
+      }],
+    }));
+  });
+  const gatewayLike = await serve((req, res) => {
+    // What an authenticating proxy answers when no bearer token is presented.
+    res.writeHead(401, { "content-type": "text/plain" });
+    res.end("unauthorized");
+  });
+
+  try {
+    const viaOllama = await collectTelemetry({ host: `http://127.0.0.1:${ollamaLike.address().port}` });
+    assert.equal(viaOllama.ollama.reachable, true);
+    assert.equal(viaOllama.ollama.models[0].contextLength, 36_864);
+    assert.equal(viaOllama.ollama.models[0].sizeBytes, 10_999_792_925);
+
+    const viaGateway = await collectTelemetry({ host: `http://127.0.0.1:${gatewayLike.address().port}` });
+    assert.equal(viaGateway.ollama.reachable, false);
+    assert.equal(viaGateway.ollama.httpStatus, 401, "the refusal's status must survive collection");
+  } finally {
+    await new Promise((resolve) => ollamaLike.close(resolve));
+    await new Promise((resolve) => gatewayLike.close(resolve));
   }
 });

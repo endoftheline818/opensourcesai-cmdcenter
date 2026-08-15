@@ -140,7 +140,102 @@ test("a capture from a machine with nothing installed still reports honestly", (
   assert.equal(report.gpu, null);
   assert.equal(report.appleMemory, null);
   assert.equal(report.ollama.installed, false);
+  assert.equal(report.ollama.apiAuthRequired, false, "a dead endpoint makes no auth claim");
   assert.equal(report.exportable.vram_band, "unknown");
   assert.ok(report.limits.length >= 2, "an empty machine has several things to disclaim");
   assert.doesNotThrow(() => renderReport(report));
+});
+
+// AN AUTH-DEMANDING ENDPOINT IS A FINDING, NOT A FLAVOUR OF "UNREACHABLE".
+// Bare Ollama's local API never asks for credentials; a 401 means the thing
+// answering is a gateway or reverse proxy in front of it — and gateways hand
+// their clients configs that set OLLAMA_HOST to the proxy port, so on such a
+// machine this is the LIKELY misconfiguration. "Not detected" would send the
+// user to reinstall a service that is running fine; the report must name the
+// wrong-endpoint state, and the limits must say why it matters (a proxy can
+// route to a different machine, so nothing measured through one is a fact
+// about this hardware).
+test("an auth-demanding endpoint is named as not-bare-Ollama, with the reason", () => {
+  const behindGateway = {
+    captureSchemaVersion: CAPTURE_SCHEMA_VERSION,
+    platform: {},
+    system: {},
+    gpu: {},
+    ollama: { apiReachable: false, apiError: "http 401" },
+  };
+  const report = buildReport(behindGateway);
+
+  assert.equal(report.ollama.installed, false);
+  assert.equal(report.ollama.apiAuthRequired, true);
+  assert.ok(
+    report.limits.some((l) => /demands authentication/.test(l) && /gateway or proxy/.test(l)),
+    "the limits must explain the wrong-endpoint state",
+  );
+  assert.ok(
+    report.limits.some((l) => /different machine/.test(l)),
+    "the provenance hazard is the reason this matters — it must be stated",
+  );
+
+  const text = renderReport(report);
+  assert.match(text, /endpoint demands authentication/, "the status line must name the state");
+  assert.doesNotMatch(text, /status\s*:?\s*not detected/i, "a running gateway must not read as 'not detected'");
+
+  // A dead endpoint (connection refused — no HTTP status at all) keeps the
+  // plain unreachable wording: no status, no auth claim.
+  const dead = buildReport({
+    captureSchemaVersion: CAPTURE_SCHEMA_VERSION,
+    platform: {},
+    system: {},
+    gpu: {},
+    ollama: { apiReachable: false, apiError: "fetch failed" },
+  });
+  assert.equal(dead.ollama.apiAuthRequired, false);
+  assert.match(renderReport(dead), /not detected \(API unreachable\)/);
+});
+
+// The context a model was loaded with, and its quantified spill, must survive
+// derive and reach the text report — the same real A/B captures as the
+// telemetry suite: one model, one card, two context lengths, two verdicts.
+test("loaded context and quantified spill reach the report and its rendering", () => {
+  const capture = {
+    captureSchemaVersion: CAPTURE_SCHEMA_VERSION,
+    platform: {},
+    system: {},
+    gpu: {},
+    ollama: {
+      apiReachable: true,
+      apiVersion: "0.11.0",
+      installedModels: [],
+      loadedModels: [
+        { name: "qwen3:8b", sizeBytes: 10_999_792_925, sizeVramBytes: 8_949_166_243, contextLength: 36_864, expiresAt: null },
+        { name: "qwen3:8b", sizeBytes: 6_295_440_588, sizeVramBytes: 6_295_440_588, contextLength: 8_192, expiresAt: null },
+      ],
+    },
+  };
+  const report = buildReport(capture);
+  const [large, small] = report.ollama.loadedModels;
+
+  assert.equal(large.contextLength, 36_864);
+  assert.equal(large.spilledGb, 2.05);
+  assert.equal(large.vramResidentPercent, 81);
+  assert.equal(small.contextLength, 8_192);
+  assert.equal(small.spilledGb, null, "fully resident spills nothing — null, not 0");
+
+  const text = renderReport(report);
+  assert.match(text, /81% resident, 36864 ctx, 2\.05 GB on CPU/);
+  assert.match(text, /100% resident, 8192 ctx/);
+
+  // A capture without the field (older Ollama) renders the line it always
+  // rendered — no "null ctx", no "0 ctx".
+  const older = buildReport({
+    ...capture,
+    ollama: {
+      ...capture.ollama,
+      loadedModels: [{ name: "old:7b", sizeBytes: 5_000_000_000, sizeVramBytes: 5_000_000_000, expiresAt: null }],
+    },
+  });
+  assert.equal(older.ollama.loadedModels[0].contextLength, null);
+  const olderText = renderReport(older);
+  assert.match(olderText, /100% resident\)/);
+  assert.doesNotMatch(olderText, /null ctx|0 ctx|undefined/);
 });

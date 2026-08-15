@@ -44,16 +44,41 @@ function buildAppleMemory(capture) {
   };
 }
 
+/**
+ * An auth-shaped API error. collect/ollama.js records a refused probe as the
+ * string "http <status>"; 401/403/407 from the configured endpoint is a
+ * specific finding, because Ollama's local API never demands credentials —
+ * whatever answered is a gateway or reverse proxy standing in front of it
+ * (gateways hand out client configs that point OLLAMA_HOST at the proxy).
+ * Naming that beats reporting a running machine as "not detected", and it
+ * matters for provenance too: a proxy can route requests to another machine
+ * entirely, so measurements taken through one could describe hardware this
+ * tool has never seen.
+ */
+function authShapedError(apiError) {
+  return /^http (401|403|407)$/.test(apiError ?? "");
+}
+
 function buildOllama(capture) {
   const ollama = capture.ollama ?? {};
-  const loaded = (ollama.loadedModels ?? []).map((m) => ({
-    name: m.name,
-    sizeGb: toGb(m.sizeBytes),
-    sizeVramGb: toGb(m.sizeVramBytes),
+  const loaded = (ollama.loadedModels ?? []).map((m) => {
     // The most product-relevant runtime number available: below 100% the model
     // is running partly on CPU, typically at a small fraction of the speed.
-    vramResidentPercent: m.sizeBytes ? Math.round((m.sizeVramBytes / m.sizeBytes) * 100) : null,
-  }));
+    const residency = m.sizeBytes ? Math.round((m.sizeVramBytes / m.sizeBytes) * 100) : null;
+    const spilled = residency !== null && residency < 100;
+    return {
+      name: m.name,
+      sizeGb: toGb(m.sizeBytes),
+      sizeVramGb: toGb(m.sizeVramBytes),
+      vramResidentPercent: residency,
+      // The spill quantified, and the context length behind it — the same
+      // weights are a different allocation at a different context, so the two
+      // belong side by side. contextLength is null where the capture (or an
+      // older Ollama) did not carry it: unknown, never 0.
+      spilledGb: spilled ? toGb(m.sizeBytes - m.sizeVramBytes) : null,
+      contextLength: m.contextLength ?? null,
+    };
+  });
 
   return {
     // API reachability, NOT binary discovery, is the authoritative
@@ -61,6 +86,9 @@ function buildOllama(capture) {
     // PATH the current shell does not carry.
     installed: Boolean(ollama.apiReachable),
     apiReachable: Boolean(ollama.apiReachable),
+    // True when the endpoint refused with an auth-shaped status: the thing
+    // answering is not bare Ollama. See authShapedError().
+    apiAuthRequired: !ollama.apiReachable && authShapedError(ollama.apiError),
     version: ollama.apiVersion ?? ollama.cliVersion ?? null,
     binaryPath: ollama.binaryPath ?? null,
     installedModelCount: ollama.installedModels?.length ?? null,
@@ -96,7 +124,16 @@ function buildLimits(capture, { apple, primary, corroborated }) {
     limits.push("Running under WSL — GPU passthrough and Ollama's host differ from bare metal.");
   }
   if (!capture.ollama?.apiReachable) {
-    limits.push("Ollama's API was unreachable, so no runtime or model facts were collected.");
+    if (authShapedError(capture.ollama?.apiError)) {
+      limits.push(
+        "The configured endpoint demands authentication, which Ollama's local API never does — " +
+          "OLLAMA_HOST likely points at a gateway or proxy. Point this tool at the real Ollama " +
+          "endpoint: a proxy can route requests to a different machine, so nothing measured " +
+          "through one is a fact about this hardware.",
+      );
+    } else {
+      limits.push("Ollama's API was unreachable, so no runtime or model facts were collected.");
+    }
   }
   return limits;
 }

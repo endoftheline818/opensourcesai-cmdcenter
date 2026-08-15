@@ -1765,6 +1765,18 @@ function readiness(d) {
   const runnable = d.models.filter((m) => m.fit !== "too_large");
   const comfortable = d.models.filter((m) => m.fit === "comfortable");
   if (!d.report.ollama.installed) {
+    // Auth-demanding is its own state, not a flavour of "unreachable": bare
+    // Ollama never asks for credentials, so something IS answering — a
+    // gateway or proxy whose client config likely set OLLAMA_HOST. "Needs
+    // Ollama" would send the user to reinstall a service that is running.
+    if (d.report.ollama.apiAuthRequired) {
+      return {
+        tone: "critical",
+        label: "Wrong endpoint",
+        title: "The endpoint demands authentication",
+        detail: "Ollama's local API never asks for credentials, so OLLAMA_HOST likely points at a gateway or proxy. Aim Command Center at the real Ollama endpoint.",
+      };
+    }
     return {
       tone: "critical",
       label: "Needs Ollama",
@@ -2615,7 +2627,13 @@ function renderLoadedSummary(live) {
   if (!reachable) {
     title = "Cannot confirm residency";
     value = "offline";
-    detail = "Ollama did not answer this poll, so loaded state is unknown.";
+    // An auth-demanding endpoint is not a dead one. Bare Ollama never asks for
+    // credentials, so this poll reached SOMETHING — a gateway or proxy whose
+    // client config likely set OLLAMA_HOST — and calling it "offline" would be
+    // a false claim about a running machine.
+    detail = live.loaded.authRequired
+      ? "The endpoint demands authentication, which Ollama itself never does. If OLLAMA_HOST points at a gateway or proxy, aim Command Center at the real Ollama."
+      : "Ollama did not answer this poll, so loaded state is unknown.";
   } else if (models.length) {
     title = models.length + " model" + (models.length === 1 ? "" : "s") + " resident";
     value = String(models.length);
@@ -2634,7 +2652,10 @@ function renderLoadedSummary(live) {
 
   const chips = el("div", "loaded-summary-chips");
   if (!reachable) {
-    chips.append(el("span", null, "Ollama offline"), el("span", null, "Loaded state unknown"));
+    chips.append(
+      el("span", null, live.loaded.authRequired ? "Endpoint demands auth" : "Ollama offline"),
+      el("span", null, "Loaded state unknown"),
+    );
   } else if (!models.length) {
     chips.append(el("span", null, "0 loaded"), el("span", null, "Installed only"), el("span", null, "No pull or delete"));
   } else {
@@ -2666,7 +2687,12 @@ function renderLoaded(live) {
   }
 
   if (!live.loaded.reachable) {
-    body.append(emptyState("Ollama is not responding, so nothing can be reported as loaded.", "alert"));
+    body.append(emptyState(
+      live.loaded.authRequired
+        ? "The endpoint refused with an authentication error, and bare Ollama never requires one. If OLLAMA_HOST points at a gateway or proxy, aim Command Center at the real Ollama endpoint."
+        : "Ollama is not responding, so nothing can be reported as loaded.",
+      "alert",
+    ));
     return;
   }
   if (!live.loaded.models.length) {
@@ -2692,6 +2718,13 @@ function renderLoaded(live) {
       el("span", null, m.vramResidentPercent === null ? "residency unknown" : m.vramResidentPercent + "% resident"),
       el("span", "loaded-state " + stateClass, stateLabel),
     );
+    // The context this model was loaded with — shown because it is the lever
+    // behind the residency verdict, not trivia: the KV cache scales with it,
+    // so the same weights spill at one context and fit fully at another.
+    // Absent on older Ollama versions; say nothing rather than "0".
+    if (m.contextLength !== null && m.contextLength !== undefined) {
+      metrics.append(el("span", null, "context " + m.contextLength.toLocaleString()));
+    }
     main.append(metrics);
 
     const residency = el("div", "loaded-residency");
@@ -2701,8 +2734,19 @@ function renderLoaded(live) {
     fill.style.setProperty("--resident", Math.max(0, Math.min(100, percent)) + "%");
     meter.append(fill);
     residency.append(meter);
+    var spillText = "Partly on CPU; expect slower responses.";
+    if (m.spilled && m.spilledGb !== null && m.spilledGb !== undefined) {
+      spillText = m.spilledGb + " GB is on CPU; expect slower responses.";
+      // Only when both facts are in hand: the honest, actionable connection.
+      // No predicted number — what context WOULD fit is not something this
+      // dashboard can verify, so it names the lever and stops.
+      if (m.contextLength !== null && m.contextLength !== undefined) {
+        spillText = m.spilledGb + " GB is on CPU. Loaded at " + m.contextLength.toLocaleString() +
+          " context; memory grows with context length, so a smaller context brings the same model closer to fitting.";
+      }
+    }
     residency.append(el("div", m.spilled ? "explain spilled" : "explain",
-      m.vramResidentPercent === null ? "Ollama did not report VRAM residency." : m.spilled ? "Partly on CPU; expect slower responses." : "Fully resident according to Ollama."));
+      m.vramResidentPercent === null ? "Ollama did not report VRAM residency." : m.spilled ? spillText : "Fully resident according to Ollama."));
     main.append(residency);
 
     const actions = el("div", "loaded-actions");
