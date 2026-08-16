@@ -2,14 +2,14 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-12",
+    "generatedAt": "2026-08-16",
     "modules": [
       "src/data/checker-models.json"
     ]
   },
   "snapshotVersion": 1,
   "note": "Committed snapshot, not live data. Discovery-spec §8 decision 3 (a fetchable data manifest) is open; until it is decided this file is refreshed by rerunning scripts/sync-from-website.mjs. The dashboard displays its age.",
-  "modelCount": 32,
+  "modelCount": 33,
   "models": [
     {
       "id": "qwen3-4b",
@@ -750,6 +750,32 @@
       },
       "ollamaTag": "qwen3-coder:30b",
       "checkerOrder": 32
+    },
+    {
+      "id": "muse-glimmer-30b",
+      "name": "Muse Glimmer 30B",
+      "family": "muse",
+      "parametersBillions": 29.8,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 18,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 31,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 57,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "muse-glimmer:30b",
+      "ollamaTagQ8": "muse-glimmer:30b-q8_0",
+      "ollamaTagFp16": "muse-glimmer:30b-bf16",
+      "checkerOrder": 33
     }
   ]
 }
