@@ -76,14 +76,21 @@ export const TOKENS = {
     success: "#166634",
     error: "#991b1b",
   },
+  // 2026-08-15 re-pin: the site's dark neutrals moved onto THIS dashboard's
+  // zinc ramp (opensourcesai.com phase 4), so bg/surface/border/textMuted
+  // below now equal --color-canvas/--color-surface/--color-border-subtle/
+  // --color-text-muted in theme.css, and primary equals --color-brand-cyan.
+  // The alias lines in CORE_CSS (--color-bg: var(--color-canvas) …) are
+  // therefore no longer a divergence they paper over; they are literally
+  // true. Nothing rendered here changes.
   dark: {
-    bg: "#111110",
-    surface: "#18171a",
-    surfaceSoft: "#1e1d20",
-    border: "#2e2d30",
-    text: "#e2e1de",
-    textMuted: "#a8a29e",
-    primary: "#00e6f0",
+    bg: "#09090b",
+    surface: "#18181b",
+    surfaceSoft: "#1f1f23",
+    border: "#27272a",
+    text: "#e4e4e7",
+    textMuted: "#a1a1aa",
+    primary: "#00f0ff",
     primaryHover: "#5ff4fa",
     success: "#86efac",
     error: "#fca5a5",
