@@ -316,15 +316,22 @@ async function syncCatalogSnapshot() {
 }
 
 /**
- * Pin the design tokens this package copies from the site's stylesheet.
+ * Pin the design tokens this package copies from the site's stylesheets.
  *
- * PARSED from src/index.css rather than transcribed, for the same reason the
- * other fixtures are executed rather than retyped: a hand-copied colour drifts
- * silently the moment the site is restyled, and "close enough" branding is
- * exactly the failure this is meant to prevent.
+ * PARSED from src/index.css (colours, structure) and src/motion.css (the two
+ * motion tokens the live-metric flash shares) rather than transcribed, for the
+ * same reason the other fixtures are executed rather than retyped: a hand-copied
+ * colour drifts silently the moment the site is restyled, and "close enough"
+ * branding is exactly the failure this is meant to prevent.
+ *
+ * THE NAME LISTS BELOW ARE THE CONTRACT. The website's own gate
+ * (scripts/assert-css-tokens.js) checks the same names in the same order, and
+ * docs/design-tokens-contract.md over there is the human-readable record. Add
+ * a name in all three places or in none.
  */
 async function syncDesignTokens() {
   const raw = await readFile(path.join(websiteRoot, "src", "index.css"), "utf8");
+  const motionRaw = await readFile(path.join(websiteRoot, "src", "motion.css"), "utf8");
 
   // Strip CSS comments BEFORE splitting. The stylesheet's header comment
   // literally contains the words "@media (prefers-color-scheme: dark)", so
@@ -343,6 +350,10 @@ async function syncDesignTokens() {
     "color-bg", "color-surface", "color-surface-soft", "color-border",
     "color-text", "color-text-muted", "color-primary", "color-primary-hover",
     "color-success", "color-error",
+    // The instrument channel (site phase 4, L4): signal cyan, the bounded
+    // hardware/data orange, warn amber + its text ink, the one status green,
+    // the hairline grid. This dashboard renders the dark half of these.
+    "brand-cyan", "data-orange", "color-warn", "color-warn-ink", "status-green", "grid-line",
   ];
   const read = (source, name) => {
     const match = new RegExp(`--${name}\\s*:\\s*([^;]+);`).exec(source);
@@ -352,14 +363,22 @@ async function syncDesignTokens() {
 
   const structural = ["radius-card", "radius-frame", "content", "font-body", "font-mono"];
 
+  // Motion lives in its own file, in one theme-invariant :root block — no
+  // light/dark split to honour, only comments to strip.
+  const motionCss = motionRaw.replace(/\/\*[\s\S]*?\*\//g, "");
+  const motion = ["dur-data", "ease-out"];
+
   const out = {
-    ...stamp({ modules: ["src/index.css"] }),
+    ...stamp({ modules: ["src/index.css", "src/motion.css"] }),
     note:
       "Design tokens copied into src/serve/ui.js so the dashboard reads as part of " +
-      "the platform. Parsed from the site's stylesheet, never transcribed.",
+      "the platform. Parsed from the site's stylesheets, never transcribed. The name " +
+      "lists are shared with the site's verify:css-tokens gate and recorded in its " +
+      "docs/design-tokens-contract.md.",
     light: pick(lightSource),
     dark: pick(darkSource),
     structural: Object.fromEntries(structural.map((n) => [n, read(lightSource, n)])),
+    motion: Object.fromEntries(motion.map((n) => [n, read(motionCss, n)])),
   };
 
   await writeFile(path.join(here, "fixtures", "website-design-tokens.json"), `${JSON.stringify(out, null, 2)}\n`);

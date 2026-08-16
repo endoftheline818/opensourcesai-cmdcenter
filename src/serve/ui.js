@@ -62,7 +62,19 @@ export const INDUSTRIAL = {
   statusGreen: "#22c55e",
 };
 
-/** Design tokens copied from opensourcesai.com src/index.css. */
+/**
+ * Design tokens copied from opensourcesai.com src/index.css and src/motion.css.
+ *
+ * This object is the mirror half of a CONTRACT: the site's verify:css-tokens
+ * gate, its docs/design-tokens-contract.md, and this package's
+ * sync-from-website.mjs all carry the same name list, and test/design.test.js
+ * asserts every value here against the generated fixture. The 2026-08-16
+ * contract (site L4) also asserts EQUALITY, not just copy-freshness, between
+ * the dark values below and the industrial palette in theme.css — the alias
+ * lines in CORE_CSS (--color-bg: var(--color-canvas) …) are literally true,
+ * and a site restyle that breaks that fails here rather than repainting the
+ * instrument by accident.
+ */
 export const TOKENS = {
   light: {
     bg: "#f8fafc",
@@ -75,14 +87,23 @@ export const TOKENS = {
     primaryHover: "#0b5f6c",
     success: "#166634",
     error: "#991b1b",
+    // The instrument channel (site phase 4, L4). Pinned for copy-freshness
+    // only in light — this dashboard is dark-only.
+    brandCyan: "#00f0ff",
+    dataOrange: "#ff5a00",
+    warn: "#f59e0b",
+    warnInk: "#b45309",
+    statusGreen: "#15803d",
+    gridLine: "rgba(15, 23, 42, 0.06)",
   },
   // 2026-08-15 re-pin: the site's dark neutrals moved onto THIS dashboard's
   // zinc ramp (opensourcesai.com phase 4), so bg/surface/border/textMuted
-  // below now equal --color-canvas/--color-surface/--color-border-subtle/
+  // below equal --color-canvas/--color-surface/--color-border-subtle/
   // --color-text-muted in theme.css, and primary equals --color-brand-cyan.
-  // The alias lines in CORE_CSS (--color-bg: var(--color-canvas) …) are
-  // therefore no longer a divergence they paper over; they are literally
-  // true. Nothing rendered here changes.
+  // primaryHover is the one deliberate non-equality: on the site it is a
+  // TEXT hover (dozens of `color:` consumers), so on dark it lightens;
+  // here --color-brand-cyan-hover darkens a FILLED control so its dark label
+  // stays legible. Same name, different job — pinned as a copy, not as equal.
   dark: {
     bg: "#09090b",
     surface: "#18181b",
@@ -94,11 +115,29 @@ export const TOKENS = {
     primaryHover: "#5ff4fa",
     success: "#86efac",
     error: "#fca5a5",
+    // The instrument channel — these are what --metric-cyan / --metric-orange /
+    // --metric-amber(-ink) / --color-status-green / --grid-line render from.
+    brandCyan: "#00f0ff",
+    dataOrange: "#ff5a00",
+    warn: "#f59e0b",
+    warnInk: "#fbbf24",
+    statusGreen: "#22c55e",
+    gridLine: "rgba(255, 255, 255, 0.028)",
+  },
+  // Motion the live-metric flash and value ticks share with the site's data
+  // layer (src/motion.css). durData is read as a number by animateLiveMetric,
+  // which is why the site's gate insists it stays an integer millisecond value.
+  motion: {
+    durData: "600ms",
+    easeOut: "cubic-bezier(0.22, 1, 0.36, 1)",
   },
   radiusCard: "12px",
   radiusFrame: "16px",
   content: "1120px",
 };
+
+/** The shared data duration as a number, for the rAF tween in animateLiveMetric. */
+export const DUR_DATA_MS = parseInt(TOKENS.motion.durData, 10);
 
 import { CHAT_CSS, CHAT_JS } from "./ui-chat.js";
 import { THEME_CSS } from "./theme.generated.js";
@@ -183,12 +222,23 @@ const CORE_CSS = `:root {
   --color-error: ${TOKENS.dark.error};
 
   /* Telemetry is deliberately two-channel: software/system load is cyan;
-     physical GPU, memory, heat, power, clock and storage activity is orange. */
+     physical GPU, memory, heat, power, clock and storage activity is orange.
+     Both channels, the warn amber pair, the status green and the hairline
+     grid are the SITE'S instrument tokens (src/index.css dark half), pinned
+     equal by test/design.test.js — the same colour means the same thing on
+     the site's checker readout and on this dashboard. */
   --metric-cyan: var(--color-brand-cyan);
   --metric-orange: var(--color-data-orange);
-  --metric-amber: #f59e0b;
+  --metric-amber: ${TOKENS.dark.warn};
+  --metric-amber-ink: ${TOKENS.dark.warnInk};
   --metric-neutral: #71717a;
   --metric-red: var(--color-error);
+  --grid-line: ${TOKENS.dark.gridLine};
+
+  /* Motion shared with the site's data layer: one duration for "this value
+     just changed", one out-curve. animateLiveMetric reads the same number. */
+  --dur-data: ${TOKENS.motion.durData};
+  --ease-out: ${TOKENS.motion.easeOut};
 
   /* Cyan is the one interaction language across the whole instrument. */
   --view-accent: var(--metric-cyan);
@@ -259,8 +309,8 @@ body {
   -webkit-font-smoothing: antialiased;
   /* Neutral instrumentation grid: texture without ambient coloured light. */
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 36px 36px;
   background-attachment: fixed;
 }
@@ -301,7 +351,7 @@ body {
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .livestrip b { color: var(--color-text); font-weight: 600; }
-.livestrip .warn { color: #f5b544; }
+.livestrip .warn { color: var(--metric-amber-ink); }
 .livestrip .critical { color: var(--color-error); }
 
 .layout {
@@ -625,7 +675,7 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
 .status-chip .status-icon { flex: 0 0 auto; width: 0.82rem; height: 0.82rem; }
 .status-chip.ready { color: var(--color-status-green); background: color-mix(in srgb, var(--color-status-green) 8%, transparent); border-color: var(--color-status-green); }
 .status-chip.ok, .status-chip.verified { color: var(--metric-cyan); background: color-mix(in srgb, var(--metric-cyan) 7%, transparent); border-color: color-mix(in srgb, var(--metric-cyan) 34%, var(--color-border)); }
-.status-chip.warn { color: var(--metric-amber); background: rgba(245, 181, 68, 0.12); border-color: rgba(245, 181, 68, 0.32); }
+.status-chip.warn { color: var(--metric-amber); background: color-mix(in srgb, var(--metric-amber) 12%, transparent); border-color: color-mix(in srgb, var(--metric-amber) 32%, transparent); }
 .status-chip.critical { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 12%, transparent); border-color: color-mix(in srgb, var(--color-error) 32%, transparent); }
 .summary-grid {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -870,7 +920,7 @@ footer.shell { padding-bottom: var(--space-8); color: var(--color-text-muted); f
   background: var(--view-wash); border: 1px solid var(--view-border);
 }
 .source-claim.unreliable {
-  background: rgba(245, 181, 68, 0.10); border: 1px solid rgba(245, 181, 68, 0.28);
+  background: color-mix(in srgb, var(--metric-amber-ink) 10%, transparent); border: 1px solid color-mix(in srgb, var(--metric-amber-ink) 28%, transparent);
 }
 .source-name {
   color: var(--color-text); font-weight: 650; overflow-wrap: anywhere;
@@ -1101,7 +1151,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
 }
 
 .metric-value { display: inline-block; font-variant-numeric: tabular-nums; }
-.metric-changed { animation: metricFlash 620ms cubic-bezier(0.22, 1, 0.36, 1); }
+.metric-changed { animation: metricFlash var(--dur-data) var(--ease-out); }
 
 @keyframes metricFlash {
   0% { filter: brightness(1); transform: scale(1); }
@@ -1154,8 +1204,8 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
   background: var(--surface-inset);
 }
 .live-summary.warn, .loaded-summary.spilled {
-  border-color: rgba(245, 181, 68, 0.32);
-  background: rgba(245, 181, 68, 0.08);
+  border-color: color-mix(in srgb, var(--metric-amber-ink) 32%, transparent);
+  background: color-mix(in srgb, var(--metric-amber-ink) 8%, transparent);
 }
 .live-summary.critical {
   border-color: color-mix(in srgb, var(--color-error) 36%, transparent);
@@ -1182,7 +1232,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
   font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums;
   line-height: 1.1; white-space: nowrap;
 }
-.live-summary.warn .live-summary-value, .loaded-summary.spilled .loaded-summary-value { color: #f5b544; }
+.live-summary.warn .live-summary-value, .loaded-summary.spilled .loaded-summary-value { color: var(--metric-amber-ink); }
 .live-summary.critical .live-summary-value { color: var(--color-error); }
 .live-summary.unavailable .live-summary-value, .loaded-summary.offline .loaded-summary-value { color: var(--color-text-muted); }
 .live-summary-chips, .loaded-summary-chips {
@@ -1204,7 +1254,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
   gap: var(--space-3); align-items: center;
   padding: 0.62rem 0.7rem; background: var(--surface-inset);
 }
-.live-pressure-row.warn .live-pressure-value { color: #f5b544; }
+.live-pressure-row.warn .live-pressure-value { color: var(--metric-amber-ink); }
 .live-pressure-row.critical .live-pressure-value { color: var(--color-error); }
 .live-pressure-name {
   color: var(--color-text); font-size: var(--fs-small); font-weight: 700;
@@ -1292,8 +1342,8 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
   background: color-mix(in srgb, var(--metric-cyan) 7%, transparent);
 }
 .loaded-state.spilled-state {
-  color: #f5b544;
-  background: rgba(245, 181, 68, 0.12);
+  color: var(--metric-amber-ink);
+  background: color-mix(in srgb, var(--metric-amber-ink) 12%, transparent);
 }
 .loaded-state.unknown-state {
   color: var(--color-text-muted);
@@ -1304,9 +1354,9 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
   font-size: var(--fs-small); line-height: 1.45;
 }
 .unload-notice.warn {
-  color: #f5b544;
-  background: rgba(245, 181, 68, 0.1);
-  border-color: rgba(245, 181, 68, 0.32);
+  color: var(--metric-amber-ink);
+  background: color-mix(in srgb, var(--metric-amber-ink) 10%, transparent);
+  border-color: color-mix(in srgb, var(--metric-amber-ink) 32%, transparent);
 }
 .unload-notice.unknown {
   color: var(--color-text-muted);
@@ -1323,7 +1373,7 @@ tbody tr:hover { background: color-mix(in srgb, var(--view-accent) 5%, transpare
   display: block; height: 100%; width: var(--resident, 0%);
   background: var(--color-primary);
 }
-.loaded-item.spilled .residency-meter span { background: #f5b544; }
+.loaded-item.spilled .residency-meter span { background: var(--metric-amber-ink); }
 .loaded-actions { display: flex; justify-content: flex-end; }
 .installed-item {
   position: relative;
@@ -1622,7 +1672,9 @@ function animateLiveMetric(node, key, nextValue, suffix, dial) {
   node.classList.add("metric-changed");
   paint(previous);
   const startedAt = performance.now();
-  const durationMs = 520;
+  // Shared with the site (src/motion.css --dur-data): baked in here at module
+  // scope, the one deliberate interpolation in this bundle.
+  const durationMs = ${DUR_DATA_MS};
   const step = (now) => {
     if (!node.isConnected) return;
     const progress = Math.min(1, (now - startedAt) / durationMs);

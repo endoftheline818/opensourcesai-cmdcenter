@@ -52,7 +52,23 @@ test("website tokens stay in sync, and the ones the dashboard renders stay live"
     primaryHover: "color-primary-hover",
     success: "color-success",
     error: "color-error",
+    // The instrument channel (site phase 4, L4 — docs/design-tokens-contract.md
+    // over there). Same shape as the rest: pinned in both themes, rendered dark.
+    brandCyan: "brand-cyan",
+    dataOrange: "data-orange",
+    warn: "color-warn",
+    warnInk: "color-warn-ink",
+    statusGreen: "status-green",
+    gridLine: "grid-line",
   };
+  // The fixture and the mirror must name the SAME set — a token added to the
+  // sync script (or the site's gate) without a mirror entry here, or the
+  // reverse, is the drift the contract exists to make loud.
+  assert.deepEqual(
+    Object.keys(fixture.dark).sort(),
+    Object.values(mapping).sort(),
+    "the fixture's token names and TOKENS' mirror must be the same list — the site's verify:css-tokens gate carries this list too",
+  );
 
   for (const mode of ["light", "dark"]) {
     for (const [ours, theirs] of Object.entries(mapping)) {
@@ -63,6 +79,11 @@ test("website tokens stay in sync, and the ones the dashboard renders stay live"
       );
     }
   }
+  assert.deepEqual(
+    { durData: fixture.motion["dur-data"], easeOut: fixture.motion["ease-out"] },
+    TOKENS.motion,
+    "the shared motion tokens drifted from the site's src/motion.css",
+  );
 
   // 2. LIVENESS. Asserted at the DECLARATION SITE, never with a bare substring
   //    search for the value: CSS.includes(TOKENS.light.bg) is true today purely
@@ -74,6 +95,12 @@ test("website tokens stay in sync, and the ones the dashboard renders stay live"
     "--radius-card": TOKENS.radiusCard,
     "--radius-frame": TOKENS.radiusFrame,
     "--content": TOKENS.content,
+    // The instrument channel renders from the site tokens too (L4).
+    "--metric-amber": TOKENS.dark.warn,
+    "--metric-amber-ink": TOKENS.dark.warnInk,
+    "--grid-line": TOKENS.dark.gridLine,
+    "--dur-data": TOKENS.motion.durData,
+    "--ease-out": TOKENS.motion.easeOut,
   };
   for (const [prop, value] of Object.entries(rendered)) {
     assert.ok(
@@ -88,6 +115,62 @@ test("website tokens stay in sync, and the ones the dashboard renders stay live"
   assert.match(CSS, /--color-bg:\s*var\(--color-canvas\)/, "the canvas must come from the industrial palette");
   assert.match(CSS, /--color-primary:\s*var\(--color-brand-cyan\)/, "the primary action colour is brand cyan, not the site primary");
   assert.match(CSS, /--color-text:\s*var\(--color-text-main\)/, "body text must come from the industrial palette");
+});
+
+// THE CONTRACT: EQUAL, NOT ALIASED (site phase 4, L4 — 2026-08-16).
+//
+// The alias lines above (--color-bg: var(--color-canvas) …) were, from CC 0.2.0
+// until the site's 2026-08-15 re-pin, a way of papering over a divergence: the
+// site's dark palette and this instrument's industrial palette were different
+// colours wearing the same names. Since that re-pin they are the same values,
+// and this test makes that a PROPERTY rather than a coincidence: the dark half
+// of the site's pinned tokens must equal the industrial palette in theme.css,
+// so a restyle on either side fails here instead of quietly turning the alias
+// back into a lie. The one deliberate non-equality is primaryHover — a TEXT
+// hover on the site (lightens on dark) and a FILLED-CONTROL hover here
+// (darkens, so the dark label stays legible) — recorded, not asserted.
+test("the site's dark palette EQUALS the industrial palette, token for token (the L4 contract)", async () => {
+  const fixture = await tokens();
+  const equal = {
+    "color-bg": INDUSTRIAL.canvas,
+    "color-surface": INDUSTRIAL.surface,
+    "color-border": INDUSTRIAL.borderSubtle,
+    "color-text-muted": INDUSTRIAL.textMuted,
+    "color-primary": INDUSTRIAL.brandCyan,
+    "brand-cyan": INDUSTRIAL.brandCyan,
+    "data-orange": INDUSTRIAL.dataOrange,
+    "status-green": INDUSTRIAL.statusGreen,
+  };
+  for (const [siteToken, industrial] of Object.entries(equal)) {
+    assert.equal(
+      fixture.dark[siteToken],
+      industrial,
+      `site --${siteToken} (dark) must EQUAL the industrial palette value, not merely be copied — see docs/design-tokens-contract.md in opensourcesai.com`,
+    );
+  }
+  // And the two ambers: the site's --color-warn is this instrument's
+  // --metric-amber, its dark --color-warn-ink is --metric-amber-ink. Both must
+  // be declared FROM the token (asserted in the liveness block above); here we
+  // pin that no second amber survives as a literal — #f5b544 and its rgba twin
+  // were exactly that until this contract.
+  assert.doesNotMatch(CSS, /f5b544|245,\s*181,\s*68/i, "the retired amber literal must not return — use --metric-amber(-ink)");
+  // The hairline grid is the site's --grid-line, at its declaration and where
+  // the body paints it.
+  assert.match(CSS, /background-image:\s*linear-gradient\(var\(--grid-line\) 1px, transparent 1px\)/, "the resting grid must paint from --grid-line");
+});
+
+// MOTION IS SHARED TOO. One duration for "this value just changed" on both
+// products: --dur-data from the site's src/motion.css. The CSS flash and the
+// rAF tween must both read it — the tween as a number, baked into the bundle
+// at module scope, which is why the site's gate insists the token stays an
+// integer millisecond value.
+test("the live-metric flash and tween share the site's --dur-data / --ease-out", async () => {
+  const fixture = await tokens();
+  const ms = parseInt(fixture.motion["dur-data"], 10);
+  assert.ok(Number.isInteger(ms) && ms > 0, "the fixture's dur-data must be an integer millisecond value");
+  assert.match(CSS, /\.metric-changed\s*\{\s*animation:\s*metricFlash var\(--dur-data\) var\(--ease-out\);\s*\}/, "the flash must animate on the shared tokens");
+  assert.ok(JS.includes(`const durationMs = ${ms};`), `the tween must run for the shared ${ms}ms — found no baked durationMs`);
+  assert.doesNotMatch(JS, /durationMs = (520|620)\b/, "the pre-contract 520/620ms literals must not survive");
 });
 
 // THE HUD PALETTE IS PINNED THE SAME WAY THE SITE TOKENS ARE.
