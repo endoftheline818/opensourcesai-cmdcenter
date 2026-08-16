@@ -2,12 +2,13 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-15",
+    "generatedAt": "2026-08-16",
     "modules": [
-      "src/index.css"
+      "src/index.css",
+      "src/motion.css"
     ]
   },
-  "note": "Design tokens copied into src/serve/ui.js so the dashboard reads as part of the platform. Parsed from the site's stylesheet, never transcribed.",
+  "note": "Design tokens copied into src/serve/ui.js so the dashboard reads as part of the platform. Parsed from the site's stylesheets, never transcribed. The name lists are shared with the site's verify:css-tokens gate and recorded in its docs/design-tokens-contract.md.",
   "light": {
     "color-bg": "#f8fafc",
     "color-surface": "#ffffff",
@@ -18,7 +19,13 @@
     "color-primary": "#0e7a8a",
     "color-primary-hover": "#0b5f6c",
     "color-success": "#166634",
-    "color-error": "#991b1b"
+    "color-error": "#991b1b",
+    "brand-cyan": "#00f0ff",
+    "data-orange": "#ff5a00",
+    "color-warn": "#f59e0b",
+    "color-warn-ink": "#b45309",
+    "status-green": "#15803d",
+    "grid-line": "rgba(15, 23, 42, 0.06)"
   },
   "dark": {
     "color-bg": "#09090b",
@@ -30,7 +37,13 @@
     "color-primary": "#00f0ff",
     "color-primary-hover": "#5ff4fa",
     "color-success": "#86efac",
-    "color-error": "#fca5a5"
+    "color-error": "#fca5a5",
+    "brand-cyan": "#00f0ff",
+    "data-orange": "#ff5a00",
+    "color-warn": "#f59e0b",
+    "color-warn-ink": "#fbbf24",
+    "status-green": "#22c55e",
+    "grid-line": "rgba(255, 255, 255, 0.028)"
   },
   "structural": {
     "radius-card": "12px",
@@ -38,5 +51,9 @@
     "content": "1120px",
     "font-body": "var(--font-inter, -apple-system), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
     "font-mono": "var(--font-jbm, ui-monospace), ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace"
+  },
+  "motion": {
+    "dur-data": "600ms",
+    "ease-out": "cubic-bezier(0.22, 1, 0.36, 1)"
   }
 }
