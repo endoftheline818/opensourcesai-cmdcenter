@@ -2,7 +2,7 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-16",
+    "generatedAt": "2026-08-20",
     "modules": [
       "docs/social-image-system/social-image-style-guide.md"
     ]
