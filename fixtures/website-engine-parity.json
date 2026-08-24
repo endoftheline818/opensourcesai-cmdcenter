@@ -2,7 +2,7 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-08-20",
+    "generatedAt": "2026-08-24",
     "modules": [
       "lib/checker-engine.js"
     ]
