@@ -10,7 +10,7 @@ Working notes for anyone maintaining this tool. **Read this before making a subs
 
 - **Repo:** `endoftheline818/opensourcesai-cmdcenter`
 - **Package:** `@opensourcesai/cmdcenter`, published to npm with provenance (decision recorded 2026-08-10; releases are CI-only by construction — see §4 rule 6)
-- **Node:** ≥20. **Zero dependencies, zero devDependencies.** Tests are `node --test`.
+- **Node:** ≥20. **Zero runtime dependencies**, and **exactly two development dependencies** — `tailwindcss` and `@tailwindcss/cli`, both v4, used only to compile the theme via `npm run build:theme`. `theme.generated.js` is committed, so the published package and the runtime import nothing from `node_modules`. `test/package.test.js` pins that allowlist to exactly those two names. Tests are `node --test`.
 
 ```bash
 node src/cli.js            # text diagnostic report
