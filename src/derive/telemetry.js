@@ -409,6 +409,37 @@ export function buildGauges(telemetry) {
 
   gauges.push(...gpuGauges(telemetry));
 
+  // CPU temperature, where the platform can state one honestly — which today
+  // means Linux hwmon, and a driver that is BY NAME the CPU's own (see
+  // pickCpuTempSensor in collect). Relevant to this dashboard for one specific
+  // reason: the moment a model spills to CPU, these cores become the inference
+  // hardware, and their thermals start meaning what the GPU's did.
+  //
+  // ABSENT, NOT "UNAVAILABLE", everywhere else — the fan precedent, extended
+  // deliberately. An unavailable tile carries a reason worth reading once; on
+  // every Windows and macOS machine this one would carry the same reason
+  // forever, and a permanent apology is furniture. The platform limits are
+  // documented at the collector, where the code that hits them lives.
+  //
+  // The sensor's name rides the reading as provenance because the channels are
+  // not interchangeable: k10temp's Tctl is a fan-curve target that reads high
+  // by design on some parts, and a reader deciding whether 78 °C matters is
+  // owed the fact that the number is Tctl and not Tdie.
+  if (Number.isFinite(telemetry.cpu?.tempC)) {
+    const source = telemetry.cpu.tempSource;
+    gauges.push(
+      gauge({
+        id: "cputemp",
+        label: "CPU temp",
+        kind: "temperature",
+        // Scaled against 100 °C like the GPU temp gauge; the detail line
+        // carries the real number, which is what people read.
+        percent: telemetry.cpu.tempC,
+        detail: `${telemetry.cpu.tempC} °C${source ? ` — ${source}` : ""}`,
+      }),
+    );
+  }
+
   if (telemetry.disk?.totalBytes) {
     const used = telemetry.disk.totalBytes - telemetry.disk.freeBytes;
     gauges.push(

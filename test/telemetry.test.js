@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildGauges, buildLivePayload, buildLoaded, severityFor } from "../src/derive/telemetry.js";
-import { collectTelemetry, parsePcieLink, parseThrottleReasons, resetCpuBaseline } from "../src/collect/telemetry.js";
+import { collectTelemetry, parsePcieLink, parseThrottleReasons, pickCpuTempSensor, resetCpuBaseline } from "../src/collect/telemetry.js";
 import { createRoutes, TELEMETRY_MIN_INTERVAL_MS } from "../src/serve/routes.js";
 
 const MIB = 1024 * 1024;
@@ -508,6 +508,86 @@ test("pcie.link lines parse all-or-nothing, with [N/A] as no reading", () => {
   const garbage = parsePcieLink("not, a, real, line, at-all");
   assert.equal(garbage.index, null);
   assert.equal(garbage.link, null);
+});
+
+// THE CPU TEMPERATURE PICKER. /sys/class/hwmon holds every sensor the kernel
+// knows — NVMe drives, the wifi radio, ACPI zones of unknowable position — so
+// the picker is an allowlist of drivers that are BY NAME the CPU's own, with a
+// channel preference that ranks honest die readings above k10temp's Tctl (a
+// fan-curve target that reads high by design on some parts). What these tests
+// protect: a warm SSD must never be reported as the CPU, and the provenance of
+// the chosen channel must survive to the reading.
+test("the package sensor outranks per-core channels", () => {
+  const picked = pickCpuTempSensor([
+    { name: "coretemp", channels: [
+      { label: "Core 0", milliC: 71_000 },
+      { label: "Package id 0", milliC: 62_000 },
+      { label: "Core 1", milliC: 69_000 },
+    ] },
+  ]);
+  assert.deepEqual(picked, { tempC: 62, source: "coretemp Package id 0" });
+});
+
+test("Tdie outranks Tctl, and Tctl's name rides the reading when it is all there is", () => {
+  const both = pickCpuTempSensor([
+    { name: "k10temp", channels: [
+      { label: "Tctl", milliC: 72_000 },
+      { label: "Tdie", milliC: 65_000 },
+    ] },
+  ]);
+  assert.deepEqual(both, { tempC: 65, source: "k10temp Tdie" });
+
+  const ctlOnly = pickCpuTempSensor([
+    { name: "k10temp", channels: [{ label: "Tctl", milliC: 72_000 }] },
+  ]);
+  assert.deepEqual(
+    ctlOnly,
+    { tempC: 72, source: "k10temp Tctl" },
+    "a reader deciding whether 72 matters is owed the fact that it is Tctl",
+  );
+});
+
+test("a warm SSD is never the CPU", () => {
+  const picked = pickCpuTempSensor([
+    { name: "nvme", channels: [{ label: "Composite", milliC: 54_000 }] },
+    { name: "iwlwifi_1", channels: [{ label: null, milliC: 48_000 }] },
+    { name: "acpitz", channels: [{ label: null, milliC: 47_000 }] },
+  ]);
+  assert.equal(picked, null, "no recognised CPU driver means no reading — acpitz is a zone, not a CPU");
+});
+
+test("an unlabelled SBC sensor still reads, by driver name alone", () => {
+  const picked = pickCpuTempSensor([
+    { name: "cpu_thermal", channels: [{ label: null, milliC: 55_400 }] },
+  ]);
+  assert.deepEqual(picked, { tempC: 55, source: "cpu_thermal" });
+});
+
+test("the CPU temp gauge carries the sensor's name as provenance", () => {
+  const gauges = buildGauges(sample({
+    cpu: { utilizationPercent: 42, logicalCores: 28, loadAverage: [1, 1, 1], tempC: 62, tempSource: "coretemp Package id 0" },
+  }));
+  const g = gauges.find((x) => x.id === "cputemp");
+
+  assert.equal(g.percent, 62);
+  assert.equal(g.severity, "normal");
+  assert.equal(g.detail, "62 °C — coretemp Package id 0");
+});
+
+test("CPU temp escalates on the temperature thresholds, like GPU temp", () => {
+  const at = (tempC) => buildGauges(sample({
+    cpu: { utilizationPercent: 42, logicalCores: 28, loadAverage: [1, 1, 1], tempC, tempSource: "coretemp Package id 0" },
+  })).find((x) => x.id === "cputemp").severity;
+
+  assert.equal(at(79), "normal");
+  assert.equal(at(85), "warn");
+  assert.equal(at(92), "critical");
+});
+
+test("no CPU sensor means no CPU temp gauge, not a zero bar", () => {
+  // The sample's cpu block has no tempC at all — the Windows and macOS shape.
+  const gauges = buildGauges(sample());
+  assert.equal(gauges.find((x) => x.id === "cputemp"), undefined);
 });
 
 test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
