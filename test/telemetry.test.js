@@ -230,6 +230,80 @@ test("missing clock counters mean no clocks gauge, not a zero bar", () => {
   assert.equal(gauges.find((g) => g.id === "clocks"), undefined);
 });
 
+// THE DISTINCTION THESE FOUR TESTS PROTECT: for the fan, null and 0 are
+// different facts about the world, and the collector goes out of its way to
+// keep them apart ("Null, never 0"). A board with no fan sensor must produce NO
+// gauge; a board whose fan is deliberately stopped must produce a real 0 that
+// says so. Collapse the two and the dashboard either invents a dead fan or
+// hides a stopped one.
+test("a fan reading becomes a gauge beside GPU temp", () => {
+  const fan = buildGauges(sample()).find((g) => g.id === "fan");
+
+  assert.equal(fan.available, true);
+  assert.equal(fan.percent, 55);
+  assert.equal(fan.severity, "normal");
+  assert.match(fan.detail, /55% of maximum/);
+});
+
+test("a board with no fan sensor gets no fan gauge, not a zero bar", () => {
+  const gauges = buildGauges(sample({
+    gpu: {
+      available: true,
+      gpus: [{
+        index: 0, name: "Laptop GPU", utilizationPercent: 10,
+        memoryUsedMib: 100, memoryTotalMib: 4096, temperatureC: 40,
+        powerDrawW: null, powerLimitW: null, clockMhz: null, clockMaxMhz: null,
+        fanPercent: null, throttle: null,
+      }],
+    },
+  }));
+
+  assert.equal(
+    gauges.find((g) => g.id === "fan"),
+    undefined,
+    "null means the board has no fan sensor — an absent gauge, never a 0% bar",
+  );
+});
+
+test("a stopped fan reads as a real zero that names itself", () => {
+  const fan = buildGauges(sample({
+    gpu: {
+      available: true,
+      gpus: [{
+        index: 0, name: "NVIDIA GeForce RTX 4070 Ti", utilizationPercent: 2,
+        memoryUsedMib: 400, memoryTotalMib: 12282, temperatureC: 34,
+        powerDrawW: 15, powerLimitW: 304.95, clockMhz: 210, clockMaxMhz: 2790,
+        fanPercent: 0, throttle: null,
+      }],
+    },
+  })).find((g) => g.id === "fan");
+
+  assert.equal(fan.available, true, "0 is a measurement, not a missing counter");
+  assert.equal(fan.percent, 0);
+  assert.match(fan.detail, /stopped|zero-RPM/, "a bare 0% beside a GPU reads as a dead fan");
+  assert.equal(fan.severity, "normal", "zero-RPM idle is how modern cards sit when cool");
+});
+
+// The same refusal the clock gauge makes about "at power limit": a fan at 100%
+// is the cooling system doing exactly its job. Escalating on correct behaviour
+// is how a dashboard teaches people to ignore it.
+test("a fan at 100% never escalates", () => {
+  const fan = buildGauges(sample({
+    gpu: {
+      available: true,
+      gpus: [{
+        index: 0, name: "NVIDIA GeForce RTX 3080", utilizationPercent: 98,
+        memoryUsedMib: 9000, memoryTotalMib: 10240, temperatureC: 77,
+        powerDrawW: 319, powerLimitW: 320, clockMhz: 1695, clockMaxMhz: 2100,
+        fanPercent: 100, throttle: null,
+      }],
+    },
+  })).find((g) => g.id === "fan");
+
+  assert.equal(fan.percent, 100);
+  assert.equal(fan.severity, "normal", "full cooling is not a fault");
+});
+
 test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
   const active = parseThrottleReasons("0, Active, Not Active, Active, [N/A]");
   assert.equal(active.index, 0);
