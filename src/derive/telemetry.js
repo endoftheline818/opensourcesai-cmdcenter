@@ -394,18 +394,22 @@ export function buildLoaded(telemetry) {
 
   return {
     reachable: true,
-    // GiB, not toGb's decimal GB, because this number exists to be read
-    // against the VRAM gauge — and that gauge renders GiB. Reporting 3.73 GB
-    // beside a gauge reading 3.5 GiB describes one quantity as two.
+    // toGb, not GiB. This is a reported SIZE, and every other size the tool
+    // states goes through toGb — model sizes, spill, disk free. GiB appears in
+    // exactly one place, the VRAM gauge's own detail string. Rendered live, the
+    // chip lands in a panel reading "VRAM 5.3 / 5.3 GB" and "Model disk 354.39
+    // GB free", where a lone GiB is the odd one out; the gauge it was briefly
+    // matched to is a panel away.
     //
     // Null whenever it cannot be known, and reported only once it is worth
-    // reading: below a tenth of a gibibyte this is rounding, and a chip saying
-    // "0.0 GiB outside Ollama" on every sample is how a true statement turns
+    // reading: below a tenth of a gigabyte this is rounding, and a chip saying
+    // "0.0 GB outside Ollama" on every sample is how a true statement turns
     // into furniture. See vramOutsideOllamaMib for what the number is not.
-    vramOutsideOllamaGib:
-      outsideMib !== null && outsideMib / 1024 >= 0.1
-        ? Number((outsideMib / 1024).toFixed(1))
-        : null,
+    vramOutsideOllamaGb: (() => {
+      if (outsideMib === null) return null;
+      const gb = toGb(outsideMib * MIB);
+      return gb !== null && gb >= 0.1 ? gb : null;
+    })(),
     models: (ollama.models ?? []).map((m) => {
       const residency = m.sizeBytes ? Math.round((m.sizeVramBytes / m.sizeBytes) * 100) : null;
       const spilled = residency !== null && residency < 100;

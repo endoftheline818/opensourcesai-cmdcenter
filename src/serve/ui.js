@@ -2734,8 +2734,8 @@ function renderLoadedSummary(live) {
   // residency is the panel that owns who accounts for what. Null when the
   // figure cannot be known, and absent rather than zero — the derive layer
   // already refused to guess, so there is nothing to soften here.
-  if (reachable && live.loaded.vramOutsideOllamaGib !== null) {
-    chips.append(el("span", null, live.loaded.vramOutsideOllamaGib + " GiB VRAM outside Ollama"));
+  if (reachable && live.loaded.vramOutsideOllamaGb !== null) {
+    chips.append(el("span", null, live.loaded.vramOutsideOllamaGb + " GB VRAM outside Ollama"));
   }
   summary.append(chips);
   return summary;
