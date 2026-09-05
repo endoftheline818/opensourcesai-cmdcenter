@@ -480,8 +480,8 @@ test("visual transformation charts every live counter with bounded honest histor
 
   assert.match(
     js,
-    /const TREND_GAUGE_IDS = new Set\(\["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "disk"\]\)/,
-    "the ten emitted live counters should all accumulate local history",
+    /const TREND_GAUGE_IDS = new Set\(\["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "cputemp", "disk"\]\)/,
+    "the eleven emitted live counters should all accumulate local history",
   );
   assert.match(js, /const FEATURED_GAUGE_IDS = new Set\(\["cpu", "ram", "gpu", "vram"\]\)/, "core pressure counters should lead the canvas");
   assert.match(js, /const LIVE_HISTORY_LIMIT = 30/, "trend history must have a small fixed memory bound");

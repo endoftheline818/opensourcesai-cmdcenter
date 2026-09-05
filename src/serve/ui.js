@@ -1633,7 +1633,7 @@ function statusChip(text, tone) {
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const liveMetricValues = new Map();
-const TREND_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "disk"]);
+const TREND_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "cputemp", "disk"]);
 const FEATURED_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram"]);
 // Fan joins clocks here for the same reason clocks is here: a fan at 100% is
 // the cooling system working, not the machine under pressure. Left out, it

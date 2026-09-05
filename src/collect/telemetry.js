@@ -54,6 +54,95 @@ function cpuUtilisation() {
 }
 
 /**
+ * Choose the CPU temperature from a set of parsed hwmon sensors.
+ *
+ * PURE and exported for tests. The allowlist is the point: /sys/class/hwmon
+ * holds every sensor the kernel knows — NVMe drives, the wifi radio, the GPU,
+ * ACPI zones of unknowable position — and picking "the hottest thing" or "the
+ * first thing" would report a warm SSD as the CPU. Only drivers that are BY
+ * NAME the CPU's own are eligible; everything else, acpitz included, is
+ * rejected because a motherboard zone is not a CPU reading, however close it
+ * usually sits.
+ *
+ * Channel preference, in order and for cause:
+ *   Tdie          k10temp's real die temperature, where the driver offers it
+ *   Package id 0  coretemp's whole-package sensor, over per-core channels
+ *   Tctl          k10temp's control input — a target for the fan curve that
+ *                 reads HIGH by design (a fixed offset on some parts), so it
+ *                 ranks below the two honest ones and its name rides the
+ *                 reading as provenance
+ *   first channel whatever an unlabelled driver (cpu_thermal on SBCs) offers
+ */
+export function pickCpuTempSensor(hwmons) {
+  const CPU_DRIVERS = new Set(["coretemp", "k10temp", "zenpower", "cpu_thermal", "cpu-thermal"]);
+  const candidates = (hwmons ?? []).filter((h) => CPU_DRIVERS.has(String(h?.name ?? "").trim()));
+
+  const byLabel = (label) => {
+    for (const sensor of candidates) {
+      for (const ch of sensor.channels ?? []) {
+        if (ch?.label === label && Number.isFinite(ch.milliC)) {
+          return { tempC: Math.round(ch.milliC / 1000), source: `${sensor.name} ${label}` };
+        }
+      }
+    }
+    return null;
+  };
+
+  const preferred = byLabel("Tdie") ?? byLabel("Package id 0") ?? byLabel("Tctl");
+  if (preferred) return preferred;
+
+  for (const sensor of candidates) {
+    for (const ch of sensor.channels ?? []) {
+      if (Number.isFinite(ch?.milliC)) {
+        return { tempC: Math.round(ch.milliC / 1000), source: sensor.name };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Read the CPU temperature from Linux hwmon. Null everywhere it cannot be
+ * read honestly: Windows exposes no per-CPU sensor without a kernel driver
+ * (the WMI thermal zone is absent or motherboard-grade on most desktops, and
+ * reaching it would need PowerShell — banned from this collector by the cost
+ * rule at the top of the file); macOS keeps the SMC behind entitlements and
+ * powermetrics behind sudo. sysfs, by contrast, is plain files: the whole
+ * scan is a handful of reads costing microseconds against the poll's ~50ms
+ * nvidia-smi.
+ */
+async function linuxCpuTemp() {
+  if (process.platform !== "linux") return null;
+  try {
+    const base = "/sys/class/hwmon";
+    const entries = await fsp.readdir(base);
+    const hwmons = [];
+    for (const entry of entries.slice(0, 24)) {
+      const dir = `${base}/${entry}`;
+      let name;
+      try {
+        name = (await fsp.readFile(`${dir}/name`, "utf8")).trim();
+      } catch {
+        continue;
+      }
+      const files = await fsp.readdir(dir).catch(() => []);
+      const channels = [];
+      for (const file of files) {
+        const m = /^temp(\d+)_input$/.exec(file);
+        if (!m || channels.length >= 32) continue;
+        const milliC = Number((await fsp.readFile(`${dir}/${file}`, "utf8").catch(() => "")).trim());
+        const label = (await fsp.readFile(`${dir}/temp${m[1]}_label`, "utf8").catch(() => "")).trim() || null;
+        channels.push({ label, milliC: Number.isFinite(milliC) ? milliC : null });
+      }
+      hwmons.push({ name, channels });
+    }
+    return pickCpuTempSensor(hwmons);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parse one CSV line of clocks_throttle_reasons fields.
  *
  * PURE and exported for tests. nvidia-smi reports these as the strings
@@ -317,11 +406,12 @@ async function loadedModels(host) {
 export async function collectTelemetry({ host, storePath = null, sampledAt = null } = {}) {
   // Independent, so run concurrently — the whole sample is bounded by the
   // slowest probe (nvidia-smi) rather than their sum.
-  const [gpu, disk, ollama, darwin] = await Promise.all([
+  const [gpu, disk, ollama, darwin, cpuTemp] = await Promise.all([
     nvidiaTelemetry(),
     diskFor(storePath),
     loadedModels(host),
     darwinMemory(),
+    linuxCpuTemp(),
   ]);
 
   return {
@@ -332,6 +422,10 @@ export async function collectTelemetry({ host, storePath = null, sampledAt = nul
       // Load average is meaningless on Windows (always zeros), so it is
       // reported as null there rather than as three convincing-looking zeros.
       loadAverage: process.platform === "win32" ? null : os.loadavg(),
+      // Null off Linux and on Linux boxes with no recognised CPU sensor — see
+      // linuxCpuTemp() for why the other platforms cannot answer honestly.
+      tempC: cpuTemp?.tempC ?? null,
+      tempSource: cpuTemp?.source ?? null,
     },
     memory: {
       totalBytes: os.totalmem(),
