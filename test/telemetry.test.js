@@ -563,6 +563,49 @@ test("an unlabelled SBC sensor still reads, by driver name alone", () => {
   assert.deepEqual(picked, { tempC: 55, source: "cpu_thermal" });
 });
 
+// THE REAL SENSOR SET FROM THE PROJECT'S OWN LINUX RIG (2570server, Alder
+// Lake on an MSI board, dumped 2026-09-04) — not invented numbers. It carries
+// a rejection case the original tests did not anticipate: nct6687, a Super-I/O
+// board monitor whose FIRST CHANNEL IS LABELLED "CPU". A picker that trusted
+// labels would report that board-routed reading as the CPU; the driver
+// allowlist takes the on-die sensor instead.
+const RIG_2570SERVER = [
+  { name: "acpitz", channels: [{ label: null, milliC: 27_800 }] },
+  { name: "nvme", channels: [{ label: "Composite", milliC: 38_900 }] },
+  { name: "nct6687", channels: [
+    { label: "CPU", milliC: 45_000 },
+    { label: "System", milliC: 36_000 },
+    { label: "VRM MOS", milliC: 41_000 },
+    { label: "PCH", milliC: 44_000 },
+    { label: "CPU Socket", milliC: 43_000 },
+    { label: "PCIe x1", milliC: 33_000 },
+    { label: "M2_1", milliC: 39_000 },
+  ] },
+  { name: "coretemp", channels: [
+    { label: "Package id 0", milliC: 47_000 },
+    { label: "Core 0", milliC: 44_000 },
+    { label: "Core 8", milliC: 46_000 },
+    { label: "Core 39", milliC: 43_000 },
+  ] },
+  { name: "iwlwifi_1", channels: [{ label: null, milliC: 42_000 }] },
+];
+
+test("the 2570server sensor set picks the on-die package, not the board's 'CPU' channel", () => {
+  assert.deepEqual(
+    pickCpuTempSensor(RIG_2570SERVER),
+    { tempC: 47, source: "coretemp Package id 0" },
+  );
+});
+
+test("a board monitor's 'CPU' label is never promoted when the on-die sensor is missing", () => {
+  const withoutCoretemp = RIG_2570SERVER.filter((h) => h.name !== "coretemp");
+  assert.equal(
+    pickCpuTempSensor(withoutCoretemp),
+    null,
+    "nct6687's reading is board-routed and of unknowable provenance — no reading beats a mislabelled one",
+  );
+});
+
 test("the CPU temp gauge carries the sensor's name as provenance", () => {
   const gauges = buildGauges(sample({
     cpu: { utilizationPercent: 42, logicalCores: 28, loadAverage: [1, 1, 1], tempC: 62, tempSource: "coretemp Package id 0" },
