@@ -130,6 +130,19 @@ you stop it.
 - **`channel N: open failed: connect failed: Connection refused`, repeating.**
   The tunnel is fine. Nothing is listening on the far end — the server is not
   running, or is on a different port.
+- **`serve` printed nothing and exited 0, so nothing is listening — and a
+  bare `npx` keeps reproducing it.** One published release, `0.2.0`, shipped a
+  bin that exited silently without starting a server; it was fixed in `0.2.1`.
+  `npm view` and `npm pack` fetch the current version, but bare
+  `npx @opensourcesai/cmdcenter` replays whatever it first cached, so a machine
+  that ran `0.2.0` once will keep launching it. Clear the npx cache once and
+  pin the version:
+  ```bash
+  rm -rf ~/.npm/_npx
+  npx @opensourcesai/cmdcenter@latest serve --port 7717
+  ```
+  Running `node src/cli.js serve` from a source clone (as shown above)
+  sidesteps the npx cache entirely.
 - **`Permission denied` binding the local port.** Usually not a permission
   problem: something on *your* machine already holds `127.0.0.1:7717`. An
   earlier tunnel or an earlier `serve` is the usual culprit.
