@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildGauges, buildLivePayload, buildLoaded, severityFor } from "../src/derive/telemetry.js";
-import { collectTelemetry, parseThrottleReasons, resetCpuBaseline } from "../src/collect/telemetry.js";
+import { collectTelemetry, parsePcieLink, parseThrottleReasons, resetCpuBaseline } from "../src/collect/telemetry.js";
 import { createRoutes, TELEMETRY_MIN_INTERVAL_MS } from "../src/serve/routes.js";
 
 const MIB = 1024 * 1024;
@@ -433,6 +433,81 @@ test("a GPU with no memory counters reports no VRAM figures", () => {
   const noCounters = withVram(3560, []);
   noCounters.gpu.gpus[0].memoryUsedMib = null;
   assert.equal(buildLivePayload(noCounters).vram, null);
+});
+
+// THE PCIE LINK GAUGE. The reading is negotiated bandwidth against rated
+// bandwidth — the silent-misconfiguration detector for risers and wrong
+// slots. The design constraint it lives under: PCIe SPEED steps down at idle
+// by design, so "current < max" describes every healthy desktop several times
+// a minute, and there is no vendor verdict to defer to (unlike throttle
+// reasons). So it never escalates, and only the speed shortfall gets the
+// by-design note — width is negotiated at link training, and a ×4 where ×16
+// is rated deserves attention precisely because nothing will shout about it.
+const withPcie = (pcie) => sample({
+  gpu: {
+    available: true,
+    gpus: [{
+      index: 0, name: "NVIDIA GeForce RTX 4070 Ti",
+      utilizationPercent: 5, memoryUsedMib: 3560, memoryTotalMib: 12282,
+      temperatureC: 46, powerDrawW: 27, powerLimitW: 305,
+      clockMhz: 210, clockMaxMhz: 3135, fanPercent: 0, throttle: null,
+      pcie,
+    }],
+  },
+});
+const pcieOf = (pcie) => buildGauges(withPcie(pcie)).find((g) => g.id === "pcie");
+
+test("a link at its rated maximum says so", () => {
+  const g = pcieOf({ genCurrent: 4, widthCurrent: 16, genMax: 4, widthMax: 16 });
+  assert.equal(g.percent, 100);
+  assert.equal(g.severity, "normal");
+  assert.match(g.detail, /Gen 4 ×16, the rated maximum/);
+});
+
+test("idle speed-stepping reads as designed behaviour, never as a fault", () => {
+  // A Gen 4 card in deep idle: Gen 1 ×16. 2.5·16 over 16·16 -> 15.625 -> 16%.
+  const g = pcieOf({ genCurrent: 1, widthCurrent: 16, genMax: 4, widthMax: 16 });
+  assert.equal(g.percent, 16);
+  assert.equal(g.severity, "normal", "current < max is every healthy desktop at idle");
+  assert.match(g.detail, /rated Gen 4 ×16/);
+  assert.match(g.detail, /speed steps down at idle by design/);
+});
+
+test("a width shortfall is named without the by-design excuse", () => {
+  // The riser / wrong-slot case: Gen 4 ×4 where ×16 is rated.
+  const g = pcieOf({ genCurrent: 4, widthCurrent: 4, genMax: 4, widthMax: 16 });
+  assert.equal(g.percent, 25);
+  assert.equal(g.severity, "normal", "no vendor verdict exists, so no escalation either");
+  assert.match(g.detail, /Gen 4 ×4 — rated Gen 4 ×16/);
+  assert.doesNotMatch(
+    g.detail,
+    /steps down at idle/,
+    "excusing a width shortfall teaches readers to ignore the one reading that usually means hardware",
+  );
+});
+
+test("no link probe means no link gauge, not a zero bar", () => {
+  assert.equal(pcieOf(null), undefined);
+  assert.equal(pcieOf(undefined), undefined);
+});
+
+test("an unknown PCIe generation yields no gauge rather than a guessed ratio", () => {
+  const g = pcieOf({ genCurrent: 7, widthCurrent: 16, genMax: 7, widthMax: 16 });
+  assert.equal(g, undefined, "a percentage against a guessed denominator is not a reading");
+});
+
+test("pcie.link lines parse all-or-nothing, with [N/A] as no reading", () => {
+  const full = parsePcieLink("0, 4, 16, 4, 16");
+  assert.equal(full.index, 0);
+  assert.deepEqual(full.link, { genCurrent: 4, widthCurrent: 16, genMax: 4, widthMax: 16 });
+
+  const partial = parsePcieLink("0, [N/A], 16, 4, 16");
+  assert.equal(partial.index, 0);
+  assert.equal(partial.link, null, "a link reading is a comparison; half of one is not a reading");
+
+  const garbage = parsePcieLink("not, a, real, line, at-all");
+  assert.equal(garbage.index, null);
+  assert.equal(garbage.link, null);
 });
 
 test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
