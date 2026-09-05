@@ -86,6 +86,64 @@ function darwinPressureSeverity(level) {
   return null;
 }
 
+const MIB = 1024 * 1024;
+
+/**
+ * VRAM in use that Ollama does not account for, in MiB — or null when that
+ * cannot be known. Answers the question the VRAM gauge alone cannot: the card
+ * reads 28% with no model loaded, so what is holding it?
+ *
+ * WHY BY SUBTRACTION, AND NOT BY ASKING WHO. The obvious probe is
+ * `nvidia-smi --query-compute-apps=pid,used_memory,process_name`, and it is the
+ * wrong tool twice over. On Windows every row's used_memory is literally
+ * "[N/A]" — the WDDM driver model does not expose per-process GPU memory, so
+ * the one number wanted is unavailable on an entire platform (verified on a
+ * 4070 Ti: 20 rows, every one [N/A]). And process_name arrives as a full path,
+ * so a feature about VRAM would quietly become a feature that prints
+ * "C:\\Users\\<name>\\AppData\\..." into a dashboard — a privacy surface bought
+ * for nothing. Both numbers below are ALREADY collected, so this costs no
+ * probe, leaks no path, and works wherever the existing two work.
+ *
+ * WHAT IT IS NOT: this is not "another app is hogging your VRAM". The
+ * remainder also holds the display, the compositor, and the driver's own
+ * allocations — on a desktop that is most of it, on a headless box nearly
+ * none. It is named "outside Ollama" because that is the only claim the
+ * arithmetic supports.
+ *
+ * REFUSES TO GUESS in four cases, each of which would produce a confident
+ * wrong number:
+ *   - more than one GPU, because Ollama reports VRAM across all of them while
+ *     this module reads gpus[0] — the subtraction would be comparing a total
+ *     against a part
+ *   - Ollama unreachable, because then its share is unknown, not zero
+ *   - any loaded model missing size_vram, same reason
+ *   - a negative remainder beyond rounding slack, which means the two sources
+ *     disagree about reality and neither gets to win silently
+ */
+function vramOutsideOllamaMib(telemetry) {
+  const gpus = telemetry.gpu?.gpus;
+  if (!Array.isArray(gpus) || gpus.length !== 1) return null;
+
+  const g = gpus[0];
+  if (!Number.isFinite(g.memoryUsedMib)) return null;
+
+  const ollama = telemetry.ollama;
+  if (!ollama?.reachable) return null;
+
+  const models = ollama.models;
+  if (!Array.isArray(models)) return null;
+  if (!models.every((m) => Number.isFinite(m?.sizeVramBytes))) return null;
+
+  const ollamaMib = models.reduce((sum, m) => sum + m.sizeVramBytes, 0) / MIB;
+  const outside = g.memoryUsedMib - ollamaMib;
+
+  // Two probes, two accounting conventions: a small negative is rounding, and
+  // clamps to zero. A large one is a real disagreement — say nothing rather
+  // than print a negative gigabyte.
+  if (outside < -64) return null;
+  return Math.max(0, outside);
+}
+
 function gpuGauges(telemetry) {
   const gpu = telemetry.gpu;
   if (!gpu?.available || !gpu.gpus?.length) {
@@ -118,6 +176,12 @@ function gpuGauges(telemetry) {
         label: "VRAM",
         kind: "capacity",
         percent: (g.memoryUsedMib / g.memoryTotalMib) * 100,
+        // Deliberately just the reading. The VRAM held outside Ollama belongs
+        // to the residency panel, which owns the question of who accounts for
+        // what — and, unlike this line, has room to say it. A featured tile's
+        // detail is one nowrap ellipsised row sharing width with the big
+        // percentage: an appended clause rendered as "3.5 GiB o…" here, which
+        // is worse than not saying it.
         detail: `${(g.memoryUsedMib / 1024).toFixed(1)} / ${(g.memoryTotalMib / 1024).toFixed(1)} GiB`,
       }),
     );
@@ -326,8 +390,22 @@ export function buildLoaded(telemetry) {
     return { reachable: false, authRequired: AUTH_STATUSES.has(ollama?.httpStatus), models: [] };
   }
 
+  const outsideMib = vramOutsideOllamaMib(telemetry);
+
   return {
     reachable: true,
+    // GiB, not toGb's decimal GB, because this number exists to be read
+    // against the VRAM gauge — and that gauge renders GiB. Reporting 3.73 GB
+    // beside a gauge reading 3.5 GiB describes one quantity as two.
+    //
+    // Null whenever it cannot be known, and reported only once it is worth
+    // reading: below a tenth of a gibibyte this is rounding, and a chip saying
+    // "0.0 GiB outside Ollama" on every sample is how a true statement turns
+    // into furniture. See vramOutsideOllamaMib for what the number is not.
+    vramOutsideOllamaGib:
+      outsideMib !== null && outsideMib / 1024 >= 0.1
+        ? Number((outsideMib / 1024).toFixed(1))
+        : null,
     models: (ollama.models ?? []).map((m) => {
       const residency = m.sizeBytes ? Math.round((m.sizeVramBytes / m.sizeBytes) * 100) : null;
       const spilled = residency !== null && residency < 100;
