@@ -137,6 +137,37 @@ function gpuGauges(telemetry) {
     );
   }
 
+  if (Number.isFinite(g.fanPercent)) {
+    // Sits beside GPU temp on purpose: a temperature only means something once
+    // you know what the cooling is doing to hold it. 77 °C at 45% fan is a card
+    // with headroom; 77 °C at 100% is a card that has already spent it.
+    //
+    // NEVER ESCALATES, for the same reason the clock gauge refuses to escalate
+    // on "at power limit": a fan at 100% is the cooling system doing its job,
+    // not a fault. Warning on correct behaviour is how a dashboard teaches
+    // people to ignore it. Heat is already judged by the temp gauge, and
+    // genuine thermal distress by the vendor's own throttle verdicts on the
+    // clock gauge — a third opinion here would be a heuristic, not a reading.
+    //
+    // ZERO IS A READING, NOT A GAP — which is exactly what the collector's
+    // "Null, never 0" rule buys. nvidia-smi reports "[N/A]" for a board with no
+    // fan sensor, and collect maps that to null (gauge omitted entirely, like
+    // temp and power). A real 0 therefore means something specific: the fan is
+    // deliberately stopped, which is how most modern cards idle. Rendered as a
+    // bare "0%" beside a warm GPU that reads as a dead fan, so it is named.
+    out.push(
+      gauge({
+        id: "fan",
+        label: "GPU fan",
+        percent: g.fanPercent,
+        detail:
+          g.fanPercent === 0
+            ? "stopped (zero-RPM idle)"
+            : `${Math.round(g.fanPercent)}% of maximum`,
+      }),
+    );
+  }
+
   if (Number.isFinite(g.powerDrawW) && Number.isFinite(g.powerLimitW) && g.powerLimitW > 0) {
     out.push(
       gauge({

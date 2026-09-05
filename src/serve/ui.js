@@ -1633,9 +1633,13 @@ function statusChip(text, tone) {
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const liveMetricValues = new Map();
-const TREND_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram", "temp", "power", "clocks", "disk"]);
+const TREND_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "disk"]);
 const FEATURED_GAUGE_IDS = new Set(["cpu", "ram", "gpu", "vram"]);
-const NON_PRESSURE_GAUGE_IDS = new Set(["clocks"]);
+// Fan joins clocks here for the same reason clocks is here: a fan at 100% is
+// the cooling system working, not the machine under pressure. Left out, it
+// would win the Pressure focus panel outright on any loaded card — displacing
+// the VRAM or temperature reading that panel exists to surface.
+const NON_PRESSURE_GAUGE_IDS = new Set(["clocks", "fan"]);
 const LIVE_HISTORY_LIMIT = 30;
 const liveMetricHistory = new Map();
 let viewTransitionFrame = null;
@@ -2439,7 +2443,7 @@ function metricTone(gauge) {
   if (!gauge.available) return "unknown";
   if (gauge.severity === "critical") return "critical";
   if (gauge.severity === "warn") return "warn";
-  if (["gpu", "vram", "temp", "power", "clocks", "disk"].includes(gauge.id)) return "orange";
+  if (["gpu", "vram", "temp", "fan", "power", "clocks", "disk"].includes(gauge.id)) return "orange";
   return "cyan";
 }
 
