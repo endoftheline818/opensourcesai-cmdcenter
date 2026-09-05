@@ -453,6 +453,45 @@ export function buildGauges(telemetry) {
     );
   }
 
+  // Live I/O of the device under the model store — the reading that explains a
+  // cold load. A 20 GB model's first-token wait is mostly this device handing
+  // over 20 GB, and until now the only trace it left was a slow chat reply.
+  //
+  // THE DIAL IS DEVICE-BUSY, NOT A RATE ON AN INVENTED SCALE. A throughput has
+  // no honest 100% — this dashboard cannot know a disk's ceiling without
+  // benchmarking it — but io_ticks over wall time is a real percentage with a
+  // real meaning: the fraction of the interval the device had I/O in flight
+  // (iostat's %util). The MB/s figure people actually want rides the detail.
+  //
+  // NEVER ESCALATES (kind "load", like CPU and GPU): a busy disk during a
+  // model load is the machine doing its job — and on NVMe, 100% busy does not
+  // even mean saturated, since parallel queues keep accepting work.
+  //
+  // Absent off Linux (see linuxDiskIo), "measuring…" for the first poll —
+  // a rate diffed from nothing is not 0 MB/s, the same honesty the CPU gauge
+  // applies to its own first sample.
+  const io = telemetry.diskIo;
+  if (io?.measuring) {
+    gauges.push(
+      gauge({
+        id: "diskio",
+        label: "Model disk I/O",
+        percent: null,
+        available: false,
+        reason: "measuring…",
+      }),
+    );
+  } else if (io && Number.isFinite(io.busyPercent) && Number.isFinite(io.readBytesPerSec)) {
+    gauges.push(
+      gauge({
+        id: "diskio",
+        label: "Model disk I/O",
+        percent: io.busyPercent,
+        detail: `${Math.round(io.readBytesPerSec / 1e6)} MB/s read — ${io.device}`,
+      }),
+    );
+  }
+
   return gauges;
 }
 

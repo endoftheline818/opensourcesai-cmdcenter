@@ -480,8 +480,8 @@ test("visual transformation charts every live counter with bounded honest histor
 
   assert.match(
     js,
-    /const TREND_GAUGE_IDS = new Set\(\["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "cputemp", "disk"\]\)/,
-    "the eleven emitted live counters should all accumulate local history",
+    /const TREND_GAUGE_IDS = new Set\(\["cpu", "ram", "gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "cputemp", "disk", "diskio"\]\)/,
+    "the twelve emitted live counters should all accumulate local history",
   );
   assert.match(js, /const FEATURED_GAUGE_IDS = new Set\(\["cpu", "ram", "gpu", "vram"\]\)/, "core pressure counters should lead the canvas");
   assert.match(js, /const LIVE_HISTORY_LIMIT = 30/, "trend history must have a small fixed memory bound");
@@ -523,7 +523,7 @@ test("industrial telemetry uses cyan system channels and orange hardware channel
   assert.match(js, /summaryCard\("Hardware"[\s\S]*"cyan"\)/, "hardware capacity is structure, not orange telemetry");
   assert.match(js, /summaryCard\("Loaded"[\s\S]*"cyan"\)/, "model residency stays in the cyan software channel");
   assert.match(js, /pressureCard\.classList\.add\(top\.severity\)/, "live pressure must move the summary accent to warning or critical state");
-  assert.match(js, /\["gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "disk"\]\.includes\(gauge\.id\)\) return "orange"/, "physical hardware gauges must use orange");
+  assert.match(js, /\["gpu", "vram", "temp", "fan", "power", "clocks", "pcie", "disk", "diskio"\]\.includes\(gauge\.id\)\) return "orange"/, "physical hardware gauges must use orange");
   assert.match(js, /return "cyan";/, "CPU and system memory must stay cyan");
   assert.match(css, /\.metric-sample-state \.live-dot\s*\{[^}]*background:\s*var\(--metric-color\)/, "each hardware or system polling dot must inherit its data channel");
   assert.match(css, /\.metric-stat-value\s*\{[^}]*color:\s*var\(--color-text-main\)/, "orange must not leak into telemetry typography");

@@ -54,6 +54,116 @@ function cpuUtilisation() {
 }
 
 /**
+ * The model disk's I/O counters are a RATE, like CPU utilisation: two reads of
+ * /sys/block/<dev>/stat, differenced. Same shape of state, same seam to reset
+ * it, and the same first-poll honesty — null is "not yet measurable", never 0.
+ */
+let previousDiskIoSample = null;
+
+/** Test seam: clears the disk I/O baseline so a suite starts deterministic. */
+export function resetDiskIoBaseline() {
+  previousDiskIoSample = null;
+}
+
+/**
+ * Find the mount that serves `targetPath` in /proc/self/mountinfo text, by
+ * LONGEST mount-point prefix — /home/x must resolve to /home's device, not
+ * /'s. PURE and exported for tests.
+ *
+ * Mountinfo's mount point is field 5, with spaces octal-escaped as \040; the
+ * device is field 3's major:minor, which /sys/dev/block resolves without any
+ * parsing of device-name conventions here.
+ */
+export function resolveMountDevice(mountinfoText, targetPath) {
+  const unescape = (v) => v.replace(/\\(\d{3})/g, (_, o) => String.fromCharCode(parseInt(o, 8)));
+  let best = null;
+  for (const line of String(mountinfoText).split("\n")) {
+    const f = line.split(" ");
+    if (f.length < 5) continue;
+    const mountPoint = unescape(f[4]);
+    const covers =
+      mountPoint === "/" || targetPath === mountPoint || targetPath.startsWith(mountPoint + "/");
+    if (!covers) continue;
+    if (!best || mountPoint.length > best.mountPoint.length) {
+      best = { mountPoint, majmin: f[2] };
+    }
+  }
+  return best;
+}
+
+/**
+ * Parse /sys/block/<dev>/stat (or a partition's): whitespace-separated
+ * counters, of which field 3 is sectors read (×512 bytes, a fixed unit
+ * regardless of the device's own sector size) and field 10 is io_ticks — the
+ * milliseconds the device had I/O in flight. PURE and exported for tests.
+ */
+export function parseBlockStat(text) {
+  const f = String(text).trim().split(/\s+/).map(Number);
+  if (f.length < 10 || f.some((n) => !Number.isFinite(n))) return null;
+  return { sectorsRead: f[2], ioTicksMs: f[9] };
+}
+
+/**
+ * Difference two block-stat samples into a rate. PURE and exported for tests.
+ *
+ * Null on anything that would make the arithmetic lie: a different device
+ * (store moved, drive replugged), counters that went BACKWARDS (reset or
+ * wrap — the next honest answer is a fresh baseline, not a negative rate), or
+ * no elapsed time. Busy is clamped to 100: io_ticks can outrun wall time by a
+ * millisecond of rounding, and 101% busy is a typo, not a measurement.
+ */
+export function diskIoDelta(prev, curr) {
+  if (!prev || !curr || prev.device !== curr.device) return null;
+  const elapsedMs = curr.at - prev.at;
+  if (!(elapsedMs > 0)) return null;
+  const sectors = curr.sectorsRead - prev.sectorsRead;
+  const ticks = curr.ioTicksMs - prev.ioTicksMs;
+  if (sectors < 0 || ticks < 0) return null;
+  return {
+    readBytesPerSec: (sectors * 512 * 1000) / elapsedMs,
+    busyPercent: Math.min(100, (ticks / elapsedMs) * 100),
+  };
+}
+
+/**
+ * Live I/O of the block device under the model store. Linux only, and for the
+ * same reasons as linuxCpuTemp below it in spirit: sysfs and procfs are plain
+ * files inside the poll budget, while Windows disk counters live behind
+ * PowerShell (banned here by the cost rule at the top of this file) and macOS
+ * behind iostat spawns. Elsewhere: null, and the gauge is absent.
+ *
+ * The device measured is the one the filesystem actually reads — the
+ * PARTITION (or dm mapping) that /sys/dev/block resolves for the mount, not
+ * the whole disk. Its name rides the reading as provenance.
+ *
+ * Returns null (cannot measure here), { measuring, device } (first comparable
+ * sample still pending), or { device, readBytesPerSec, busyPercent }.
+ */
+async function linuxDiskIo(storePath) {
+  if (process.platform !== "linux" || !storePath) return null;
+  try {
+    const mountinfo = await fsp.readFile("/proc/self/mountinfo", "utf8");
+    const mount = resolveMountDevice(mountinfo, storePath);
+    if (!mount) return null;
+
+    const sysdev = await fsp.realpath(`/sys/dev/block/${mount.majmin}`);
+    const device = sysdev.split("/").pop();
+    const stat = parseBlockStat(await fsp.readFile(`${sysdev}/stat`, "utf8"));
+    if (!stat) return null;
+
+    const current = { device, ...stat, at: Date.now() };
+    const previous = previousDiskIoSample;
+    previousDiskIoSample = current;
+
+    const delta = diskIoDelta(previous, current);
+    if (!delta) return { measuring: true, device };
+    return { device, ...delta };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Choose the CPU temperature from a set of parsed hwmon sensors.
  *
  * PURE and exported for tests. The allowlist is the point: /sys/class/hwmon
@@ -406,12 +516,13 @@ async function loadedModels(host) {
 export async function collectTelemetry({ host, storePath = null, sampledAt = null } = {}) {
   // Independent, so run concurrently — the whole sample is bounded by the
   // slowest probe (nvidia-smi) rather than their sum.
-  const [gpu, disk, ollama, darwin, cpuTemp] = await Promise.all([
+  const [gpu, disk, ollama, darwin, cpuTemp, diskIo] = await Promise.all([
     nvidiaTelemetry(),
     diskFor(storePath),
     loadedModels(host),
     darwinMemory(),
     linuxCpuTemp(),
+    linuxDiskIo(storePath),
   ]);
 
   return {
@@ -439,6 +550,10 @@ export async function collectTelemetry({ host, storePath = null, sampledAt = nul
     },
     gpu,
     disk,
+    // Null where it cannot be measured honestly; { measuring } until the
+    // second sample exists — a rate, like CPU utilisation, and honest the
+    // same way about its first poll.
+    diskIo,
     ollama,
   };
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildGauges, buildLivePayload, buildLoaded, severityFor } from "../src/derive/telemetry.js";
-import { collectTelemetry, parsePcieLink, parseThrottleReasons, pickCpuTempSensor, resetCpuBaseline } from "../src/collect/telemetry.js";
+import { collectTelemetry, diskIoDelta, parseBlockStat, parsePcieLink, parseThrottleReasons, pickCpuTempSensor, resetCpuBaseline, resetDiskIoBaseline, resolveMountDevice } from "../src/collect/telemetry.js";
 import { createRoutes, TELEMETRY_MIN_INTERVAL_MS } from "../src/serve/routes.js";
 
 const MIB = 1024 * 1024;
@@ -631,6 +631,87 @@ test("no CPU sensor means no CPU temp gauge, not a zero bar", () => {
   // The sample's cpu block has no tempC at all — the Windows and macOS shape.
   const gauges = buildGauges(sample());
   assert.equal(gauges.find((x) => x.id === "cputemp"), undefined);
+});
+
+// MODEL-DISK I/O. The dial is device-busy (io_ticks over wall time — a real
+// percentage), never a rate on an invented scale; the MB/s figure rides the
+// detail. What these tests protect: the arithmetic refuses to lie when the
+// counters do something arithmetic cannot survive — a reset, a replug, a
+// different device — and a first sample is "measuring", never 0 MB/s.
+test("mountinfo resolves by longest mount-point prefix, not first match", () => {
+  const mountinfo = [
+    "22 1 8:2 / / rw,relatime - ext4 /dev/sda2 rw",
+    "97 22 259:3 / /home rw,relatime - ext4 /dev/nvme0n1p3 rw",
+    "98 22 259:4 / /home/models\\040store rw - ext4 /dev/nvme0n1p4 rw",
+  ].join("\n");
+
+  assert.deepEqual(
+    resolveMountDevice(mountinfo, "/home/user/.ollama"),
+    { mountPoint: "/home", majmin: "259:3" },
+    "/home must win over / — the root would charge another disk's traffic to the store",
+  );
+  assert.deepEqual(
+    resolveMountDevice(mountinfo, "/var/lib/other"),
+    { mountPoint: "/", majmin: "8:2" },
+    "anything not under a specific mount belongs to the root device",
+  );
+  assert.deepEqual(
+    resolveMountDevice(mountinfo, "/home/models store/blobs").majmin,
+    "259:4",
+    "octal-escaped spaces in mount points must round-trip",
+  );
+});
+
+test("block stat lines parse sectors-read and io_ticks, or nothing", () => {
+  // A real 15-field /sys/block stat shape: field 3 sectors read, field 10 io_ticks.
+  const parsed = parseBlockStat("  8320   1201  501232   4520  100  30  9000  700  0  3400  5220  0 0 0 0");
+  assert.deepEqual(parsed, { sectorsRead: 501232, ioTicksMs: 3400 });
+
+  assert.equal(parseBlockStat("1 2 3"), null, "too few fields is no reading");
+  assert.equal(parseBlockStat("a b c d e f g h i j k"), null, "garbage is no reading");
+});
+
+test("the delta math converts sectors to bytes per second and clamps busy", () => {
+  const prev = { device: "nvme0n1p3", sectorsRead: 1000, ioTicksMs: 1000, at: 10_000 };
+  const curr = { device: "nvme0n1p3", sectorsRead: 2_001_000, ioTicksMs: 2_990, at: 12_000 };
+  const delta = diskIoDelta(prev, curr);
+
+  // 2,000,000 sectors × 512 bytes over 2 s = 512,000,000 B/s.
+  assert.equal(delta.readBytesPerSec, 512_000_000);
+  assert.equal(delta.busyPercent, 99.5);
+
+  const overTicked = diskIoDelta(prev, { ...curr, ioTicksMs: 1000 + 2_010 });
+  assert.equal(overTicked.busyPercent, 100, "io_ticks can outrun wall time by rounding; 101% is a typo, not a measurement");
+});
+
+test("counters that went backwards produce a fresh baseline, not a negative rate", () => {
+  const prev = { device: "nvme0n1p3", sectorsRead: 5_000_000, ioTicksMs: 9_000, at: 10_000 };
+  assert.equal(diskIoDelta(prev, { device: "nvme0n1p3", sectorsRead: 100, ioTicksMs: 9_100, at: 12_000 }), null);
+  assert.equal(diskIoDelta(prev, { device: "sda2", sectorsRead: 6_000_000, ioTicksMs: 9_100, at: 12_000 }), null, "a different device is a different story");
+  assert.equal(diskIoDelta(prev, { device: "nvme0n1p3", sectorsRead: 6_000_000, ioTicksMs: 9_100, at: 10_000 }), null, "no elapsed time, no rate");
+});
+
+test("the first disk sample is measuring, never 0 MB/s", () => {
+  const g = buildGauges(sample({ diskIo: { measuring: true, device: "nvme0n1p3" } }))
+    .find((x) => x.id === "diskio");
+
+  assert.equal(g.available, false);
+  assert.equal(g.percent, null);
+  assert.match(g.reason, /measuring/);
+});
+
+test("a live disk reading carries MB/s and the device as provenance", () => {
+  const g = buildGauges(sample({ diskIo: { device: "nvme0n1p3", readBytesPerSec: 512_000_000, busyPercent: 99.5 } }))
+    .find((x) => x.id === "diskio");
+
+  assert.equal(g.percent, 100, "99.5 rounds on the dial; the detail carries the real figures");
+  assert.equal(g.severity, "normal", "a busy disk during a model load is the machine doing its job");
+  assert.equal(g.detail, "512 MB/s read — nvme0n1p3");
+});
+
+test("no disk counters means no disk I/O gauge, not a zero bar", () => {
+  // The sample has no diskIo at all — the Windows and macOS shape.
+  assert.equal(buildGauges(sample()).find((x) => x.id === "diskio"), undefined);
 });
 
 test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
