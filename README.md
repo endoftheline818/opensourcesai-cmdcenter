@@ -44,14 +44,23 @@ This tool closes that gap by reading the machine directly.
 - **Apple Silicon unified memory**, including the usable-for-models figure —
   which is materially lower than the sticker RAM.
 - **Ollama**: version, reachability, installed models, loaded models and how
-  much of each is actually resident in VRAM rather than spilled to CPU.
-- **Live pressure**: CPU, system memory, GPU, VRAM, GPU temperature, power,
-  GPU clock, and model-disk gauges where the platform can measure them. The
-  clock gauge carries the **vendor's own throttle verdicts** — thermal slowdown
-  escalates it, running at the power limit is named but never shouted about
-  (that is how GPU Boost is designed to run), and an idle card's low clocks
-  read as the health they are. When the throttle probe does not answer, the
-  gauge makes no claim in either direction.
+  much of each is actually resident in VRAM rather than spilled to CPU — plus
+  the VRAM in use that Ollama does *not* account for, so a card that reads
+  30% full with nothing loaded stops being a mystery. Before a load, the
+  consequence panel weighs the model's requirement against what is actually
+  free, and says when evicting everything resident still would not be enough.
+- **Live pressure**: CPU, CPU temperature, system memory, GPU, VRAM, GPU
+  temperature, fan, power, GPU clock, PCIe link, and model-disk capacity and
+  I/O gauges, where the platform can measure them — a counter a platform
+  cannot answer is absent or says why, never a zero. The clock gauge carries
+  the **vendor's own throttle verdicts** — thermal slowdown escalates it,
+  running at the power limit is named but never shouted about (that is how
+  GPU Boost is designed to run), and an idle card's low clocks read as the
+  health they are. When the throttle probe does not answer, the gauge makes
+  no claim in either direction. Fan, link and disk-I/O follow the same rule
+  from the other side: a fan at 100%, a PCIe link stepped down at idle, or a
+  disk saturated mid-load is the machine working as designed, and none of
+  them ever masquerades as pressure.
 - **Local tools**: MCP server inventory with secret values and local paths
   removed during collection, plus a static verdict per server — the command
   located (never executed) and the config judged well-formed or broken, with
