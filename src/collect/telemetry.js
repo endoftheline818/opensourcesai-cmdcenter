@@ -86,18 +86,43 @@ export function parseThrottleReasons(line) {
 }
 
 /**
+ * Parse one CSV line of pcie.link fields. PURE and exported for tests, like
+ * parseThrottleReasons above and for the same reason.
+ *
+ * All four figures or none: a link reading is a comparison, and "Gen 1 of
+ * rated Gen ?" is not one. A board that answers "[N/A]" for any field parses
+ * to null and the gauge stays absent — unknown is not "downshifted", and it
+ * is not "fine" either.
+ */
+export function parsePcieLink(line) {
+  const f = String(line).split(",").map((s) => s.trim());
+  const num = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const index = num(f[0]);
+  const genCurrent = num(f[1]);
+  const widthCurrent = num(f[2]);
+  const genMax = num(f[3]);
+  const widthMax = num(f[4]);
+  const complete =
+    genCurrent !== null && widthCurrent !== null && genMax !== null && widthMax !== null;
+  return { index, link: complete ? { genCurrent, widthCurrent, genMax, widthMax } : null };
+}
+
+/**
  * NVIDIA live counters. `nounits` strips the trailing " %", " MiB", " W" so the
  * fields parse as plain numbers rather than needing per-field suffix handling.
  *
- * TWO QUERIES, DELIBERATELY. The throttle-reason fields ride a separate
- * nvidia-smi call: if a driver generation does not know one of them, nvidia-smi
- * fails the WHOLE query — and a missing throttle probe must degrade to
- * "throttle state unknown", never take the temperature and VRAM gauges down
- * with it. The calls run concurrently, so the poll budget pays for the slower
- * of the two, not the sum.
+ * THREE QUERIES, DELIBERATELY. The throttle-reason and pcie.link fields ride
+ * separate nvidia-smi calls: if a driver generation does not know one field,
+ * nvidia-smi fails the WHOLE query — and a missing throttle or link probe must
+ * degrade to its own unknown, never take the temperature and VRAM gauges down
+ * with it, and never take each other down. The calls run concurrently, so the
+ * poll budget pays for the slowest of the three, not the sum.
  */
 async function nvidiaTelemetry() {
-  const [res, throttleRes] = await Promise.all([
+  const [res, throttleRes, pcieRes] = await Promise.all([
     run(
       "nvidia-smi",
       [
@@ -114,6 +139,14 @@ async function nvidiaTelemetry() {
       ],
       { timeout: 4000 },
     ),
+    run(
+      "nvidia-smi",
+      [
+        "--query-gpu=index,pcie.link.gen.current,pcie.link.width.current,pcie.link.gen.max,pcie.link.width.max",
+        "--format=csv,noheader,nounits",
+      ],
+      { timeout: 4000 },
+    ),
   ]);
   if (!res.ok) return { available: false, reason: res.error };
 
@@ -122,6 +155,14 @@ async function nvidiaTelemetry() {
     for (const line of throttleRes.stdout.split("\n").filter(Boolean)) {
       const parsed = parseThrottleReasons(line);
       if (parsed.index !== null) throttleByIndex.set(parsed.index, parsed);
+    }
+  }
+
+  const pcieByIndex = new Map();
+  if (pcieRes.ok) {
+    for (const line of pcieRes.stdout.split("\n").filter(Boolean)) {
+      const parsed = parsePcieLink(line);
+      if (parsed.index !== null && parsed.link) pcieByIndex.set(parsed.index, parsed.link);
     }
   }
 
@@ -161,6 +202,9 @@ async function nvidiaTelemetry() {
               hwSlowdown: throttleRow.hwSlowdown,
             }
           : null,
+        // Null when the link probe did not answer, or answered incompletely —
+        // a link reading is a comparison, and half of one is not a reading.
+        pcie: (index !== null && pcieByIndex.get(index)) || null,
       };
     });
   return { available: true, gpus };

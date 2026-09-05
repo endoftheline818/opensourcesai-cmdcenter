@@ -284,7 +284,67 @@ function gpuGauges(telemetry) {
     );
   }
 
+  const pcie = pcieGauge(g.pcie);
+  if (pcie) out.push(pcie);
+
   return out;
+}
+
+/**
+ * Transfer rate per lane per PCIe generation, in GT/s. An explicit table, not
+ * 2.5 · 2^(gen−1): the doubling story breaks at Gen 3, which moved to 8 GT/s
+ * with denser encoding rather than 10. A generation this table does not know
+ * yields no gauge — a percentage against a guessed denominator is not a
+ * reading.
+ */
+const PCIE_GTS = { 1: 2.5, 2: 5, 3: 8, 4: 16, 5: 32, 6: 64 };
+
+/**
+ * The negotiated PCIe link against what the link is rated for. This is the
+ * silent-misconfiguration detector: a card seated behind a flaky riser or in a
+ * chipset slot negotiates ×4 instead of ×16, nothing anywhere says so, and
+ * model loads plus every CPU-offloaded token quietly take a fraction of the
+ * bus they paid for.
+ *
+ * NEVER ESCALATES, and the reason is load-bearing: PCIe speed STEPS DOWN AT
+ * IDLE BY DESIGN. A Gen 4 card sits at Gen 1 in deep idle and renegotiates
+ * under load, so "current < max" describes every healthy desktop on the
+ * planet several times a minute. There is no vendor verdict to defer to here
+ * (unlike the clock gauge's throttle reasons), so severity stays flat and the
+ * detail says what is rated and, when speed is the shortfall, why that can be
+ * normal. The one shortfall the note deliberately does NOT excuse is width:
+ * lanes are negotiated at link training, and a ×4 where ×16 is rated is worth
+ * a reader's attention precisely because this gauge will not shout about it.
+ *
+ * The percentage is negotiated bandwidth over rated bandwidth — speed × width
+ * on both sides — so the sparkline shows the link waking up under load, the
+ * same story the clock gauge tells.
+ */
+function pcieGauge(pcie) {
+  if (!pcie) return null;
+  const { genCurrent, widthCurrent, genMax, widthMax } = pcie;
+  const speedNow = PCIE_GTS[genCurrent];
+  const speedMax = PCIE_GTS[genMax];
+  if (!speedNow || !speedMax || !(widthCurrent > 0) || !(widthMax > 0)) return null;
+
+  const atMax = genCurrent === genMax && widthCurrent === widthMax;
+  let detail = `Gen ${genCurrent} ×${widthCurrent}`;
+  if (atMax) {
+    detail += ", the rated maximum";
+  } else {
+    detail += ` — rated Gen ${genMax} ×${widthMax}`;
+    // Only the speed shortfall gets the by-design note. Saying it beside a
+    // width shortfall would teach readers to ignore the one reading that
+    // usually means a riser or the wrong slot.
+    if (genCurrent < genMax) detail += "; speed steps down at idle by design";
+  }
+
+  return gauge({
+    id: "pcie",
+    label: "PCIe link",
+    percent: ((speedNow * widthCurrent) / (speedMax * widthMax)) * 100,
+    detail,
+  });
 }
 
 export function buildGauges(telemetry) {
