@@ -4,6 +4,8 @@ import { buildGauges, buildLivePayload, buildLoaded, severityFor } from "../src/
 import { collectTelemetry, parseThrottleReasons, resetCpuBaseline } from "../src/collect/telemetry.js";
 import { createRoutes, TELEMETRY_MIN_INTERVAL_MS } from "../src/serve/routes.js";
 
+const MIB = 1024 * 1024;
+
 const sample = (overrides = {}) => ({
   sampledAt: "2026-01-01T00:00:00.000Z",
   cpu: { utilizationPercent: 42, logicalCores: 28, loadAverage: null },
@@ -302,6 +304,100 @@ test("a fan at 100% never escalates", () => {
 
   assert.equal(fan.percent, 100);
   assert.equal(fan.severity, "normal", "full cooling is not a fault");
+});
+
+// WHAT THESE TESTS PROTECT: the VRAM gauge can say a card is 29% full, but not
+// why — and "why" is the whole question when a model will not fit. The
+// remainder after Ollama's own reported VRAM is the answer, and most cases
+// below are ones where computing it would produce a confident wrong number.
+const withVram = (usedMib, models, extra = {}) => sample({
+  gpu: {
+    available: true,
+    gpus: [{
+      index: 0, name: "NVIDIA GeForce RTX 4070 Ti",
+      utilizationPercent: 5, memoryUsedMib: usedMib, memoryTotalMib: 12282,
+      temperatureC: 46, powerDrawW: 27, powerLimitW: 305,
+      clockMhz: 210, clockMaxMhz: 3135, fanPercent: 0, throttle: null,
+    }],
+    ...(extra.gpu || {}),
+  },
+  ollama: { reachable: true, models, ...(extra.ollama || {}) },
+});
+const outside = (...args) => buildLoaded(withVram(...args)).vramOutsideOllamaGb;
+
+test("VRAM held outside Ollama is reported on the residency panel", () => {
+  // 3560 MiB in use, nothing loaded — the real reading off a desktop 4070 Ti.
+  assert.equal(outside(3560, []), 3.73, "with no model loaded, all of it is outside Ollama");
+});
+
+// The unit is a decision, not an accident. Every size this tool reports goes
+// through toGb — model sizes, spill, disk free — and the chip lands in a panel
+// reading "VRAM 5.3 / 5.3 GB" beside "Model disk 354.39 GB free". GiB appears
+// in exactly one place, the VRAM gauge's own detail string, a panel away. A
+// lone GiB among GB neighbours is the odd one out, so this pins decimal GB.
+test("the figure is decimal GB, matching every other size the tool reports", () => {
+  // 3560 MiB is 3.73 GB and 3.48 GiB. Only one of those may appear.
+  assert.equal(outside(3560, []), 3.73);
+  assert.notEqual(outside(3560, []), 3.5, "GiB would put the panel's only gibibyte beside two GB figures");
+});
+
+test("a loaded model's own VRAM is not counted against it", () => {
+  // 8 GiB in use, of which Ollama reports 6 GiB resident -> 2 GiB outside.
+  assert.equal(
+    outside(8192, [{ name: "qwen3:4b", sizeBytes: 7 * 1024 * MIB, sizeVramBytes: 6 * 1024 * MIB }]),
+    2.15,
+  );
+});
+
+// The VRAM gauge stays a reading and nothing more. A featured tile's detail is
+// one nowrap ellipsised row sharing width with the big percentage, so an
+// appended clause rendered as "3.5 GiB o..." on a real 1100px viewport.
+test("the VRAM gauge itself carries only the reading", () => {
+  const vram = buildGauges(withVram(3560, [])).find((g) => g.id === "vram");
+  assert.equal(vram.detail, "3.5 / 12.0 GiB");
+  assert.doesNotMatch(vram.detail, /outside Ollama/);
+});
+
+test("a trivial remainder is left unsaid rather than reported as furniture", () => {
+  assert.equal(
+    outside(6144, [{ name: "qwen3:4b", sizeBytes: 6 * 1024 * MIB, sizeVramBytes: 6100 * MIB }]),
+    null,
+    "44 MiB of rounding is not worth a chip",
+  );
+});
+
+test("an unreachable Ollama means unknown, not zero, outside it", () => {
+  const loaded = buildLoaded(withVram(3560, [], { ollama: { reachable: false } }));
+  assert.equal(
+    loaded.vramOutsideOllamaGb,
+    undefined,
+    "the offline shape carries no figure at all — claiming all 3.5 GB is outside Ollama would be a guess",
+  );
+});
+
+test("a loaded model with no size_vram makes the remainder unknowable", () => {
+  assert.equal(
+    outside(8192, [{ name: "qwen3:4b", sizeBytes: 7 * 1024 * MIB, sizeVramBytes: null }]),
+    null,
+  );
+});
+
+// The subtraction compares Ollama's total against ONE card's usage. On a
+// two-GPU box that is a total against a part, and the answer is wrong in a way
+// that looks perfectly reasonable.
+test("more than one GPU means no claim at all", () => {
+  const twoCards = withVram(3560, []);
+  twoCards.gpu.gpus.push({ ...twoCards.gpu.gpus[0], index: 1 });
+  assert.equal(buildLoaded(twoCards).vramOutsideOllamaGb, null);
+});
+
+test("two sources disagreeing beyond rounding produces silence, not a negative", () => {
+  // Ollama claims 10 GiB resident while the card reports 2 GiB in use.
+  const value = outside(2048, [
+    { name: "phantom", sizeBytes: 10 * 1024 * MIB, sizeVramBytes: 10 * 1024 * MIB },
+  ]);
+  assert.equal(value, null);
+  assert.ok(value === null || value >= 0, "a negative gigabyte must never reach the screen");
 });
 
 test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
