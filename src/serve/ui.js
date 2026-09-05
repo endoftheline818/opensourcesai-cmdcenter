@@ -2544,12 +2544,67 @@ function loadedModelMap(live) {
   return map;
 }
 
+/**
+ * What the catalog says this model needs FREE — weights plus runtime overhead,
+ * not the file size. Null for a model the catalog does not list (a local
+ * derivative, an embedding model), where no requirement is known and none may
+ * be invented.
+ */
+function requiredVramGbFor(target) {
+  const entry = (dashboardData && dashboardData.installed ? dashboardData.installed : [])
+    .find((m) => m.name === target);
+  const gb = entry && entry.grade ? entry.grade.requiredVramGb : null;
+  return Number.isFinite(gb) ? gb : null;
+}
+
+/**
+ * THE BUG THIS REPLACES. This function used to consult only the list of loaded
+ * models, so with nothing resident it always answered "No resident model right
+ * now; this loads X without downloading anything" — reassuring, and wrong
+ * whenever something OUTSIDE Ollama already holds the card. On a desktop with
+ * 3.7 GB spent on the display, an 11 GB model on a 12 GB card cannot load, and
+ * the one panel headed Consequence said nothing about it.
+ *
+ * WHY IT HEDGES WITH "about". The two numbers come from different worlds: the
+ * requirement is the catalog's estimate of weights plus overhead, while free is
+ * measured bytes off the card. They are close enough to decide by and not close
+ * enough to be exact at the boundary, so the copy never promises a load will
+ * succeed — only what the figures say. Eviction is Ollama's decision, not this
+ * dashboard's, so every branch says "may".
+ *
+ * Missing either number degrades to exactly the old wording, which was correct
+ * as far as it went.
+ */
 function describeLoadConsequence(target) {
   if (!target) return "Choose an installed model.";
   const loaded = (lastLive && lastLive.loaded.reachable ? lastLive.loaded.models : []);
   if (loaded.some((m) => m.name === target)) return target + " is already resident in memory.";
-  if (!loaded.length) return "No resident model right now; this loads " + target + " without downloading anything.";
-  return "Loading " + target + " may evict " + loaded.map((m) => m.name).join(", ") + " to make room.";
+
+  const evictable = loaded.map((m) => m.name).join(", ");
+  const free = lastLive && lastLive.vram ? lastLive.vram.freeGb : null;
+  const needs = requiredVramGbFor(target);
+
+  if (!Number.isFinite(free) || !Number.isFinite(needs)) {
+    if (!loaded.length) return "No resident model right now; this loads " + target + " without downloading anything.";
+    return "Loading " + target + " may evict " + evictable + " to make room.";
+  }
+
+  if (needs <= free) {
+    return target + " needs about " + needs + " GB and " + free + " GB is free"
+      + (loaded.length ? ", so no eviction should be required." : ", so it should load without evicting anything.");
+  }
+
+  // Short of free VRAM. Whether evicting what is resident could cover the gap
+  // is the difference between a routine swap and a load that cannot succeed —
+  // and only the second one is worth a warning.
+  const residentGb = loaded.reduce((sum, m) => sum + (Number.isFinite(m.sizeVramGb) ? m.sizeVramGb : 0), 0);
+  if (loaded.length && needs <= free + residentGb) {
+    return target + " needs about " + needs + " GB but only " + free + " GB is free, so loading it may evict " + evictable + ".";
+  }
+  if (loaded.length) {
+    return target + " needs about " + needs + " GB. Only " + free + " GB is free, and evicting " + evictable + " would not free enough.";
+  }
+  return target + " needs about " + needs + " GB but only " + free + " GB is free, and no model is loaded to evict — something outside Ollama is holding the card.";
 }
 
 function updateSwitcherPreview(target) {
@@ -2929,9 +2984,38 @@ function modelMatchesCatalogFilter(m) {
   return m.fit === catalogFitFilter;
 }
 
+/**
+ * The grading basis, plus what is actually free at this moment.
+ *
+ * ONE LINE, NOT ONE PER ROW. The row builder's own note records that repeating
+ * a per-model figure 27 times was the single largest contributor to this
+ * table's height without adding information; a free-VRAM figure repeated down
+ * a column would be the same mistake with a number that is identical in every
+ * row. It also carries an id because it is a live figure in a table that is
+ * not rebuilt on every poll — updateCatalogHeadroom keeps it honest, and
+ * without that it would be a stale number wearing the words "right now".
+ */
+function catalogHeadroomLine(d) {
+  const line = el("p", "explain", d.hardware.note);
+  line.id = "catalog-headroom";
+  return line;
+}
+
+function updateCatalogHeadroom() {
+  const line = document.getElementById("catalog-headroom");
+  if (!line || !dashboardData) return;
+  const base = dashboardData.hardware.note;
+  const free = lastLive && lastLive.vram ? lastLive.vram.freeGb : null;
+  // Grades are a capability claim against the nameplate and do not move with
+  // the desktop. This sentence is the current state standing beside them, so
+  // it is additive and never rewrites the basis.
+  line.textContent = Number.isFinite(free) ? base + " " + free + " GB is free right now." : base;
+}
+
 function catalogPanel(d) {
   const p = panel("What this machine can run");
   p.className += " catalog-panel";
+  p.append(catalogHeadroomLine(d));
 
   const counts = catalogCounts(d.models);
   const query = catalogQuery.trim().toLowerCase();
@@ -3430,6 +3514,7 @@ async function poll() {
     renderSummaryLive(live);
     renderInstalledLive(live);
     updateSwitcherConsequence();
+    updateCatalogHeadroom();
   } catch (err) {
     consecutiveFailures += 1;
     telemetryIsLive = false;

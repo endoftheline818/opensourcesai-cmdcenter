@@ -400,6 +400,41 @@ test("two sources disagreeing beyond rounding produces silence, not a negative",
   assert.ok(value === null || value >= 0, "a negative gigabyte must never reach the screen");
 });
 
+// Deciding whether a model will fit needs numbers, not a gauge's display
+// string — and needs them even when Ollama is silent, because how much of a
+// card is free is a fact about the card.
+test("the live payload carries VRAM as figures, not just a gauge", () => {
+  const vram = buildLivePayload(withVram(3560, [])).vram;
+
+  assert.equal(vram.totalGb, 12.88, "12282 MiB in decimal GB");
+  assert.equal(vram.usedGb, 3.73);
+  assert.equal(vram.freeGb, 9.15, "12282 - 3560 = 8722 MiB");
+});
+
+test("VRAM figures survive an unreachable Ollama", () => {
+  const payload = buildLivePayload(withVram(3560, [], { ollama: { reachable: false } }));
+
+  assert.equal(payload.loaded.reachable, false, "residency is unknown");
+  assert.equal(payload.vram.freeGb, 9.15, "free VRAM is a fact about the GPU, not about Ollama");
+});
+
+test("more than one GPU means no VRAM figures at all", () => {
+  const twoCards = withVram(3560, []);
+  twoCards.gpu.gpus.push({ ...twoCards.gpu.gpus[0], index: 1 });
+
+  assert.equal(
+    buildLivePayload(twoCards).vram,
+    null,
+    "gpus[0] alone would call a box with a second idle card nearly full",
+  );
+});
+
+test("a GPU with no memory counters reports no VRAM figures", () => {
+  const noCounters = withVram(3560, []);
+  noCounters.gpu.gpus[0].memoryUsedMib = null;
+  assert.equal(buildLivePayload(noCounters).vram, null);
+});
+
 test("throttle-reason lines parse Active, Not Active, and unknown honestly", () => {
   const active = parseThrottleReasons("0, Active, Not Active, Active, [N/A]");
   assert.equal(active.index, 0);

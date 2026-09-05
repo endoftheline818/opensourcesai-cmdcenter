@@ -632,6 +632,26 @@ test("live system explains pressure before gauge dials", () => {
   assert.match(js, /"No live counters available/, "unknown telemetry must stay honest");
 });
 
+// REGRESSION GUARD FOR A REASSURING WRONG ANSWER. describeLoadConsequence used
+// to read only the list of loaded models, so with nothing resident it always
+// said "this loads X without downloading anything" — true about downloading,
+// silent about the load being impossible when something outside Ollama already
+// holds the card. The panel is headed Consequence; it has to know the numbers.
+test("the load consequence weighs free VRAM, not just what is resident", () => {
+  const js = withoutComments(JS);
+
+  assert.match(js, /function requiredVramGbFor\(target\)/, "the requirement must be looked up, never assumed");
+  assert.match(js, /lastLive && lastLive\.vram \? lastLive\.vram\.freeGb : null/, "free VRAM must come from the live sample");
+  assert.match(
+    js,
+    /if \(!Number\.isFinite\(free\) \|\| !Number\.isFinite\(needs\)\)/,
+    "either figure missing must fall back to the old wording, not to a guess",
+  );
+  assert.match(js, /no model is loaded to evict/, "the nothing-resident-but-still-full case must be named");
+  assert.match(js, /would not free enough/, "an impossible load must be distinguished from a routine eviction");
+  assert.doesNotMatch(js, /will fit|guaranteed/, "eviction is Ollama's call; this panel reports figures, never promises");
+});
+
 test("loaded view explains residency before unload controls", () => {
   const css = withoutComments(CSS);
   const js = withoutComments(JS);

@@ -384,6 +384,32 @@ const AUTH_STATUSES = new Set([401, 403, 407]);
  * a small fraction of the speed — and the context length it was loaded with is
  * the lever, because the KV cache scales with it.
  */
+/**
+ * The card's own VRAM accounting, in decimal GB. Independent of Ollama on
+ * purpose: how much of a GPU is free is a fact about the GPU, and staying
+ * readable while Ollama is unreachable is the whole point of separating it from
+ * buildLoaded's residency shape.
+ *
+ * Single GPU only, for the same reason vramOutsideOllamaMib refuses: this
+ * module reads gpus[0], while a runtime may place a model across several cards.
+ * "Only 2 GB free" is a confident lie on a box with a second idle card in it.
+ */
+function buildVram(telemetry) {
+  const gpus = telemetry.gpu?.gpus;
+  if (!Array.isArray(gpus) || gpus.length !== 1) return null;
+
+  const g = gpus[0];
+  if (!Number.isFinite(g.memoryUsedMib) || !Number.isFinite(g.memoryTotalMib)) return null;
+  if (g.memoryTotalMib <= 0) return null;
+
+  const freeMib = Math.max(0, g.memoryTotalMib - g.memoryUsedMib);
+  return {
+    totalGb: toGb(g.memoryTotalMib * MIB),
+    usedGb: toGb(g.memoryUsedMib * MIB),
+    freeGb: toGb(freeMib * MIB),
+  };
+}
+
 export function buildLoaded(telemetry) {
   const ollama = telemetry.ollama;
   if (!ollama?.reachable) {
@@ -435,5 +461,9 @@ export function buildLivePayload(telemetry) {
     sampledAt: telemetry.sampledAt,
     gauges: buildGauges(telemetry),
     loaded: buildLoaded(telemetry),
+    // Raw enough to compute with. The VRAM gauge carries a percentage and a
+    // display string; deciding whether a model will fit needs the numbers
+    // themselves, and null when they are not knowable.
+    vram: buildVram(telemetry),
   };
 }
