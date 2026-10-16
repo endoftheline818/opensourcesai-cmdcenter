@@ -14,8 +14,8 @@
 // remembered to copy. Nothing here is written by hand any more.
 //
 //   source      opensourcesai.com lib/checker-engine.js
-//   sha256      e31ca84c24124bc1ad2bc43afe749e9cd2ad490240f1816c77557657e0f545f0
-//   copied      2026-08-31
+//   sha256      3c69705bd05b74b25cb94cadc1247d7991ec1a0bc72bf2a6bbffba08157e4870
+//   copied      2026-10-16
 //   regenerate  node scripts/sync-from-website.mjs ../opensourcesai.com
 //
 // The digest covers everything below the marker — the upstream bytes, LF-normalized —
@@ -207,8 +207,8 @@ export function buildRationale(model, quant, vramGb, systemRamGb, workflow) {
     const minNeeded = model.quantizations.q4_k_m?.vramGb ?? model.quantizations.q8_0?.vramGb ?? 0;
     return (
       `${model.name} needs at least ${minNeeded} GB of VRAM or ` +
-      `${Math.ceil(minNeeded * 1.6)} GB of system RAM for CPU inference — ` +
-      `both exceed your available resources.`
+      `${Math.ceil(minNeeded * 1.6)} GB of system RAM for CPU inference, ` +
+      `and both exceed your available resources.`
     );
   }
 
@@ -235,11 +235,11 @@ export function buildRationale(model, quant, vramGb, systemRamGb, workflow) {
     const headroom = Math.round((vramGb - required) * 10) / 10;
     fitPhrase = `fits in ${quantLabel} with ${headroom} GB of VRAM to spare`;
   } else if (fit === 'tight') {
-    fitPhrase = `fills nearly all ${vramGb} GB of VRAM in ${quantLabel} — close long context sessions when not needed`;
+    fitPhrase = `fills nearly all ${vramGb} GB of VRAM in ${quantLabel}, so close long context sessions when not needed`;
   } else if (sparseMoe) {
-    fitPhrase = `runs via CPU RAM offload in ${quantLabel} at usable speed — a sparse mixture-of-experts model activates only ~${activeB}B of its ${model.parametersBillions}B parameters per token`;
+    fitPhrase = `runs via CPU RAM offload in ${quantLabel} at usable speed, because a sparse mixture-of-experts model activates only ~${activeB}B of its ${model.parametersBillions}B parameters per token`;
   } else {
-    fitPhrase = `runs via CPU RAM offload in ${quantLabel} — expect 1–5 tokens/s`;
+    fitPhrase = `runs via CPU RAM offload in ${quantLabel} (expect 1–5 tokens/s)`;
   }
 
   const normalised = workflow === 'summarization' ? 'summarisation' : workflow;
