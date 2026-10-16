@@ -5,7 +5,7 @@ computer is actually doing while a model runs: GPU, VRAM, RAM, temperature,
 power, and whether your model is sitting fully on the GPU or spilling over to
 the CPU.
 
-Everything runs on your own machine. The dashboard listens on `127.0.0.1`. It
+Everything runs on your own machine. The dashboard listens on `127.0.0.1` and
 talks only to AI runtimes on this machine, never to the internet.
 
 ## Try it
@@ -35,15 +35,16 @@ npx @opensourcesai/cmdcenter --capture  # raw machine data, handy for bug report
   much of each is really in VRAM versus pushed out to the CPU.
 - **Fit grades.** Which models should run well on your hardware, using the same
   logic as the compatibility checker on [opensourcesai.com](https://opensourcesai.com).
-- **Load and unload.** You can load or unload models Ollama already has. That is
-  all it can do. It can't download, delete, or start and stop anything.
+- **Load and unload.** You can load or unload models Ollama already has. That's
+  all it can do. It can't download, delete, or start or stop anything.
 - **Chat with numbers.** A simple chat window that shows tokens per second and
   time to first token for every reply. It works with Ollama, and with
   llama.cpp or any other OpenAI-compatible server on your machine
   (`--llamacpp-port`).
 - **Benchmark results.** Open results from
   [`@opensourcesai/bench`](https://github.com/endoftheline818/opensourcesai-bench)
-  and compare two runs only when the comparison is fair.
+  and compare two runs side by side, as long as they were run under the same
+  conditions. If they weren't, it tells you why the comparison would mislead.
 - **MCP servers.** A list of the MCP servers configured on your machine, with a
   check on whether each command exists and each config is well formed.
 
@@ -55,20 +56,23 @@ card. Command Center collects every source, marks the ones it knows are
 unreliable, and shows you where they disagree so you can see what your system
 is really saying.
 
-## What stays on your machine
+## What it will never do
 
-- The server only binds to loopback. There is no option to change that.
-- Every network call in the code goes to `127.0.0.1`. A test fails the build if
-  one doesn't. Cloud endpoints are permanently out of scope: an API key field
-  for a hosted model would end this promise, so it will never be added.
-- It never runs a shell. Subprocesses go through one wrapper that takes an
-  argument list.
-- Your conversations and speed history are saved in a local data folder
+- **Expose itself to your network.** The server only binds to loopback, and
+  there's no option to change that.
+- **Call the internet.** Every network call in the code goes to `127.0.0.1`,
+  and a test fails the build if one doesn't. Cloud endpoints are
+  permanently out of scope. The moment you could paste in an API key for a
+  hosted model, that promise would be gone, so that field will never exist.
+- **Run a shell.** Every subprocess gets an explicit argument list, so there's
+  no command string for anything to sneak into.
+- **Send your data anywhere.** Conversations and speed history are saved in a
+  local data folder
   (`%LOCALAPPDATA%\osai-cmdcenter` on Windows,
   `~/Library/Application Support/osai-cmdcenter` on macOS,
-  `~/.local/share/osai-cmdcenter` on Linux). Nothing in it is sent anywhere.
-  You can delete a conversation from the Chat view, and export one to a
-  markdown file if you want it.
+  `~/.local/share/osai-cmdcenter` on Linux) and stay there. You can delete a
+  conversation from the Chat view, or export one to a markdown file if you
+  want to keep it.
 
 ## Ollama on another machine (headless)
 
@@ -96,12 +100,13 @@ Then open http://127.0.0.1:7717.
 If it doesn't work:
 
 - **`connect failed: Connection refused`:** the tunnel is fine, but nothing is
-  listening on the server. Check it started and that the ports match.
+  listening on the server. Check that it actually started, and that both ends
+  use the same port.
 - **"Ollama not detected" but Ollama is running:** if `OLLAMA_HOST` is set to
-  `0.0.0.0`, Command Center falls back to `127.0.0.1`. That is normal.
-- **Nothing happens when you run it:** version `0.2.0` had a bug on Linux and
-  macOS. Run `rm -rf ~/.npm/_npx` and try again with
-  `npx @opensourcesai/cmdcenter@latest serve`.
+  `0.0.0.0`, Command Center falls back to `127.0.0.1`. That's normal.
+- **Nothing happens when you run it:** version `0.2.0` exited silently on
+  Linux and macOS, and npx keeps reusing whichever version it cached first.
+  Run `rm -rf ~/.npm/_npx`, then `npx @opensourcesai/cmdcenter@latest serve`.
 
 ## Feedback
 
