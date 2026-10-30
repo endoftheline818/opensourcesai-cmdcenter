@@ -22,7 +22,7 @@ import { deriveRuntimeEnvironment, environmentDeclarationHash } from "./derive/e
 import { gradeCatalog } from "./derive/fit.js";
 import { buildReport } from "./derive/report.js";
 import { renderReport } from "./derive/render.js";
-import { resolveGradingHardware, resolveInstalledModels } from "./serve/routes.js";
+import { installedDigests, resolveGradingHardware, resolveInstalledModels } from "./serve/routes.js";
 import { DEFAULT_PORT, startServer } from "./serve/server.js";
 import {
   MANUAL_BANDWIDTH_SCHEMA_VERSION,
@@ -273,6 +273,7 @@ export async function startDashboard({ port = DEFAULT_PORT, llamacppPort = null 
       { ...bootstrapReport, ollama: { ...bootstrapReport.ollama, installedModels: installedNames } },
       catalog,
       graded,
+      installedDigests(bootstrap),
     );
     chat = createChatService({
       host,
