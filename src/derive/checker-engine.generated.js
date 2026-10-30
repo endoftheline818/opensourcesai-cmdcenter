@@ -15,7 +15,7 @@
 //
 //   source      opensourcesai.com lib/checker-engine.js
 //   sha256      3c69705bd05b74b25cb94cadc1247d7991ec1a0bc72bf2a6bbffba08157e4870
-//   copied      2026-10-16
+//   copied      2026-10-30
 //   regenerate  node scripts/sync-from-website.mjs ../opensourcesai.com
 //
 // The digest covers everything below the marker — the upstream bytes, LF-normalized —

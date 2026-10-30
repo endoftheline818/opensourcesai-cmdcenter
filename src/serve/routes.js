@@ -58,13 +58,24 @@ export function resolveGradingHardware(report) {
   };
 }
 
-/** Join what Ollama actually has installed to what the catalog knows about it. */
-export function resolveInstalledModels(report, catalog, graded) {
+/**
+ * Join what Ollama actually has installed to what the catalog knows about it.
+ *
+ * By tag name first, then by manifest digest. A tag is only a name: `qwen3:8b`
+ * and `qwen3:8b-q4_K_M` are one manifest, and the catalog names only the
+ * second. `digests` maps an installed name to the digest /api/tags reported
+ * for it (the collector keeps its first 12 hex characters).
+ */
+export function resolveInstalledModels(report, catalog, graded, digests = new Map()) {
   const installed = report.ollama?.installedModelCount === null ? [] : (report.ollama?.installedModels ?? []);
   const byTag = new Map();
+  const byManifest = new Map();
   for (const model of catalog.models) {
     for (const tag of [model.ollamaTag, model.ollamaTagQ8, model.ollamaTagFp16]) {
       if (tag) byTag.set(tag.toLowerCase(), model.id);
+    }
+    for (const sha of Object.values(model.ollamaManifests ?? {})) {
+      byManifest.set(String(sha).slice(0, 12).toLowerCase(), model.id);
     }
   }
   const gradeById = new Map(graded.map((g) => [g.id, g]));
@@ -72,7 +83,15 @@ export function resolveInstalledModels(report, catalog, graded) {
   return installed.map((name) => {
     const key = String(name).toLowerCase();
     const id = byTag.get(key) ?? byTag.get(key.replace(/:latest$/, ""));
-    if (id) return { name, status: "known", catalogId: id, grade: gradeById.get(id) ?? null };
+    if (id) return { name, status: "known", catalogId: id, matchedBy: "tag", grade: gradeById.get(id) ?? null };
+
+    // A different digest is a different file or config, so it stays unlisted:
+    // `phi3:mini-128k` is a Q4_0 build, not the Q4_K_M row the catalog grades.
+    const digest = digests.get(name);
+    const viaManifest = digest ? byManifest.get(String(digest).slice(0, 12).toLowerCase()) : undefined;
+    if (viaManifest) {
+      return { name, status: "known", catalogId: viaManifest, matchedBy: "manifest", grade: gradeById.get(viaManifest) ?? null };
+    }
 
     // Three outcomes, not two. A model the catalog does not list is usually a
     // local derivative (built from a Modelfile) or deliberately out of scope
@@ -86,6 +105,15 @@ export function resolveInstalledModels(report, catalog, graded) {
       grade: null,
     };
   });
+}
+
+/** Installed name to the digest /api/tags reported for it, from a raw capture. */
+export function installedDigests(capture) {
+  return new Map(
+    (capture.ollama?.installedModels ?? [])
+      .filter((m) => m.digest)
+      .map((m) => [m.name, m.digest]),
+  );
 }
 
 export function buildDashboardPayload(capture, catalog, { generatedAt = null } = {}) {
@@ -121,7 +149,7 @@ export function buildDashboardPayload(capture, catalog, { generatedAt = null } =
       note: catalog.note ?? null,
     },
     models: graded,
-    installed: resolveInstalledModels(reportWithNames, catalog, graded),
+    installed: resolveInstalledModels(reportWithNames, catalog, graded, installedDigests(capture)),
     loaded: (report.ollama?.loadedModels ?? []).map((m) => ({
       ...m,
       // A loaded model below 100% residency is running partly on CPU. Naming it

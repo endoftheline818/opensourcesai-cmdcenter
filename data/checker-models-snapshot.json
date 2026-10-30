@@ -2,39 +2,46 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-10-16",
+    "generatedAt": "2026-10-30",
     "modules": [
-      "src/data/checker-models.json"
+      "src/data/checker-models.json",
+      "src/data/ollama-registry.json"
     ]
   },
+  "registryCheckedAt": "2026-10-27",
   "snapshotVersion": 1,
   "note": "Committed snapshot, not live data. Discovery-spec §8 decision 3 (a fetchable data manifest) is open; until it is decided this file is refreshed by rerunning scripts/sync-from-website.mjs. The dashboard displays its age.",
-  "modelCount": 37,
+  "modelCount": 40,
   "models": [
     {
       "id": "qwen3-4b",
       "name": "Qwen3 4B",
       "family": "qwen3",
       "parametersBillions": 4,
-      "contextWindowTokens": 32768,
+      "contextWindowTokens": 262144,
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 2.6,
+          "vramGb": 2.5,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 4.5,
+          "vramGb": 4.3,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 8,
+          "vramGb": 8.1,
           "qualityTier": "reference"
         }
       },
       "ollamaTag": "qwen3:4b",
-      "ollamaTagQ8": "qwen3:4b-q8_0",
-      "ollamaTagFp16": "qwen3:4b-fp16",
+      "ollamaTagQ8": "qwen3:4b-thinking-2507-q8_0",
+      "ollamaTagFp16": "qwen3:4b-thinking-2507-fp16",
+      "ollamaManifests": {
+        "qwen3:4b": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+        "qwen3:4b-thinking-2507-q8_0": "44647463104281dcb560e8d3962c440fea54c4dacc242bf435dc9a0f313d3d48",
+        "qwen3:4b-thinking-2507-fp16": "c0b9500a47bb5676aef70605c66a27149f84b2d3f5fbff5fb4f23c6a652e4a84"
+      },
       "checkerOrder": 1
     },
     {
@@ -46,21 +53,27 @@
       "license": "Gemma Terms of Use",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 2.5,
+          "vramGb": 3.4,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 4.3,
+          "vramGb": 5,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 8,
-          "qualityTier": "reference"
+          "vramGb": 8.6,
+          "qualityTier": "reference",
+          "label": "BF16"
         }
       },
-      "ollamaTag": "gemma3:4b",
+      "ollamaTag": "gemma3:4b-it-q4_K_M",
       "ollamaTagQ8": "gemma3:4b-it-q8_0",
       "ollamaTagFp16": "gemma3:4b-it-fp16",
+      "ollamaManifests": {
+        "gemma3:4b-it-q4_K_M": "68ceab7e468a31c988b44d5a4984a0e21f58c4f7158c6ce29c1804babac38df7",
+        "gemma3:4b-it-q8_0": "69f0d5459ab02f396afeea364c65b11017b9be4ba9da2c0b46d7e553fd76a282",
+        "gemma3:4b-it-fp16": "4e0b0e7a1c0af47d128a4a50588806f73f04c2db911cfef3181294de592e144e"
+      },
       "checkerOrder": 2
     },
     {
@@ -72,21 +85,26 @@
       "license": "MIT",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 4,
+          "vramGb": 2.4,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 6,
+          "vramGb": 4.1,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 8,
+          "vramGb": 7.6,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "phi3:mini-128k",
+      "ollamaTag": "phi3:3.8b-mini-128k-instruct-q4_K_M",
       "ollamaTagQ8": "phi3:3.8b-mini-128k-instruct-q8_0",
       "ollamaTagFp16": "phi3:3.8b-mini-128k-instruct-fp16",
+      "ollamaManifests": {
+        "phi3:3.8b-mini-128k-instruct-q4_K_M": "5a157c52afff4f48443319d4aa15956156b13b3069524d37bf2c474e45a414ce",
+        "phi3:3.8b-mini-128k-instruct-q8_0": "adc0589ce82eb5929896d7100a8f3a2a694a1251332d37f32b1cd5c72282f5a5",
+        "phi3:3.8b-mini-128k-instruct-fp16": "40010fd60dc7524cf65bf86711c1015a346e90ce469a2823a678e823d2b78166"
+      },
       "checkerOrder": 3
     },
     {
@@ -98,7 +116,7 @@
       "license": "Llama 3.1 Community License",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 5.6,
+          "vramGb": 4.9,
           "qualityTier": "good"
         },
         "q4_k_s": {
@@ -106,17 +124,22 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 9.5,
+          "vramGb": 8.5,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 16,
+          "vramGb": 16.1,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "llama3.1:8b",
+      "ollamaTag": "llama3.1:8b-instruct-q4_K_M",
       "ollamaTagQ8": "llama3.1:8b-instruct-q8_0",
       "ollamaTagFp16": "llama3.1:8b-instruct-fp16",
+      "ollamaManifests": {
+        "llama3.1:8b-instruct-q4_K_M": "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+        "llama3.1:8b-instruct-q8_0": "b158ded76fa05be6bce8a682099ce5df8c5571340a04cf63a2923464679db576",
+        "llama3.1:8b-instruct-fp16": "4aacac4194543ff7f70dab3f2ebc169c132d5319bb36f7a7e99c4ff525ebcc09"
+      },
       "checkerOrder": 4
     },
     {
@@ -128,7 +151,7 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 5.3,
+          "vramGb": 5.2,
           "qualityTier": "good"
         },
         "q4_k_s": {
@@ -140,13 +163,18 @@
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 16,
+          "vramGb": 16.4,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen3:8b",
+      "ollamaTag": "qwen3:8b-q4_K_M",
       "ollamaTagQ8": "qwen3:8b-q8_0",
       "ollamaTagFp16": "qwen3:8b-fp16",
+      "ollamaManifests": {
+        "qwen3:8b-q4_K_M": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+        "qwen3:8b-q8_0": "e56358ca25dd14db6853a9f68a92d717aaa6f0a94250a72d1a0f3d86a9f30130",
+        "qwen3:8b-fp16": "0b358e6e9d8cb39eaa4aa6b78136d09b91acb4be08c01bb707367811caed69ae"
+      },
       "checkerOrder": 5
     },
     {
@@ -158,21 +186,26 @@
       "license": "MIT",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 5,
+          "vramGb": 5.2,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 8.8,
+          "vramGb": 8.9,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 16,
+          "vramGb": 16.4,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "deepseek-r1:8b",
+      "ollamaTag": "deepseek-r1:8b-0528-qwen3-q4_K_M",
       "ollamaTagQ8": "deepseek-r1:8b-0528-qwen3-q8_0",
       "ollamaTagFp16": "deepseek-r1:8b-0528-qwen3-fp16",
+      "ollamaManifests": {
+        "deepseek-r1:8b-0528-qwen3-q4_K_M": "6995872bfe4c521a67b32da386cd21d5c6e819b6e0d62f79f64ec83be99f5763",
+        "deepseek-r1:8b-0528-qwen3-q8_0": "cade62fd2850fb7adbd50d8906f4024b5a7d8f961e46f2c461cf42243706bb9d",
+        "deepseek-r1:8b-0528-qwen3-fp16": "a5f1683300058f4060e53eb18461c4025789986b26987f41947230d60c0fa30b"
+      },
       "checkerOrder": 6
     },
     {
@@ -184,21 +217,27 @@
       "license": "Gemma Terms of Use",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 7.6,
+          "vramGb": 8.2,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 13,
+          "vramGb": 13.4,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 24,
-          "qualityTier": "reference"
+          "vramGb": 24.4,
+          "qualityTier": "reference",
+          "label": "BF16"
         }
       },
-      "ollamaTag": "gemma3:12b",
+      "ollamaTag": "gemma3:12b-it-q4_K_M",
       "ollamaTagQ8": "gemma3:12b-it-q8_0",
       "ollamaTagFp16": "gemma3:12b-it-fp16",
+      "ollamaManifests": {
+        "gemma3:12b-it-q4_K_M": "b92b218582c521ba287f38f1d6057dcd3c6cbff036f13cac97b5d861f5e58ec3",
+        "gemma3:12b-it-q8_0": "88c2e99b4a44ef8a4c855315927ae99f6ea77a06f4ec24ad2d08929f818f5f00",
+        "gemma3:12b-it-fp16": "36949f7228f649e7e611b231b146f78aacd3dcca9d85f7c8755ec588a51c1b1b"
+      },
       "checkerOrder": 7
     },
     {
@@ -214,17 +253,22 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 15.5,
+          "vramGb": 15.9,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 28,
+          "vramGb": 29.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen3:14b",
+      "ollamaTag": "qwen3:14b-q4_K_M",
       "ollamaTagQ8": "qwen3:14b-q8_0",
       "ollamaTagFp16": "qwen3:14b-fp16",
+      "ollamaManifests": {
+        "qwen3:14b-q4_K_M": "bdbd181c33f2ed1b31c972991882db3cf4d192569092138a7d29e973cd9debe8",
+        "qwen3:14b-q8_0": "304bf7349c71ad37a07eec8be67212b3f05b0f243f4a6f7c98e90dd2f3009f48",
+        "qwen3:14b-fp16": "a5be4baba030048322e15dadce6933f9695c1171bcde5d9fe1fedbd2800fe665"
+      },
       "checkerOrder": 8
     },
     {
@@ -240,17 +284,22 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 15.5,
+          "vramGb": 15.7,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 28,
+          "vramGb": 29.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "deepseek-r1:14b",
+      "ollamaTag": "deepseek-r1:14b-qwen-distill-q4_K_M",
       "ollamaTagQ8": "deepseek-r1:14b-qwen-distill-q8_0",
       "ollamaTagFp16": "deepseek-r1:14b-qwen-distill-fp16",
+      "ollamaManifests": {
+        "deepseek-r1:14b-qwen-distill-q4_K_M": "c333b7232bdb521236694ffbb5f5a6b11cc45d98e9142c73123b670fca400b09",
+        "deepseek-r1:14b-qwen-distill-q8_0": "b3c61716272d9ee5094b909ade6c0d7b8176f0f4c4c6aa9161cc3eece07a4018",
+        "deepseek-r1:14b-qwen-distill-fp16": "7c72950ea94e67f4dfb6f777e89ed53136aa211bc56a1c6a09c0b5d123a6d538"
+      },
       "checkerOrder": 9
     },
     {
@@ -266,17 +315,22 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 15,
+          "vramGb": 15.6,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 28,
+          "vramGb": 29.3,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "phi4",
+      "ollamaTag": "phi4:14b-q4_K_M",
       "ollamaTagQ8": "phi4:14b-q8_0",
       "ollamaTagFp16": "phi4:14b-fp16",
+      "ollamaManifests": {
+        "phi4:14b-q4_K_M": "ac896e5b8b34a1f4efa7b14d7520725140d5512484457fab45d2a4ea14c69dba",
+        "phi4:14b-q8_0": "310d366232f429f1ee2c38893ae202357d45dfbc7c9926b7352ae95636114c26",
+        "phi4:14b-fp16": "227695f919b501265964e3024cbbd49c75a3a95e6826252b4df11d31dec00460"
+      },
       "checkerOrder": 10
     },
     {
@@ -288,21 +342,26 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 20,
+          "vramGb": 20.2,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 34,
+          "vramGb": 35.1,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 64,
+          "vramGb": 65.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen3:32b",
+      "ollamaTag": "qwen3:32b-q4_K_M",
       "ollamaTagQ8": "qwen3:32b-q8_0",
       "ollamaTagFp16": "qwen3:32b-fp16",
+      "ollamaManifests": {
+        "qwen3:32b-q4_K_M": "030ee887880fc378860c2dd35101da424377520441ae4bfe7be6deff8ade7840",
+        "qwen3:32b-q8_0": "a46beca077e59287b7c80d6ce7354f0906b1c78ae90e67e6a4c02487e38f529e",
+        "qwen3:32b-fp16": "00dc0cb60a08306175ba6969840c3f29fae8e85231cd28cc88740984f931ae00"
+      },
       "checkerOrder": 11
     },
     {
@@ -314,7 +373,7 @@
       "license": "Llama 3 Community License",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 41.5,
+          "vramGb": 42.5,
           "qualityTier": "good"
         },
         "q4_k_s": {
@@ -322,17 +381,22 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 74,
+          "vramGb": 75,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 140,
+          "vramGb": 141.1,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "llama3:70b",
+      "ollamaTag": "llama3:70b-instruct-q4_K_M",
       "ollamaTagQ8": "llama3:70b-instruct-q8_0",
       "ollamaTagFp16": "llama3:70b-instruct-fp16",
+      "ollamaManifests": {
+        "llama3:70b-instruct-q4_K_M": "f04e196898af0f71e9e94bf46ab8807e3a873acd0831a5caf353ebf839926921",
+        "llama3:70b-instruct-q8_0": "13ef6d4ac2af9cb999295f71edfeb4a5ec9f044752b4a91a2e36d43ea34f11fd",
+        "llama3:70b-instruct-fp16": "a84c389adf03bcee21e4cd76b37224cf01ee44801a457a7d616da3d5d7ffde7e"
+      },
       "checkerOrder": 12
     },
     {
@@ -344,11 +408,15 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 9.5,
-          "qualityTier": "good"
+          "vramGb": 7.2,
+          "qualityTier": "good",
+          "label": "Q4_0"
         }
       },
       "ollamaTag": "gemma4:12b-it-qat",
+      "ollamaManifests": {
+        "gemma4:12b-it-qat": "38044be4f923e5a55264ed7df4eaac2676651a905f735197c504045140c02bd3"
+      },
       "checkerOrder": 13
     },
     {
@@ -360,21 +428,26 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 6,
+          "vramGb": 4.7,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 9,
+          "vramGb": 8.1,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 16,
+          "vramGb": 15.2,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen2.5:7b",
+      "ollamaTag": "qwen2.5:7b-instruct-q4_K_M",
       "ollamaTagQ8": "qwen2.5:7b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5:7b-instruct-fp16",
+      "ollamaManifests": {
+        "qwen2.5:7b-instruct-q4_K_M": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+        "qwen2.5:7b-instruct-q8_0": "2d9500c948416525a044cc51a47a1ef93deb045aebf2f61e8d6b3ac3a3cf2290",
+        "qwen2.5:7b-instruct-fp16": "59805ce4a4046be2d8f63231a78daacd2e66f5dccf1a64d0d138ebeeb26ff16c"
+      },
       "checkerOrder": 14
     },
     {
@@ -390,17 +463,22 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 16,
+          "vramGb": 15.7,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 28,
+          "vramGb": 29.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen2.5:14b",
+      "ollamaTag": "qwen2.5:14b-instruct-q4_K_M",
       "ollamaTagQ8": "qwen2.5:14b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5:14b-instruct-fp16",
+      "ollamaManifests": {
+        "qwen2.5:14b-instruct-q4_K_M": "7cdf5a0187d5c58cc5d369b255592f7841d1c4696d45a8c8a9489440385b22f6",
+        "qwen2.5:14b-instruct-q8_0": "985c5f25dfe9efc35ddc56609db52f45e66482d3c43da39ee89ab2a9b8c8ffbf",
+        "qwen2.5:14b-instruct-fp16": "06c8c6f15cf918350c8e6a1ed6780e5589dc6900b8a67ec0348bc5da3cdd6518"
+      },
       "checkerOrder": 15
     },
     {
@@ -412,11 +490,11 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 14.4,
+          "vramGb": 15.5,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 25.5,
+          "vramGb": 26.1,
           "qualityTier": "high"
         },
         "fp16": {
@@ -424,9 +502,14 @@
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "mistral-small3.1:24b",
+      "ollamaTag": "mistral-small3.1:24b-instruct-2503-q4_K_M",
       "ollamaTagQ8": "mistral-small3.1:24b-instruct-2503-q8_0",
       "ollamaTagFp16": "mistral-small3.1:24b-instruct-2503-fp16",
+      "ollamaManifests": {
+        "mistral-small3.1:24b-instruct-2503-q4_K_M": "b9aaf0c2586a8ed8105feab808c0f034bd4d346203822f048e2366165a13f4ea",
+        "mistral-small3.1:24b-instruct-2503-q8_0": "79252b8a3eb58029ae5386dd200a7514ccfc80a1905f2856cb7d53b97256f852",
+        "mistral-small3.1:24b-instruct-2503-fp16": "5b05d65a969af9b9a46085cde6d3a41308ffd90a221c18e668bf59e2999abd22"
+      },
       "checkerOrder": 16
     },
     {
@@ -438,21 +521,26 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 20,
+          "vramGb": 19.9,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 34,
+          "vramGb": 34.8,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 66,
+          "vramGb": 65.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen2.5:32b",
+      "ollamaTag": "qwen2.5:32b-instruct-q4_K_M",
       "ollamaTagQ8": "qwen2.5:32b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5:32b-instruct-fp16",
+      "ollamaManifests": {
+        "qwen2.5:32b-instruct-q4_K_M": "9f13ba1299afea09d9a956fc6a85becc99115a6d596fae201a5487a03bdc4368",
+        "qwen2.5:32b-instruct-q8_0": "3782905437606471a76043fbd222a166f6a5c67e5d330b87ed2f692d33985dd3",
+        "qwen2.5:32b-instruct-fp16": "d988bddd9a2e890204737fef4b216c9e08c667029eddff7d8f37914a8170c450"
+      },
       "checkerOrder": 17
     },
     {
@@ -464,21 +552,27 @@
       "license": "Gemma Terms of Use",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 17,
+          "vramGb": 17.4,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 29,
+          "vramGb": 29.6,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 56,
-          "qualityTier": "reference"
+          "vramGb": 54.9,
+          "qualityTier": "reference",
+          "label": "BF16"
         }
       },
-      "ollamaTag": "gemma3:27b",
+      "ollamaTag": "gemma3:27b-it-q4_K_M",
       "ollamaTagQ8": "gemma3:27b-it-q8_0",
       "ollamaTagFp16": "gemma3:27b-it-fp16",
+      "ollamaManifests": {
+        "gemma3:27b-it-q4_K_M": "6be2e2ba6843b9255820e2de2cbbe75cfdef0294ac7a531572e654d6e0eefe7d",
+        "gemma3:27b-it-q8_0": "62dc427fec6b7cff90352c38e3e8b14b025b39d6833e021056a212ce9d0b98b1",
+        "gemma3:27b-it-fp16": "1bc907263cde3282f5825da2f88edc77cbccb733b85b61c996e1f938fdba3eca"
+      },
       "checkerOrder": 18
     },
     {
@@ -490,21 +584,26 @@
       "license": "Llama 3.3 Community License",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 41,
+          "vramGb": 42.5,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 72,
+          "vramGb": 75,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 142,
+          "vramGb": 141.1,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "llama3.3:70b",
+      "ollamaTag": "llama3.3:70b-instruct-q4_K_M",
       "ollamaTagQ8": "llama3.3:70b-instruct-q8_0",
       "ollamaTagFp16": "llama3.3:70b-instruct-fp16",
+      "ollamaManifests": {
+        "llama3.3:70b-instruct-q4_K_M": "a6eb4748fd2990ad2952b2335a95a7f952d1a06119a0aa6a2df6cd052a93a3fa",
+        "llama3.3:70b-instruct-q8_0": "d5b5e1b8486895bb9f9de1f79dbaad21ab4cbe5213dd7f6e4c3490471ff6c082",
+        "llama3.3:70b-instruct-fp16": "8fbd361705a0f461c2652711df91d3b42014c5eb1339bf571ec63b15bf22a806"
+      },
       "checkerOrder": 19
     },
     {
@@ -516,11 +615,14 @@
       "license": "Llama 4 Community License",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 63,
+          "vramGb": 67.4,
           "qualityTier": "good"
         }
       },
-      "ollamaTag": "llama4:scout",
+      "ollamaTag": "llama4:17b-scout-16e-instruct-q4_K_M",
+      "ollamaManifests": {
+        "llama4:17b-scout-16e-instruct-q4_K_M": "bf31604e25c25d964e250bcf28a82bfbdbe88af5f236257fabb27629bb24c7f3"
+      },
       "checkerOrder": 20
     },
     {
@@ -532,21 +634,26 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 6,
+          "vramGb": 4.7,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 9,
+          "vramGb": 8.1,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 16,
+          "vramGb": 15.2,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen2.5-coder:7b",
+      "ollamaTag": "qwen2.5-coder:7b-instruct-q4_K_M",
       "ollamaTagQ8": "qwen2.5-coder:7b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5-coder:7b-instruct-fp16",
+      "ollamaManifests": {
+        "qwen2.5-coder:7b-instruct-q4_K_M": "dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364",
+        "qwen2.5-coder:7b-instruct-q8_0": "7e480bd461271e93f8209458e1ac9a4f308313b57ab7ec54d7009c018952436c",
+        "qwen2.5-coder:7b-instruct-fp16": "9bff1b5c46f86f50f916c6b8642edbac1a00aaa95c9e39f78cc72cc405a58e5a"
+      },
       "checkerOrder": 21
     },
     {
@@ -566,13 +673,18 @@
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 29.6,
+          "vramGb": 29.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen2.5-coder:14b",
+      "ollamaTag": "qwen2.5-coder:14b-instruct-q4_K_M",
       "ollamaTagQ8": "qwen2.5-coder:14b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5-coder:14b-instruct-fp16",
+      "ollamaManifests": {
+        "qwen2.5-coder:14b-instruct-q4_K_M": "9ec8897f747e246e970bc5cfdda85d22f1123dc2e3d34978a010a75968716849",
+        "qwen2.5-coder:14b-instruct-q8_0": "bd9a836c38a9a418d26843ecfeece8ed3c127977c9f82c33830ba49498acaa0a",
+        "qwen2.5-coder:14b-instruct-fp16": "dd44773a07d3503438b2be3260f21411b580b91af74d16b8649718f18bd12650"
+      },
       "checkerOrder": 22
     },
     {
@@ -584,21 +696,26 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 20,
+          "vramGb": 19.9,
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 34,
+          "vramGb": 34.8,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 65,
+          "vramGb": 65.5,
           "qualityTier": "reference"
         }
       },
-      "ollamaTag": "qwen2.5-coder:32b",
+      "ollamaTag": "qwen2.5-coder:32b-instruct-q4_K_M",
       "ollamaTagQ8": "qwen2.5-coder:32b-instruct-q8_0",
       "ollamaTagFp16": "qwen2.5-coder:32b-instruct-fp16",
+      "ollamaManifests": {
+        "qwen2.5-coder:32b-instruct-q4_K_M": "b92d6a0bd47ee79114298de0177bf920c05a706d12633950b3936778492bef41",
+        "qwen2.5-coder:32b-instruct-q8_0": "17c822ec821d5a5bec47904157a42ceaea80bd824fe2a7d4cf551b755c46b549",
+        "qwen2.5-coder:32b-instruct-fp16": "938472346418e1f04ad88c76efbe9ea449cc4dc8a3d714b411ebaa1c8bb9eee7"
+      },
       "checkerOrder": 23
     },
     {
@@ -610,11 +727,15 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 12.5,
-          "qualityTier": "good"
+          "vramGb": 13.8,
+          "qualityTier": "good",
+          "label": "MXFP4"
         }
       },
       "ollamaTag": "gpt-oss:20b",
+      "ollamaManifests": {
+        "gpt-oss:20b": "f38aa0c53da5f8c49d08c43a99df24ff53167fe68e24664a7777288e7656fdfe"
+      },
       "checkerOrder": 24
     },
     {
@@ -627,11 +748,14 @@
       "license": "OpenMDW-1.1",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 20,
+          "vramGb": 20.3,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "laguna-xs-2.1",
+      "ollamaManifests": {
+        "laguna-xs-2.1": "0175be1e57f44bb4a96779d1840dbadd84399ab87bf70688c321ecadeadd757f"
+      },
       "checkerOrder": 25
     },
     {
@@ -644,11 +768,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 18,
+          "vramGb": 18.6,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "north-mini-code-1.0",
+      "ollamaManifests": {
+        "north-mini-code-1.0": "d8b269ad5c7c7144ce104b83ce93bc3efb85e0f74e01be6be5f5d6f7ca90b60f"
+      },
       "checkerOrder": 26
     },
     {
@@ -661,11 +788,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 18,
+          "vramGb": 18.7,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "gemma4:26b",
+      "ollamaManifests": {
+        "gemma4:26b": "001e5dafc3c77684c2307ebc6ab8e336e10c9b18eca52acf547d72fc83c3ca8c"
+      },
       "checkerOrder": 27
     },
     {
@@ -677,11 +807,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 20,
+          "vramGb": 20.4,
           "qualityTier": "good"
         }
       },
-      "ollamaTag": "gemma4:31b",
+      "ollamaTag": "gemma4:31b-it-q4_K_M",
+      "ollamaManifests": {
+        "gemma4:31b-it-q4_K_M": "17ba34c06c801ba22f6047bab21ced9429c6d43e0e42ecf339b0f3e5a61e8d97"
+      },
       "checkerOrder": 28
     },
     {
@@ -693,11 +826,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 17,
+          "vramGb": 17.8,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "qwen3.6:27b",
+      "ollamaManifests": {
+        "qwen3.6:27b": "bcbdbd4bcf86f2c4a56cd1698fb31f9434f7dd99752f71b636c750aaa67a49a5"
+      },
       "checkerOrder": 29
     },
     {
@@ -710,11 +846,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 24,
+          "vramGb": 22.6,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "qwen3.6:35b-a3b",
+      "ollamaManifests": {
+        "qwen3.6:35b-a3b": "a7eb95c53bcf96b4bdd008d0fab4a5dac88047d9c1a7a9ab88ed453423fbd87c"
+      },
       "checkerOrder": 30
     },
     {
@@ -727,11 +866,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 19,
+          "vramGb": 18.6,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "qwen3:30b",
+      "ollamaManifests": {
+        "qwen3:30b": "ad815644918f0eaab341c12b67837cc6dd4562342cdaf118f83d5d554cb37226"
+      },
       "checkerOrder": 31
     },
     {
@@ -744,11 +886,14 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 19,
+          "vramGb": 18.6,
           "qualityTier": "good"
         }
       },
-      "ollamaTag": "qwen3-coder:30b",
+      "ollamaTag": "qwen3-coder:30b-a3b-q4_K_M",
+      "ollamaManifests": {
+        "qwen3-coder:30b-a3b-q4_K_M": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca"
+      },
       "checkerOrder": 32
     },
     {
@@ -760,7 +905,7 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 18,
+          "vramGb": 18.2,
           "qualityTier": "good"
         },
         "q8_0": {
@@ -768,13 +913,19 @@
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 57,
-          "qualityTier": "reference"
+          "vramGb": 57.1,
+          "qualityTier": "reference",
+          "label": "BF16"
         }
       },
-      "ollamaTag": "muse-glimmer:30b",
+      "ollamaTag": "muse-glimmer:30b-q4_K_M",
       "ollamaTagQ8": "muse-glimmer:30b-q8_0",
       "ollamaTagFp16": "muse-glimmer:30b-bf16",
+      "ollamaManifests": {
+        "muse-glimmer:30b-q4_K_M": "de878ce33ad81d060001db1469a02eebe4d86f0ad58cfe52dc062fdcbe4464c1",
+        "muse-glimmer:30b-q8_0": "6ffafcdbd728b7d7ce94ad7db12c2b8a5ba4a1fdaad20c0d4b45a1257458485a",
+        "muse-glimmer:30b-bf16": "318fb1b9b81696d14f4f2784b3bda2e4e633046a52fcc9fe0b94e74f889f5efe"
+      },
       "checkerOrder": 33
     },
     {
@@ -786,7 +937,7 @@
       "license": "Apache 2.0",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 18,
+          "vramGb": 17.7,
           "qualityTier": "good"
         },
         "q8_0": {
@@ -794,13 +945,19 @@
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 56,
-          "qualityTier": "reference"
+          "vramGb": 55.6,
+          "qualityTier": "reference",
+          "label": "BF16"
         }
       },
-      "ollamaTag": "qwen3.8:27b",
+      "ollamaTag": "qwen3.8:27b-q4_K_M",
       "ollamaTagQ8": "qwen3.8:27b-q8_0",
       "ollamaTagFp16": "qwen3.8:27b-bf16",
+      "ollamaManifests": {
+        "qwen3.8:27b-q4_K_M": "25b843619e944cd0ae6069f94ff4e5e26a16e109ccbc0a66a0f05979ed70098e",
+        "qwen3.8:27b-q8_0": "8f5fb6b71ea00052cbe8545738c55ce61112c4e571cb60ca4dad00b131766039",
+        "qwen3.8:27b-bf16": "1aa85dae8b2db4a2721ec3501ecbafc54f89f89e33ecb27f719becea4bd2fd01"
+      },
       "checkerOrder": 34
     },
     {
@@ -816,17 +973,23 @@
           "qualityTier": "good"
         },
         "q8_0": {
-          "vramGb": 11,
+          "vramGb": 10.4,
           "qualityTier": "high"
         },
         "fp16": {
-          "vramGb": 19,
-          "qualityTier": "reference"
+          "vramGb": 19.3,
+          "qualityTier": "reference",
+          "label": "BF16"
         }
       },
-      "ollamaTag": "qwen3.5:9b",
+      "ollamaTag": "qwen3.5:9b-q4_K_M",
       "ollamaTagQ8": "qwen3.5:9b-q8_0",
       "ollamaTagFp16": "qwen3.5:9b-bf16",
+      "ollamaManifests": {
+        "qwen3.5:9b-q4_K_M": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+        "qwen3.5:9b-q8_0": "a8ee95bc3592ebaa624014ca8b429d25e0ef5f45030dc35786da7ff7e9e1b60a",
+        "qwen3.5:9b-bf16": "5c513fbbcfa81c5823e5ef5f938c12d76a77253712fc37eac6f18338861077e7"
+      },
       "checkerOrder": 35
     },
     {
@@ -838,11 +1001,14 @@
       "license": "MIT",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 5.6,
+          "vramGb": 6.6,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "ornith-1.5:9b",
+      "ollamaManifests": {
+        "ornith-1.5:9b": "e5df7dcdd8a263994df62d610317e07be0d6af23f96fcbd8543273058fce575e"
+      },
       "checkerOrder": 36
     },
     {
@@ -855,12 +1021,86 @@
       "license": "MIT",
       "quantizations": {
         "q4_k_m": {
-          "vramGb": 22,
+          "vramGb": 22.6,
           "qualityTier": "good"
         }
       },
       "ollamaTag": "ornith-1.5:35b",
+      "ollamaManifests": {
+        "ornith-1.5:35b": "9f3b89b2521908dd2e6f7a11fa368e62c8f89e1075f22604e4d1a76dd1240fcc"
+      },
       "checkerOrder": 37
+    },
+    {
+      "id": "granite-4-2-8b",
+      "name": "Granite 4.2 8B",
+      "family": "granite-4-2",
+      "parametersBillions": 8.8,
+      "contextWindowTokens": 131072,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 5.3,
+          "qualityTier": "good"
+        }
+      },
+      "ollamaTag": "granite4.2:8b-q4_K_M",
+      "ollamaManifests": {
+        "granite4.2:8b-q4_K_M": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+      },
+      "checkerOrder": 38
+    },
+    {
+      "id": "flint",
+      "name": "Flint",
+      "family": "flint",
+      "parametersBillions": 39.8,
+      "activeParametersBillions": 2.5,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 22.9,
+          "qualityTier": "good",
+          "label": "NVFP4"
+        }
+      },
+      "ollamaTag": "flint",
+      "ollamaManifests": {
+        "flint": "9543f736310ddf3daee4f3d5467229d0ac16cdc3d58339a97eecac1c27d37872"
+      },
+      "checkerOrder": 39
+    },
+    {
+      "id": "qwen3-4b-instruct-2507",
+      "name": "Qwen3 4B Instruct 2507",
+      "family": "qwen3",
+      "parametersBillions": 4,
+      "contextWindowTokens": 262144,
+      "license": "Apache 2.0",
+      "quantizations": {
+        "q4_k_m": {
+          "vramGb": 2.5,
+          "qualityTier": "good"
+        },
+        "q8_0": {
+          "vramGb": 4.3,
+          "qualityTier": "high"
+        },
+        "fp16": {
+          "vramGb": 8.1,
+          "qualityTier": "reference"
+        }
+      },
+      "ollamaTag": "qwen3:4b-instruct-2507-q4_K_M",
+      "ollamaTagQ8": "qwen3:4b-instruct-2507-q8_0",
+      "ollamaTagFp16": "qwen3:4b-instruct-2507-fp16",
+      "ollamaManifests": {
+        "qwen3:4b-instruct-2507-q4_K_M": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+        "qwen3:4b-instruct-2507-q8_0": "aa7252f68dda4d25dfffa65b3760af6d2c3231a140c0060c78d444686d98a374",
+        "qwen3:4b-instruct-2507-fp16": "259cbeb0f33b4fdd229120e5c9dc385bcc6e93ab89c7d6b3b1b43303b8b67b6e"
+      },
+      "checkerOrder": 40
     }
   ]
 }

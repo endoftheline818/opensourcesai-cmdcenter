@@ -5,7 +5,8 @@
 //   src/derive/checker-engine.generated.js — the fit engine itself, copied verbatim
 //   fixtures/website-engine-parity.json    — pins that copy, and the façade over it
 //   fixtures/website-bands-parity.json     — pins src/derive/bands.js to the real bands
-//   data/checker-models-snapshot.json      — the catalog the dashboard grades against
+//   data/checker-models-snapshot.json      — the catalog the dashboard grades against,
+//                                            with each tag's registry manifest digest
 //   fixtures/website-design-tokens.json    — pins the site colours in src/serve/ui.js
 //   fixtures/website-social-palette.json   — pins the HUD palette in src/serve/ui.js
 //
@@ -276,6 +277,22 @@ async function syncCatalogSnapshot() {
   const raw = JSON.parse(
     await readFile(path.join(websiteRoot, "src", "data", "checker-models.json"), "utf8"),
   );
+  // What the Ollama registry said for every tag the catalog emits. Only the
+  // manifest digest is carried: it is what Ollama's /api/tags reports for an
+  // installed model, so it identifies a model pulled under an alias. `gemma3:4b`
+  // is the same manifest as `gemma3:4b-it-q4_K_M`, and the catalog names only
+  // the second.
+  const registry = JSON.parse(
+    await readFile(path.join(websiteRoot, "src", "data", "ollama-registry.json"), "utf8"),
+  );
+  const manifestsFor = (m) => {
+    const out = {};
+    for (const tag of [m.ollamaTag, m.ollamaTagQ8, m.ollamaTagFp16]) {
+      const sha = tag ? registry.tags?.[tag]?.manifestSha256 : null;
+      if (sha) out[tag] = sha;
+    }
+    return Object.keys(out).length ? { ollamaManifests: out } : {};
+  };
 
   // Project only the fields the dashboard grades on. A trimmed projection keeps
   // this a derived snapshot rather than a second copy of the source of truth —
@@ -296,12 +313,15 @@ async function syncCatalogSnapshot() {
       ollamaTag: m.ollamaTag,
       ...(m.ollamaTagQ8 ? { ollamaTagQ8: m.ollamaTagQ8 } : {}),
       ...(m.ollamaTagFp16 ? { ollamaTagFp16: m.ollamaTagFp16 } : {}),
+      ...manifestsFor(m),
       checkerOrder: m.checkerOrder,
     }))
     .sort((a, b) => a.checkerOrder - b.checkerOrder);
 
   const out = {
-    ...stamp({ modules: ["src/data/checker-models.json"] }),
+    ...stamp({ modules: ["src/data/checker-models.json", "src/data/ollama-registry.json"] }),
+    // Tags are mutable on the registry; the digests hold as of this date.
+    registryCheckedAt: registry.checkedAt ?? null,
     snapshotVersion: 1,
     note:
       "Committed snapshot, not live data. Discovery-spec §8 decision 3 (a fetchable " +
