@@ -162,7 +162,8 @@ async function collectLinux() {
  * Apple Silicon has NO discrete VRAM. CPU and GPU share one unified-memory
  * pool, so "which source reports VRAM correctly" is the wrong question here.
  * The right one is how much of the single pool is usable for a model, which
- * derive/report.js answers via the 75% fraction — not a hardware read.
+ * derive/report.js answers via the usable fraction (two-thirds up to 36 GB,
+ * three-quarters above), not a hardware read.
  *
  * `sysctl hw.memsize` is exact bytes and present on every Mac with no
  * entitlements required, so it is the ground truth; system_profiler is captured

@@ -14,8 +14,8 @@
 // remembered to copy. Nothing here is written by hand any more.
 //
 //   source      opensourcesai.com lib/checker-engine.js
-//   sha256      3c69705bd05b74b25cb94cadc1247d7991ec1a0bc72bf2a6bbffba08157e4870
-//   copied      2026-10-30
+//   sha256      b75fdd48bb21d1e999dcb4b38aa9cc3b1fe922184a52c709ac49285e0019f711
+//   copied      2026-11-01
 //   regenerate  node scripts/sync-from-website.mjs ../opensourcesai.com
 //
 // The digest covers everything below the marker — the upstream bytes, LF-normalized —
@@ -202,6 +202,16 @@ export function scoreModel(model, vramGb, systemRamGb, workflow, preference = 'b
   return Math.max(0, Math.min(100, score));
 }
 
+// The name a row's quantization goes by. A row whose file is not its slot's
+// quantization carries `label`, taken from the Ollama registry's file_type (a
+// Q4_0 file in the q4_k_m slot, a BF16 file in fp16), and is called that
+// everywhere, so the Checker never says Q4_K_M for a Q4_0 file.
+const SLOT_LABELS = { fp16: 'FP16', q8_0: 'Q8_0', q4_k_m: 'Q4_K_M' };
+
+export function quantLabelFor(model, quant) {
+  return model?.quantizations?.[quant]?.label ?? SLOT_LABELS[quant] ?? quant;
+}
+
 export function buildRationale(model, quant, vramGb, systemRamGb, workflow) {
   if (!quant) {
     const minNeeded = model.quantizations.q4_k_m?.vramGb ?? model.quantizations.q8_0?.vramGb ?? 0;
@@ -214,7 +224,7 @@ export function buildRationale(model, quant, vramGb, systemRamGb, workflow) {
 
   const required = fitRequirementGb(model.quantizations[quant].vramGb);
   const fit = gradeVramFit(vramGb, required, systemRamGb);
-  const quantLabel = { fp16: 'FP16', q8_0: 'Q8_0', q4_k_m: 'Q4_K_M' }[quant];
+  const quantLabel = quantLabelFor(model, quant);
 
   // Sparse-MoE offload honesty (#451): a dense model offloaded to system RAM
   // pays for every weight per token — 1–5 tokens/s is the honest dense story. A

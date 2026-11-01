@@ -243,7 +243,8 @@ test("each real machine grades against the right memory basis", async () => {
   const macos = buildReport(await load("fixtures", "macos-m1-8gb.json"));
   const macHw = resolveGradingHardware(macos);
   assert.equal(macHw.basis, "apple-unified-usable");
-  assert.equal(macHw.vramGb, 6, "must grade against usable 6 GB, not the 8 GB sticker figure");
+  // Two-thirds of 8 GB to one decimal (the website measured it on its own M1, rev 266).
+  assert.equal(macHw.vramGb, 5.3, "must grade against usable 5.3 GB, not the 8 GB sticker figure");
 
   // The consequence, stated as an assertion: the 8 GB Mac must be graded more
   // conservatively than a 10 GB discrete card, which is the entire reason the

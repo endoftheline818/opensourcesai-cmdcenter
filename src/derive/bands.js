@@ -74,14 +74,37 @@ export function memoryBand(value) {
 }
 
 // Apple Silicon shares ONE unified-memory pool between CPU, GPU and the rest of
-// the system, and macOS caps how much an AI process may allocate at roughly 75%
-// (Metal's recommendedMaxWorkingSetSize). Usable model memory is therefore
-// materially less than the sticker figure. It is NOT discrete VRAM and NOT 100%
-// of unified memory.
-export const APPLE_USABLE_MEMORY_FRACTION = 0.75;
+// the system, and macOS caps how much an AI process may wire (Metal's
+// recommendedMaxWorkingSetSize). Usable model memory is therefore materially
+// less than the sticker figure. It is NOT discrete VRAM and NOT 100% of unified
+// memory.
+//
+// The cap is not one fraction. An 8 GB MacBook Air M1 measured two-thirds of its
+// pool (5,726,633,984 bytes, 2026-11-01); 64 GB and 128 GB owners report
+// three-quarters. Macs up to APPLE_SMALL_POOL_MAX_GB take the small-pool
+// fraction, larger Macs the large one. The boundary is the community figure,
+// chosen so that if it is wrong for a mid-sized Mac it understates that Mac
+// rather than overstating it. The result is rounded to one decimal so the
+// smallest Macs do not lose a third of a gigabyte (8 GB reads 5.3, not 5).
+export const APPLE_USABLE_MEMORY_FRACTION_SMALL = 2 / 3;
+export const APPLE_USABLE_MEMORY_FRACTION_LARGE = 0.75;
+export const APPLE_SMALL_POOL_MAX_GB = 36;
+
+export function appleUsableMemoryFraction(totalGb) {
+  const n = Number(totalGb);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n <= APPLE_SMALL_POOL_MAX_GB
+    ? APPLE_USABLE_MEMORY_FRACTION_SMALL
+    : APPLE_USABLE_MEMORY_FRACTION_LARGE;
+}
+
+// The fraction as a whole-number percentage for copy: 67 or 75 (0 when invalid).
+export function appleUsableMemoryPercent(totalGb) {
+  return Math.round(appleUsableMemoryFraction(totalGb) * 100);
+}
 
 export function appleUsableMemoryGb(totalGb) {
   const n = Number(totalGb);
   if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.round(n * APPLE_USABLE_MEMORY_FRACTION);
+  return Math.round(n * appleUsableMemoryFraction(n) * 10) / 10;
 }

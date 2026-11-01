@@ -164,10 +164,15 @@ async function syncBandsParity() {
     ...stamp({ modules: ["src/lib/hardwareTelemetry.js", "src/lib/appleMemory.js"] }),
     GPU_VENDORS: telemetry.GPU_VENDORS,
     MEMORY_BANDS: telemetry.MEMORY_BANDS,
-    APPLE_USABLE_MEMORY_FRACTION: apple.APPLE_USABLE_MEMORY_FRACTION,
+    APPLE_USABLE_MEMORY_FRACTION_SMALL: apple.APPLE_USABLE_MEMORY_FRACTION_SMALL,
+    APPLE_USABLE_MEMORY_FRACTION_LARGE: apple.APPLE_USABLE_MEMORY_FRACTION_LARGE,
+    APPLE_SMALL_POOL_MAX_GB: apple.APPLE_SMALL_POOL_MAX_GB,
     memoryBand: Object.fromEntries(probes.map((p) => [String(p), telemetry.memoryBand(p)])),
     appleUsableMemoryGb: Object.fromEntries(
       [8, 16, 24, 32, 36, 48, 64, 128].map((p) => [String(p), apple.appleUsableMemoryGb(p)]),
+    ),
+    appleUsableMemoryPercent: Object.fromEntries(
+      [8, 16, 24, 32, 36, 48, 64, 128].map((p) => [String(p), apple.appleUsableMemoryPercent(p)]),
     ),
     gpuVendorClass: Object.fromEntries(
       vendors.map((v) => [String(v), telemetry.gpuVendorClass(v)]),
