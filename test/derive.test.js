@@ -62,12 +62,14 @@ test("macos: capacity is banded from usable memory, not the sticker total", asyn
   assert.equal(report.gpu, null, "Apple Silicon has no discrete GPU to report");
 
   assert.equal(report.appleMemory.totalMemoryGb, 8);
-  assert.equal(report.appleMemory.usableModelMemoryGb, 6);
+  // Two-thirds of 8 GB, as the lab's own M1 measured (website rev 266), to one decimal.
+  assert.equal(report.appleMemory.usableModelMemoryGb, 5.3);
+  assert.equal(report.appleMemory.usableFraction, 2 / 3);
   assert.equal(report.appleMemory.sourcesAgree, true);
 
   // The finding this encodes: banding the 8 GB total would give "8-11" and
-  // overstate what the machine can actually load. macOS withholds ~25%, so the
-  // honest band is a full tier lower.
+  // overstate what the machine can actually load. macOS withholds a third of an
+  // 8 GB pool, so the honest band is a full tier lower.
   assert.equal(report.exportable.vram_band, "lt-8");
   assert.notEqual(report.exportable.vram_band, "8-11");
   assert.equal(report.exportable.gpu_vendor, "apple");

@@ -2,7 +2,7 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-10-30",
+    "generatedAt": "2026-11-01",
     "modules": [
       "lib/checker-engine.js"
     ]
@@ -11,7 +11,7 @@
     "file": "src/derive/checker-engine.generated.js",
     "sourceModule": "lib/checker-engine.js",
     "algorithm": "sha256",
-    "sha256": "3c69705bd05b74b25cb94cadc1247d7991ec1a0bc72bf2a6bbffba08157e4870",
+    "sha256": "b75fdd48bb21d1e999dcb4b38aa9cc3b1fe922184a52c709ac49285e0019f711",
     "note": "Digest of the upstream file, LF-normalized — i.e. of everything below the @generated:begin-verbatim marker in the copy. Recomputed by test/fit.test.js."
   },
   "RUNTIME_OVERHEAD_GB": 1.5,

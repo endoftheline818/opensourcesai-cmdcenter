@@ -2,7 +2,7 @@
   "source": {
     "repository": "opensourcesai.com",
     "generatedBy": "scripts/sync-from-website.mjs",
-    "generatedAt": "2026-10-30",
+    "generatedAt": "2026-11-01",
     "modules": [
       "src/data/checker-models.json",
       "src/data/ollama-registry.json"

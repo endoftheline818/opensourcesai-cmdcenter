@@ -10,10 +10,14 @@ export {
   REPORT_CONTRACT_VERSION,
 } from "./version.js";
 export {
-  APPLE_USABLE_MEMORY_FRACTION,
+  APPLE_SMALL_POOL_MAX_GB,
+  APPLE_USABLE_MEMORY_FRACTION_LARGE,
+  APPLE_USABLE_MEMORY_FRACTION_SMALL,
   GPU_VENDORS,
   MEMORY_BANDS,
+  appleUsableMemoryFraction,
   appleUsableMemoryGb,
+  appleUsableMemoryPercent,
   gpuVendorClass,
   memoryBand,
 } from "./derive/bands.js";

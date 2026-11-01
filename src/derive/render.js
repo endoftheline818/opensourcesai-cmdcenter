@@ -27,7 +27,7 @@ export function renderReport(report) {
     lines.push(
       label(
         "usable for models",
-        `${report.appleMemory.usableModelMemoryGb} GB  (${report.appleMemory.usableFraction * 100}% — macOS reserves the rest)`,
+        `${report.appleMemory.usableModelMemoryGb} GB  (${Math.round(report.appleMemory.usableFraction * 100)}%, macOS reserves the rest)`,
       ),
     );
     if (report.appleMemory.sourcesAgree != null) {

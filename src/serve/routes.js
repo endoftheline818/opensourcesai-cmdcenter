@@ -26,7 +26,8 @@ export const TELEMETRY_MIN_INTERVAL_MS = 900;
  *
  * This is the ONLY place the platform rules are applied, so the dashboard and
  * any future consumer cannot disagree about them:
- *   - Apple Silicon grades against USABLE unified memory (75%), not the total.
+ *   - Apple Silicon grades against USABLE unified memory (two-thirds up to 36 GB,
+ *     three-quarters above), not the total.
  *   - Everything else grades against NAMEPLATE VRAM, not the raw reported value,
  *     because vendors report just under nameplate and the raw figure crosses
  *     tier boundaries downward.
@@ -39,7 +40,7 @@ export function resolveGradingHardware(report) {
       vramGb: report.appleMemory.usableModelMemoryGb,
       systemRamGb,
       basis: "apple-unified-usable",
-      note: `Graded against ${report.appleMemory.usableModelMemoryGb} GB of usable unified memory (${report.appleMemory.usableFraction * 100}% of ${report.appleMemory.totalMemoryGb} GB — macOS reserves the rest).`,
+      note: `Graded against ${report.appleMemory.usableModelMemoryGb} GB of usable unified memory (${Math.round(report.appleMemory.usableFraction * 100)}% of ${report.appleMemory.totalMemoryGb} GB, macOS reserves the rest).`,
     };
   }
   if (report.gpu) {

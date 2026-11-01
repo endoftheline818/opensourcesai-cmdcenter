@@ -217,7 +217,8 @@ test("apple fixture grades against usable memory end to end", async () => {
   await withServer(async ({ get }) => {
     const body = await (await get("/api/dashboard")).json();
     assert.equal(body.hardware.basis, "apple-unified-usable");
-    assert.equal(body.hardware.vramGb, 6);
+    assert.equal(body.hardware.vramGb, 5.3);
+    assert.match(body.hardware.note, /67% of 8 GB/);
     assert.match(body.hardware.note, /usable unified memory/);
   }, { capture });
 });

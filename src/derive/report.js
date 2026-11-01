@@ -16,7 +16,7 @@
 
 import { REPORT_CONTRACT_VERSION } from "../version.js";
 import { nameplateGb, toGb, toGib } from "../units.js";
-import { appleUsableMemoryGb, gpuVendorClass, memoryBand, APPLE_USABLE_MEMORY_FRACTION } from "./bands.js";
+import { appleUsableMemoryFraction, appleUsableMemoryGb, gpuVendorClass, memoryBand } from "./bands.js";
 import { collectClaims, corroboration, findDisagreements, selectPrimaryGpu } from "./vram.js";
 
 function buildAppleMemory(capture) {
@@ -36,10 +36,11 @@ function buildAppleMemory(capture) {
     chip: typeof macos.chip === "string" ? macos.chip : null,
     totalMemoryGb: totalGb,
     // The figure that actually governs what fits. Banding the sticker total
-    // instead would overstate capacity by the 25% macOS withholds — on a base
-    // 8 GB Mac that is the difference between the lt-8 and 8-11 tiers.
+    // instead would overstate capacity by the share macOS withholds (a third on
+    // a base 8 GB Mac), which is the difference between the lt-8 and 8-11 tiers.
     usableModelMemoryGb: usableGb,
-    usableFraction: APPLE_USABLE_MEMORY_FRACTION,
+    // Two-thirds up to 36 GB, three-quarters above (see bands.js).
+    usableFraction: appleUsableMemoryFraction(totalGb),
     sourcesAgree,
   };
 }
