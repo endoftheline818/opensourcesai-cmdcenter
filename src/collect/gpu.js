@@ -196,7 +196,51 @@ async function collectMacos() {
     out.systemProfiler = { error: profiler.error };
   }
 
+  // The graphics hardware. Apple Silicon adds nothing here that the memory
+  // figures above do not already say; on an Intel Mac this is the ONLY source
+  // for the GPU at all, and the difference between an integrated chip that
+  // shares system RAM and a discrete AMD card with its own VRAM.
+  const displays = await run("system_profiler", ["SPDisplaysDataType", "-json"], { timeout: 15000 });
+  if (displays.ok) {
+    try {
+      out.displays = extractMacDisplays(JSON.parse(displays.stdout));
+    } catch {
+      out.displays = { error: "unparseable system_profiler json" };
+    }
+  } else {
+    out.displays = { error: displays.error };
+  }
+
   return out;
+}
+
+const stringOrNull = (value) => (typeof value === "string" && value.trim() ? value.trim() : null);
+
+/**
+ * Keep the per-GPU fields of `system_profiler SPDisplaysDataType -json` and
+ * nothing else.
+ *
+ * Deliberately NOT the raw output: each GPU entry nests `spdisplays_ndrvs`, one
+ * record per attached monitor carrying its EDID, product and display IDs and
+ * manufacture date. None of that describes the GPU, and an external monitor's
+ * EDID can carry its serial number, so it never enters a capture.
+ *
+ * The VRAM strings stay as reported ("1536 MB", "4 GB"); derive/vram.js turns
+ * them into bytes. Which key carries the figure is the signal that matters: a
+ * discrete card reports `spdisplays_vram`, while integrated graphics report
+ * `spdisplays_vram_shared`, a slice of system RAM that is not VRAM at all.
+ */
+export function extractMacDisplays(parsed) {
+  const items = parsed?.SPDisplaysDataType;
+  if (!Array.isArray(items)) return [];
+  return items.map((d) => ({
+    model: stringOrNull(d?.sppci_model) ?? stringOrNull(d?._name),
+    vendor: stringOrNull(d?.spdisplays_vendor),
+    bus: stringOrNull(d?.sppci_bus),
+    deviceType: stringOrNull(d?.sppci_device_type),
+    vramRaw: stringOrNull(d?.spdisplays_vram),
+    vramSharedRaw: stringOrNull(d?.spdisplays_vram_shared),
+  }));
 }
 
 export async function collectGpu() {

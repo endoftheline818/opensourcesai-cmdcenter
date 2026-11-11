@@ -4,7 +4,42 @@
 // places where two sources contradict each other, because that is what tells a
 // user (and us) whether the number can be trusted at all.
 
-import { GIB, toGb, toGib } from "../units.js";
+import { GIB, MIB, toGb, toGib } from "../units.js";
+
+/**
+ * Bytes from a system_profiler VRAM string ("1536 MB", "4 GB"), or null.
+ * macOS states these in binary units: the 2015 MacBook Pro's Iris Pro reports
+ * "1536 MB", which is 1.5 GiB.
+ */
+export function parseMacVramBytes(raw) {
+  const match = /^\s*(\d+(?:\.\d+)?)\s*(MB|GB)\s*$/i.exec(raw ?? "");
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!(value > 0)) return null;
+  return Math.round(value * (match[2].toUpperCase() === "GB" ? GIB : MIB));
+}
+
+/**
+ * Discrete GPUs on an Intel Mac: an entry that reports its own VRAM
+ * (`spdisplays_vram`) and is not on the built-in bus. Integrated graphics
+ * report `spdisplays_vram_shared` instead, which is system RAM, and are never
+ * counted. Both conditions are required on purpose: missing a discrete card
+ * grades the Mac as CPU-only, which understates it, while counting a shared
+ * figure as VRAM would overstate it, and only the first is safe.
+ */
+export function macDiscreteGpus(gpu = {}) {
+  const displays = Array.isArray(gpu.macos?.displays) ? gpu.macos.displays : [];
+  return displays
+    .filter((d) => d.bus !== "spdisplays_builtin" && d.vramRaw)
+    .map((d) => ({ name: d.model, vramBytes: parseMacVramBytes(d.vramRaw) }))
+    .filter((d) => d.vramBytes);
+}
+
+/** The first integrated GPU's name on a Mac, for the report's own wording. */
+export function macIntegratedGpuName(gpu = {}) {
+  const displays = Array.isArray(gpu.macos?.displays) ? gpu.macos.displays : [];
+  return displays.find((d) => d.bus === "spdisplays_builtin" && !d.vramRaw)?.model ?? null;
+}
 
 // Tolerance is applied in BYTES, never in a converted unit. The original spike
 // used a 5% window purely to paper over its own GiB-vs-GB confusion; with units
@@ -58,6 +93,10 @@ export function collectClaims(gpu = {}) {
     }
   }
 
+  for (const g of macDiscreteGpus(gpu)) {
+    claims.push({ source: "system_profiler", name: g.name, vramBytes: g.vramBytes });
+  }
+
   return claims;
 }
 
@@ -102,6 +141,8 @@ export function findDisagreements(claims) {
  *   2. display-class registry — 64-bit and vendor-neutral. Verified equal to
  *      nvidia-smi on NVIDIA; unproven on AMD/Intel, so it ranks second.
  *   3. amdgpu sysfs — kernel-reported, but only present for AMD.
+ *   4. system_profiler on an Intel Mac — the only source macOS offers, so it
+ *      is never corroborated. The largest discrete card wins.
  * Win32_VideoController.AdapterRAM is never selected: it saturates at 4 GiB.
  */
 export function selectPrimaryGpu(gpu = {}) {
@@ -120,6 +161,11 @@ export function selectPrimaryGpu(gpu = {}) {
   const sysfs = Array.isArray(gpu.linux?.sysfsDrm) ? gpu.linux.sysfsDrm[0] : null;
   if (sysfs?.vramBytes) {
     return { name: sysfs.card, vramBytes: sysfs.vramBytes, source: `sysfs ${sysfs.card}` };
+  }
+
+  const mac = macDiscreteGpus(gpu).sort((a, b) => b.vramBytes - a.vramBytes)[0];
+  if (mac) {
+    return { name: mac.name, vramBytes: mac.vramBytes, source: "system_profiler" };
   }
 
   return null;
