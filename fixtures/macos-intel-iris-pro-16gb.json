@@ -1,0 +1,120 @@
+{
+  "captureSchemaVersion": 1,
+  "capturedAt": "2026-11-11T01:33:28.166Z",
+  "platform": {
+    "nodePlatform": "darwin",
+    "nodeArch": "x64",
+    "nodeVersion": "v24.22.2",
+    "osRelease": "24.5.0"
+  },
+  "system": {
+    "cpu": {
+      "nodeOsCpus": {
+        "model": "Intel(R) Core(TM) i7-4770HQ CPU @ 2.20GHz",
+        "logicalCount": 8
+      }
+    },
+    "memory": {
+      "nodeTotalmem": {
+        "bytes": 17179869184
+      }
+    }
+  },
+  "gpu": {
+    "nvidiaSmi": {
+      "available": false,
+      "reason": "not-found"
+    },
+    "macos": {
+      "sysctlHwMemsize": {
+        "totalBytes": 17179869184
+      },
+      "chip": "Intel(R) Core(TM) i7-4770HQ CPU @ 2.20GHz",
+      "systemProfiler": {
+        "physicalMemoryRaw": "16 GB",
+        "parsedGb": 16
+      },
+      "displays": [
+        {
+          "model": "Intel Iris Pro",
+          "vendor": "Intel",
+          "bus": "spdisplays_builtin",
+          "deviceType": "spdisplays_gpu",
+          "vramRaw": null,
+          "vramSharedRaw": "1536 MB"
+        }
+      ]
+    }
+  },
+  "ollama": {
+    "host": "http://127.0.0.1:11434",
+    "binaryPath": null,
+    "cliVersion": null,
+    "apiReachable": false,
+    "apiVersion": null,
+    "apiError": "fetch failed",
+    "installedModels": null,
+    "loadedModels": null,
+    "modelStore": {
+      "path": "/Users/<USER>/.ollama/models",
+      "fromEnv": false,
+      "exists": false,
+      "diskError": "ENOENT: no such file or directory, statfs '/Users/<USER>/.ollama/models'"
+    }
+  },
+  "tools": {
+    "mcpClients": [
+      {
+        "client": "Claude Desktop",
+        "present": false,
+        "servers": []
+      },
+      {
+        "client": "Claude Code",
+        "present": false,
+        "servers": []
+      },
+      {
+        "client": "Cursor",
+        "present": false,
+        "servers": []
+      },
+      {
+        "client": "Windsurf",
+        "present": false,
+        "servers": []
+      },
+      {
+        "client": "VS Code (Continue)",
+        "present": false,
+        "servers": []
+      }
+    ],
+    "tools": [
+      {
+        "name": "Ollama",
+        "installed": false
+      },
+      {
+        "name": "LM Studio",
+        "installed": false
+      },
+      {
+        "name": "Jan",
+        "installed": false
+      },
+      {
+        "name": "ComfyUI",
+        "installed": false
+      }
+    ],
+    "commandResolution": {},
+    "note": "Detection covers well-known install locations only. A tool installed elsewhere will not appear here."
+  },
+  "redactions": {
+    "rulesApplied": [
+      "macos-home"
+    ],
+    "note": "Home-directory paths replaced with <USER>. No other field was altered."
+  }
+}

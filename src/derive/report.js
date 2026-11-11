@@ -17,7 +17,7 @@
 import { REPORT_CONTRACT_VERSION } from "../version.js";
 import { nameplateGb, toGb, toGib } from "../units.js";
 import { appleUsableMemoryFraction, appleUsableMemoryGb, gpuVendorClass, memoryBand } from "./bands.js";
-import { collectClaims, corroboration, findDisagreements, selectPrimaryGpu } from "./vram.js";
+import { collectClaims, corroboration, findDisagreements, macIntegratedGpuName, selectPrimaryGpu } from "./vram.js";
 
 /**
  * Is this capture from Apple Silicon, as opposed to any Mac?
@@ -141,11 +141,25 @@ function buildLimits(capture, { apple, primary, corroborated }) {
     limits.push("No discrete-GPU VRAM figure available from any source on this machine.");
   }
   if (isIntelMac(capture) && !primary) {
-    limits.push(
-      "Intel Mac: memory is ordinary system RAM, not Apple unified memory, and this tool does not " +
-        "read the Mac's graphics card, so everything is graded as CPU/RAM offload. A Mac with a " +
-        "discrete AMD GPU can do better than that on models that fit its VRAM.",
-    );
+    const displaysRead = Array.isArray(capture.gpu?.macos?.displays);
+    const integrated = macIntegratedGpuName(capture.gpu);
+    if (integrated) {
+      limits.push(
+        `Intel Mac: the only graphics found is ${integrated}, integrated graphics that share system ` +
+          "RAM rather than having VRAM of their own, so everything is graded as CPU/RAM offload.",
+      );
+    } else if (displaysRead) {
+      limits.push(
+        "Intel Mac: system_profiler reported no graphics with VRAM of their own, so everything is " +
+          "graded as CPU/RAM offload.",
+      );
+    } else {
+      limits.push(
+        "Intel Mac: memory is ordinary system RAM, not Apple unified memory, and the Mac's graphics " +
+          "card could not be read, so everything is graded as CPU/RAM offload. A Mac with a " +
+          "discrete AMD GPU can do better than that on models that fit its VRAM.",
+      );
+    }
   }
   if (primary && corroborated.independentSources < 2) {
     limits.push(
