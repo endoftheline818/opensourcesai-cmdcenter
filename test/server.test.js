@@ -222,3 +222,13 @@ test("apple fixture grades against usable memory end to end", async () => {
     assert.match(body.hardware.note, /usable unified memory/);
   }, { capture });
 });
+
+test("intel mac fixture grades as CPU/RAM offload, not unified memory", async () => {
+  const capture = await load("fixtures", "macos-intel-16gb.json");
+  await withServer(async ({ get }) => {
+    const body = await (await get("/api/dashboard")).json();
+    assert.equal(body.hardware.basis, "cpu-only");
+    assert.equal(body.hardware.vramGb, 0);
+    assert.doesNotMatch(body.hardware.note, /unified memory/);
+  }, { capture });
+});
