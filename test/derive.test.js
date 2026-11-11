@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { buildReport } from "../src/derive/report.js";
+import { buildReport, isAppleSiliconCapture } from "../src/derive/report.js";
 import { renderReport } from "../src/derive/render.js";
 import { CAPTURE_SCHEMA_VERSION } from "../src/version.js";
 import { MEMORY_BANDS, GPU_VENDORS } from "../src/derive/bands.js";
@@ -75,6 +75,50 @@ test("macos: capacity is banded from usable memory, not the sticker total", asyn
   assert.equal(report.exportable.gpu_vendor, "apple");
 });
 
+// AN INTEL MAC IS NOT APPLE SILICON. Every Mac reports hw.memsize, and 0.4.0
+// treated that as unified memory on any Mac: this real capture from a 2015
+// MacBook Pro (i7-4770HQ, 16 GB, Iris Pro) printed "APPLE UNIFIED MEMORY",
+// exported an 8-11 GB band beside an "intel" vendor, and the dashboard graded
+// models against 10.7 GB of GPU memory the machine does not have.
+test("macos intel: system RAM is not graded as unified memory", async () => {
+  const report = buildReport(await fixture("macos-intel-16gb"));
+
+  assert.equal(report.platform.os, "darwin");
+  assert.equal(report.appleMemory, null, "an Intel Mac has no unified memory to report");
+  assert.equal(report.gpu, null);
+
+  assert.notEqual(report.exportable.vram_band, "8-11", "the 0.4.0 defect: 16 GB of RAM banded as GPU memory");
+  assert.equal(report.exportable.vram_band, "unknown");
+  assert.notEqual(report.exportable.gpu_vendor, "apple");
+  assert.equal(report.exportable.ram_band, "16-23", "the RAM itself is still reported");
+
+  assert.ok(
+    report.limits.some((l) => /^Intel Mac:/.test(l)),
+    "the report must say why nothing is graded on the GPU",
+  );
+  assert.doesNotMatch(renderReport(report), /APPLE UNIFIED MEMORY/);
+});
+
+test("apple silicon is decided by the chip, and by the architecture only without one", () => {
+  const mac = (chip, nodeArch) => ({ platform: { nodeArch }, gpu: { macos: { chip } } });
+
+  assert.equal(isAppleSiliconCapture(mac("Apple M1", "arm64")), true);
+  assert.equal(isAppleSiliconCapture(mac("Apple M4 Max", "arm64")), true);
+  // x64 Node under Rosetta on Apple Silicon: still Apple hardware.
+  assert.equal(isAppleSiliconCapture(mac("VirtualApple @ 2.50GHz processor", "x64")), true);
+  assert.equal(isAppleSiliconCapture(mac("Apple M2", "x64")), true);
+  assert.equal(isAppleSiliconCapture(mac("Intel(R) Core(TM) i7-4770HQ CPU @ 2.20GHz", "x64")), false);
+  assert.equal(isAppleSiliconCapture(mac("Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz", "x64")), false);
+
+  // The chip read failed: only an arm64 build is taken as Apple Silicon.
+  assert.equal(isAppleSiliconCapture(mac({ error: "timeout" }, "arm64")), true);
+  assert.equal(isAppleSiliconCapture(mac({ error: "timeout" }, "x64")), false);
+  assert.equal(isAppleSiliconCapture(mac("", "x64")), false);
+
+  // Not a Mac at all.
+  assert.equal(isAppleSiliconCapture({ platform: { nodeArch: "arm64" }, gpu: {} }), false);
+});
+
 test("every fixture produces a contract-valid, privacy-safe report", async () => {
   // Selected by SHAPE, not by filename prefix: a capture declares its own
   // captureSchemaVersion, parity pins (website-*, bench-*) declare a source
@@ -116,7 +160,7 @@ test("every fixture produces a contract-valid, privacy-safe report", async () =>
 // INVARIANT 2 (determinism): same capture in, same report out. If anything in
 // derive reached for a clock or a random source this would flake.
 test("report construction is deterministic", async () => {
-  for (const name of ["windows-rtx-4070-ti", "linux-rtx-3080", "macos-m1-8gb"]) {
+  for (const name of ["windows-rtx-4070-ti", "linux-rtx-3080", "macos-m1-8gb", "macos-intel-16gb"]) {
     const capture = await fixture(name);
     const a = buildReport(capture, { generatedAt: "2026-01-01T00:00:00.000Z" });
     const b = buildReport(capture, { generatedAt: "2026-01-01T00:00:00.000Z" });

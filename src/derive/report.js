@@ -19,7 +19,35 @@ import { nameplateGb, toGb, toGib } from "../units.js";
 import { appleUsableMemoryFraction, appleUsableMemoryGb, gpuVendorClass, memoryBand } from "./bands.js";
 import { collectClaims, corroboration, findDisagreements, selectPrimaryGpu } from "./vram.js";
 
+/**
+ * Is this capture from Apple Silicon, as opposed to any Mac?
+ *
+ * collect/gpu.js runs the macOS collector on every Mac, and `hw.memsize` is
+ * present on all of them. Only Apple Silicon shares that pool with its GPU. On
+ * an Intel Mac the same figure is ordinary system RAM, and treating it as
+ * unified memory graded a 16 GB Haswell MacBook Pro as if it had 10.7 GB of
+ * GPU memory (found on a real 2015 MacBook Pro, 0.4.0).
+ *
+ * The chip string decides when the capture has one: Apple Silicon reports
+ * "Apple M1" and so on, and under Rosetta the x86 view of the same chip still
+ * names Apple ("VirtualApple" on early releases), while every Intel Mac
+ * reports an "Intel(R) Core(TM) ..." string. Only when that read failed does
+ * the Node architecture decide, and then only arm64 counts.
+ */
+export function isAppleSiliconCapture(capture) {
+  const macos = capture.gpu?.macos;
+  if (!macos) return false;
+  if (typeof macos.chip === "string" && macos.chip.trim()) return /apple/i.test(macos.chip);
+  return capture.platform?.nodeArch === "arm64";
+}
+
+/** A Mac that is not Apple Silicon: its memory is system RAM, not unified. */
+function isIntelMac(capture) {
+  return Boolean(capture.gpu?.macos) && !isAppleSiliconCapture(capture);
+}
+
 function buildAppleMemory(capture) {
+  if (!isAppleSiliconCapture(capture)) return null;
   const macos = capture.gpu?.macos;
   const totalBytes = macos?.sysctlHwMemsize?.totalBytes;
   if (!totalBytes) return null;
@@ -111,6 +139,13 @@ function buildLimits(capture, { apple, primary, corroborated }) {
 
   if (!apple && !primary) {
     limits.push("No discrete-GPU VRAM figure available from any source on this machine.");
+  }
+  if (isIntelMac(capture) && !primary) {
+    limits.push(
+      "Intel Mac: memory is ordinary system RAM, not Apple unified memory, and this tool does not " +
+        "read the Mac's graphics card, so everything is graded as CPU/RAM offload. A Mac with a " +
+        "discrete AMD GPU can do better than that on models that fit its VRAM.",
+    );
   }
   if (primary && corroborated.independentSources < 2) {
     limits.push(
