@@ -160,7 +160,7 @@ test("every fixture produces a contract-valid, privacy-safe report", async () =>
 // INVARIANT 2 (determinism): same capture in, same report out. If anything in
 // derive reached for a clock or a random source this would flake.
 test("report construction is deterministic", async () => {
-  for (const name of ["windows-rtx-4070-ti", "linux-rtx-3080", "macos-m1-8gb", "macos-intel-16gb"]) {
+  for (const name of ["windows-rtx-4070-ti", "linux-rtx-3080", "macos-m1-8gb", "macos-intel-16gb", "macos-intel-iris-pro-16gb"]) {
     const capture = await fixture(name);
     const a = buildReport(capture, { generatedAt: "2026-01-01T00:00:00.000Z" });
     const b = buildReport(capture, { generatedAt: "2026-01-01T00:00:00.000Z" });
